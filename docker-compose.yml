@@ -8,10 +8,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-appointment}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       POSTGRES_DB: ${POSTGRES_DB:-appointment_booking}
-    ports:
-      - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - appointment_pg_data:/var/lib/postgresql/data
       - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appointment} -d ${POSTGRES_DB:-appointment_booking}"]
@@ -34,8 +32,6 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-appointment}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-appointment_booking}
       JWT_SECRET: ${JWT_SECRET:-appointment-booking-jwt-secret-dev-only-change-in-production}
-    ports:
-      - "5000:5000"
     networks:
       - appointment_network
 
@@ -43,18 +39,18 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: http://localhost
+        VITE_API_URL: /api
     container_name: appointment_frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "80:80"
+      - "3001:80"
     networks:
       - appointment_network
 
 volumes:
-  pg_data:
+  appointment_pg_data:
 
 networks:
   appointment_network:

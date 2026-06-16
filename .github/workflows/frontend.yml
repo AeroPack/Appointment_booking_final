@@ -63,5 +63,5 @@ jobs:
             echo "Starting new container..."
             docker run -d --name frontend \
               --network appointment_network \
-              -p 80:80 \
+              -p 3001:80 \
               $IMAGE_NAME:latest
