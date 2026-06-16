@@ -58,7 +58,7 @@ jobs:
             echo "Starting new container..."
             docker run -d --name appointment_booking_backend \
               --network aeropos-backend_default \
-              -p 7680:5000 \
+              -p 7680:3000 \
               -e DATABASE_URL="postgresql://postgres:${{ secrets.DB_PASSWORD }}@new_project_db:5432/appointment_booking" \
               -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
               -e NODE_ENV=production \
