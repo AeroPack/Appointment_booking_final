@@ -1,0 +1,11 @@
+{
+  "createTagSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "updateTagSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "assignTagSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

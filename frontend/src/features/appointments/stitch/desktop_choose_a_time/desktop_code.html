@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Choose a Time - Serene Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#80d5cb",
+                        "primary-fixed": "#9cf2e8",
+                        "status-success": "#16A34A",
+                        "secondary-fixed": "#71f8e4",
+                        "tertiary-container": "#9c573a",
+                        "inverse-on-surface": "#eff1f3",
+                        "surface-container": "#eceef0",
+                        "text-primary": "#0F172A",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#ffdbce",
+                        "surface-variant": "#e0e3e5",
+                        "status-error": "#DC2626",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#370e00",
+                        "on-tertiary-fixed-variant": "#72361b",
+                        "secondary": "#006b5f",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "outline": "#6e7977",
+                        "error": "#ba1a1a",
+                        "on-primary-container": "#a3faef",
+                        "on-secondary-fixed-variant": "#005048",
+                        "surface-bright": "#f7f9fb",
+                        "inverse-surface": "#2d3133",
+                        "surface": "#f7f9fb",
+                        "on-background": "#191c1e",
+                        "secondary-fixed-dim": "#4fdbc8",
+                        "on-surface-variant": "#3e4947",
+                        "status-warning": "#F59E0B",
+                        "surface-tint": "#006a63",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#191c1e",
+                        "on-tertiary": "#ffffff",
+                        "outline-variant": "#bdc9c6",
+                        "surface-container-high": "#e6e8ea",
+                        "on-primary-fixed": "#00201d",
+                        "secondary-container": "#6df5e1",
+                        "on-secondary-fixed": "#00201c",
+                        "background": "#f7f9fb",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f2f4f6",
+                        "on-tertiary-container": "#ffe5db",
+                        "tertiary": "#7f4025",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#00504a",
+                        "surface-container-highest": "#e0e3e5",
+                        "primary-fixed-dim": "#80d5cb",
+                        "primary": "#005c55",
+                        "primary-container": "#0f766e",
+                        "on-secondary-container": "#006f64",
+                        "text-secondary": "#64748B",
+                        "surface-card": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "tap-target-min": "48px",
+                        "stack-lg": "24px",
+                        "base": "4px",
+                        "stack-md": "16px",
+                        "gutter-card": "16px",
+                        "margin-mobile": "20px",
+                        "stack-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .soft-float {
+            box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        .slot-card-active {
+            border-color: #005c55;
+            background-color: #f0fdfa;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-on-surface">
+<!-- TopNavBar -->
+<header class="w-full top-0 sticky z-50 bg-surface border-b border-outline-variant">
+<div class="flex items-center justify-between px-8 h-tap-target-min w-full max-w-7xl mx-auto">
+<div class="flex items-center gap-8">
+<span class="font-headline-md text-headline-md font-bold text-primary">Serene Health</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Home</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-body-md text-body-md" href="#">Appointments</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Family</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Profile</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container rounded-full p-2 transition-colors" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:bg-surface-container rounded-full p-2 transition-colors" data-icon="settings">settings</button>
+<div class="h-8 w-8 rounded-full bg-primary-container flex items-center justify-center overflow-hidden border border-outline-variant">
+<img alt="User profile avatar" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVMW40wnnqzZ5jG55pinITkjoyKaCJR69hvH_m1mvQ1VUXwK0kAz4D6AowSu1KhIL8GnojYS8bSSwDO3gQfJzhYB8UrXc2iwd3o811X-3Doxui_WVAe5-v-_-snaRN0iEbIXpLvTyUIdIn15UYrTXgTCzkmdv_vKiv2xB_WXgiDPwCTMX5VTqs6HUWV27R1KXnSpnh5ENizo_NiEaoJIfgXfKbhp4Sn3QhN_xa_gwnDVLorhY1fCJTeEXaajBmbGoeQeE4x186iRw"/>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-margin-mobile py-stack-lg flex gap-10">
+<!-- SideNavBar - Predicted and Refined for Desktop -->
+<aside class="hidden lg:flex flex-col w-64 shrink-0 gap-6">
+<div class="flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary" data-icon="dashboard">dashboard</span>
+<span class="font-label-lg text-label-lg">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg font-bold" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+<span class="font-label-lg text-label-lg">My Bookings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary" data-icon="group">group</span>
+<span class="font-label-lg text-label-lg">Family Members</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary" data-icon="description">description</span>
+<span class="font-label-lg text-label-lg">Health Records</span>
+</a>
+</div>
+<div class="mt-auto pt-6 border-t border-outline-variant flex flex-col gap-2">
+<button class="w-full bg-primary text-on-primary h-tap-target-min rounded-full font-label-lg text-label-lg hover:brightness-110 active:scale-95 transition-all mb-4">
+                    Emergency Support
+                </button>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-lg text-label-lg">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-lg text-label-lg">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<section class="flex-1 max-w-4xl">
+<div class="mb-stack-lg flex items-center justify-between">
+<div>
+<h1 class="font-headline-xl text-headline-xl text-text-primary mb-1">Choose a Time</h1>
+<p class="font-body-md text-body-md text-text-secondary">Select a preferred slot for your General Consultation with Dr. Aris Thorne.</p>
+</div>
+<div class="hidden md:block">
+<div class="flex items-center gap-2 px-4 py-2 bg-surface-container-low rounded-xl border border-outline-variant">
+<span class="material-symbols-outlined text-primary" data-icon="location_on">location_on</span>
+<span class="font-label-lg text-label-lg">Westside Clinical Center</span>
+</div>
+</div>
+</div>
+<!-- Date Selector Tabs -->
+<div class="flex gap-4 mb-stack-lg overflow-x-auto pb-2 scrollbar-hide">
+<button class="px-8 py-4 bg-primary text-on-primary rounded-xl font-bold flex flex-col items-center min-w-[120px] transition-all hover:brightness-110 shadow-lg shadow-primary/20">
+<span class="font-label-md text-label-md opacity-80">Today</span>
+<span class="font-headline-md text-headline-md">Oct 24</span>
+</button>
+<button class="px-8 py-4 bg-surface-card border border-outline-variant rounded-xl font-medium flex flex-col items-center min-w-[120px] transition-all hover:bg-surface-container-low text-text-secondary">
+<span class="font-label-md text-label-md">Tomorrow</span>
+<span class="font-headline-md text-headline-md text-text-primary">Oct 25</span>
+</button>
+<button class="px-8 py-4 bg-surface-card border border-outline-variant rounded-xl font-medium flex flex-col items-center min-w-[120px] transition-all hover:bg-surface-container-low text-text-secondary">
+<span class="font-label-md text-label-md">Sat</span>
+<span class="font-headline-md text-headline-md text-text-primary">Oct 26</span>
+</button>
+<button class="px-8 py-4 bg-surface-card border border-outline-variant rounded-xl font-medium flex flex-col items-center min-w-[120px] transition-all hover:bg-surface-container-low text-text-secondary">
+<span class="font-label-md text-label-md">Sun</span>
+<span class="font-headline-md text-headline-md text-text-primary">Oct 27</span>
+</button>
+<button class="px-6 flex items-center justify-center bg-surface-container rounded-xl border border-outline-variant hover:bg-surface-container-high transition-all">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+</button>
+</div>
+<!-- Slots Grid -->
+<div class="flex flex-col gap-stack-lg">
+<!-- Morning Section -->
+<div>
+<div class="flex items-center gap-2 mb-stack-md">
+<span class="material-symbols-outlined text-status-warning" data-icon="light_mode">light_mode</span>
+<h2 class="font-headline-md text-headline-md text-text-primary">Morning Slots</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-stack-md">
+<!-- Active Slot -->
+<div class="bg-surface-card p-stack-md rounded-xl border-2 border-primary soft-float cursor-pointer relative transition-all group hover:shadow-md" onclick="selectSlot(this)">
+<div class="flex justify-between items-start mb-2">
+<span class="font-headline-md text-headline-md text-primary font-bold">09:00 AM</span>
+<span class="material-symbols-outlined text-primary" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-secondary mb-3">Westside Clinical</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 40%"></div>
+</div>
+<span class="font-label-md text-label-md text-text-secondary">4/10 booked</span>
+</div>
+</div>
+<!-- Available Slot -->
+<div class="bg-surface-card p-stack-md rounded-xl border border-outline-variant soft-float cursor-pointer transition-all hover:border-primary/50 group hover:shadow-md" onclick="selectSlot(this)">
+<div class="flex justify-between items-start mb-2">
+<span class="font-headline-md text-headline-md text-text-primary font-semibold">10:30 AM</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-secondary mb-3">Westside Clinical</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 70%"></div>
+</div>
+<span class="font-label-md text-label-md text-text-secondary">7/10 booked</span>
+</div>
+</div>
+<!-- Disabled Slot (Full) -->
+<div class="bg-surface-container-low p-stack-md rounded-xl border border-outline-variant opacity-60 cursor-not-allowed">
+<div class="flex justify-between items-start mb-2">
+<span class="font-headline-md text-headline-md text-text-secondary font-semibold line-through">11:45 AM</span>
+<span class="px-2 py-0.5 bg-error-container text-on-error-container text-[10px] rounded uppercase font-bold">Full</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-secondary mb-3">Westside Clinical</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-outline-variant rounded-full overflow-hidden">
+<div class="h-full bg-status-error rounded-full" style="width: 100%"></div>
+</div>
+<span class="font-label-md text-label-md text-status-error font-bold">10/10 booked</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Evening Section -->
+<div>
+<div class="flex items-center gap-2 mb-stack-md">
+<span class="material-symbols-outlined text-primary" data-icon="dark_mode">dark_mode</span>
+<h2 class="font-headline-md text-headline-md text-text-primary">Evening Slots</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-stack-md">
+<!-- Available Slot -->
+<div class="bg-surface-card p-stack-md rounded-xl border border-outline-variant soft-float cursor-pointer transition-all hover:border-primary/50 group hover:shadow-md" onclick="selectSlot(this)">
+<div class="flex justify-between items-start mb-2">
+<span class="font-headline-md text-headline-md text-text-primary font-semibold">02:15 PM</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-secondary mb-3">Westside Clinical</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 20%"></div>
+</div>
+<span class="font-label-md text-label-md text-text-secondary">2/10 booked</span>
+</div>
+</div>
+<!-- Available Slot -->
+<div class="bg-surface-card p-stack-md rounded-xl border border-outline-variant soft-float cursor-pointer transition-all hover:border-primary/50 group hover:shadow-md" onclick="selectSlot(this)">
+<div class="flex justify-between items-start mb-2">
+<span class="font-headline-md text-headline-md text-text-primary font-semibold">04:30 PM</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-secondary mb-3">Westside Clinical</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 50%"></div>
+</div>
+<span class="font-label-md text-label-md text-text-secondary">5/10 booked</span>
+</div>
+</div>
+<!-- Available Slot -->
+<div class="bg-surface-card p-stack-md rounded-xl border border-outline-variant soft-float cursor-pointer transition-all hover:border-primary/50 group hover:shadow-md" onclick="selectSlot(this)">
+<div class="flex justify-between items-start mb-2">
+<span class="font-headline-md text-headline-md text-text-primary font-semibold">06:00 PM</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-secondary mb-3">Westside Clinical</p>
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 90%"></div>
+</div>
+<span class="font-label-md text-label-md text-status-warning font-bold">9/10 booked</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="mt-8 p-6 bg-surface-container-lowest rounded-2xl border border-outline-variant flex flex-col md:flex-row items-center justify-between gap-6 soft-float">
+<div class="flex items-center gap-4">
+<div class="h-14 w-14 rounded-full overflow-hidden border-2 border-primary p-0.5">
+<img alt="Doctor profile" class="w-full h-full object-cover rounded-full" data-alt="A professional close-up portrait of a middle-aged male doctor with kind eyes and a welcoming smile. He wears a clean white medical coat over a professional blue shirt. The lighting is soft and natural, coming from a large window in a high-end, minimalist clinical office setting. The overall mood is clinical, trustworthy, and serene, using the brand's teal and slate-blue color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCR-yeDdMhp6gwZZqe4EI_mecykeAeOhxrLf31qYGVO7NiRcNlNkGkZt1Y3Mpxh1WN5lWg8jBKyLEfYKpiSCZeOAy0D4EheVzgSsGB-3xfX0QHvJbLNf4z6Z9DQK8wYTa6_u90XpdaIJmjlOd5y5wQ3NPvK-DsLmvVdvbQraY2MDPf84OKfJR-p_PctRuNt59ywZuNgqzm_aMH5AZPCOLOhQXAVh3JrKEPzySa_obtW4PUMIm3H-Av_GT5LsXcZ-N8Iw3OLQBJhqlo"/>
+</div>
+<div>
+<p class="font-headline-md text-headline-md text-text-primary">Dr. Aris Thorne</p>
+<p class="font-body-md text-body-md text-text-secondary">General Practitioner • 15 min session</p>
+</div>
+</div>
+<div class="flex items-center gap-4 w-full md:w-auto">
+<button class="flex-1 md:flex-none px-10 h-tap-target-min border border-outline rounded-full font-label-lg text-label-lg text-text-primary hover:bg-surface-container transition-all active:scale-95">
+                            Back
+                        </button>
+<button class="flex-1 md:flex-none px-12 h-tap-target-min bg-primary text-on-primary rounded-full font-label-lg text-label-lg hover:brightness-110 shadow-lg shadow-primary/30 active:scale-95 transition-all">
+                            Confirm Appointment
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Side: Mini Summary (Bento Style) -->
+<aside class="hidden xl:flex flex-col gap-6 w-80 shrink-0">
+<div class="bg-surface-card p-6 rounded-2xl border border-outline-variant soft-float flex flex-col gap-4">
+<h3 class="font-headline-md text-headline-md text-text-primary">Booking Details</h3>
+<div class="flex flex-col gap-3">
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="event">event</span>
+<div>
+<p class="font-label-lg text-label-lg text-text-primary">Monday, Oct 24, 2024</p>
+<p class="font-label-md text-label-md text-text-secondary">Selected Date</p>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="schedule">schedule</span>
+<div>
+<p class="font-label-lg text-label-lg text-text-primary" id="summary-time">09:00 AM</p>
+<p class="font-label-md text-label-md text-text-secondary">Selected Time Slot</p>
+</div>
+</div>
+<div class="flex items-start gap-3">
+<span class="material-symbols-outlined text-primary mt-1" data-icon="medical_services">medical_services</span>
+<div>
+<p class="font-label-lg text-label-lg text-text-primary">General Consultation</p>
+<p class="font-label-md text-label-md text-text-secondary">Appointment Type</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface-container-low rounded-xl border border-dashed border-outline">
+<div class="flex justify-between items-center mb-1">
+<span class="font-label-md text-label-md text-text-secondary">Consultation Fee</span>
+<span class="font-label-lg text-label-lg text-text-primary">$45.00</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-label-md text-label-md text-text-secondary">Facility Fee</span>
+<span class="font-label-lg text-label-lg text-text-primary">$5.00</span>
+</div>
+<hr class="my-2 border-outline-variant"/>
+<div class="flex justify-between items-center">
+<span class="font-bold text-text-primary">Total</span>
+<span class="font-bold text-primary">$50.00</span>
+</div>
+</div>
+</div>
+<div class="bg-primary-container/10 p-6 rounded-2xl border border-primary/20 soft-float">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-primary" data-icon="info">info</span>
+<h4 class="font-label-lg text-label-lg text-primary uppercase tracking-wider">Note</h4>
+</div>
+<p class="font-body-md text-body-md text-on-secondary-container">Please arrive 15 minutes prior to your appointment time for pre-consultation vitals.</p>
+</div>
+</aside>
+</main>
+<script>
+        function selectSlot(element) {
+            // Remove active classes from all slot cards
+            document.querySelectorAll('.slot-card-active').forEach(card => {
+                card.classList.remove('slot-card-active', 'border-primary', 'border-2', 'bg-primary/5');
+                card.classList.add('border-outline-variant', 'border');
+                
+                // Remove checkmark if it exists
+                const check = card.querySelector('[data-icon="check_circle"]');
+                if (check) check.remove();
+                
+                // Reset time color
+                card.querySelector('.font-headline-md').classList.remove('text-primary');
+                card.querySelector('.font-headline-md').classList.add('text-text-primary');
+            });
+
+            // Add active styles to clicked element
+            element.classList.remove('border-outline-variant', 'border');
+            element.classList.add('slot-card-active', 'border-primary', 'border-2', 'bg-primary/5');
+            
+            const timeSpan = element.querySelector('.font-headline-md');
+            timeSpan.classList.add('text-primary');
+            timeSpan.classList.remove('text-text-primary');
+
+            // Add checkmark
+            const checkIcon = document.createElement('span');
+            checkIcon.className = 'material-symbols-outlined text-primary';
+            checkIcon.setAttribute('data-icon', 'check_circle');
+            checkIcon.style.fontVariationSettings = "'FILL' 1";
+            checkIcon.innerText = 'check_circle';
+            element.querySelector('.flex').appendChild(checkIcon);
+
+            // Update summary
+            document.getElementById('summary-time').innerText = timeSpan.innerText;
+        }
+
+        // Initialize active slot
+        window.onload = () => {
+            const firstSlot = document.querySelector('.slot-card-active');
+            if(firstSlot) selectSlot(firstSlot);
+        }
+    </script>
+</body></html>

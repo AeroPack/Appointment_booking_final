@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .ticket-perforation {
+            background-image: radial-gradient(circle at 0px 12px, transparent 12px, white 12px);
+            background-size: 100% 24px;
+        }
+        @keyframes success-pop {
+            0% { transform: scale(0.8); opacity: 0; }
+            60% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-success {
+            animation: success-pop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-variant": "#e0e3e5",
+                      "primary-container": "#0f766e",
+                      "primary-fixed-dim": "#80d5cb",
+                      "on-tertiary": "#ffffff",
+                      "tertiary-container": "#9c573a",
+                      "surface-container-highest": "#e0e3e5",
+                      "surface": "#f7f9fb",
+                      "surface-container": "#eceef0",
+                      "on-secondary-container": "#006f64",
+                      "surface-tint": "#006a63",
+                      "surface-container-high": "#e6e8ea",
+                      "primary-fixed": "#9cf2e8",
+                      "error-container": "#ffdad6",
+                      "inverse-primary": "#80d5cb",
+                      "text-primary": "#0F172A",
+                      "surface-container-low": "#f2f4f6",
+                      "on-background": "#191c1e",
+                      "surface-dim": "#d8dadc",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-fixed-dim": "#4fdbc8",
+                      "text-secondary": "#64748B",
+                      "secondary-container": "#6df5e1",
+                      "on-primary": "#ffffff",
+                      "tertiary": "#7f4025",
+                      "on-primary-fixed-variant": "#00504a",
+                      "secondary-fixed": "#71f8e4",
+                      "on-secondary-fixed": "#00201c",
+                      "on-secondary-fixed-variant": "#005048",
+                      "on-tertiary-container": "#ffe5db",
+                      "background": "#f7f9fb",
+                      "on-tertiary-fixed": "#370e00",
+                      "on-surface": "#191c1e",
+                      "on-error-container": "#93000a",
+                      "error": "#ba1a1a",
+                      "on-primary-container": "#a3faef",
+                      "surface-card": "#FFFFFF",
+                      "status-success": "#16A34A",
+                      "status-warning": "#F59E0B",
+                      "outline-variant": "#bdc9c6",
+                      "inverse-on-surface": "#eff1f3",
+                      "tertiary-fixed": "#ffdbce",
+                      "outline": "#6e7977",
+                      "inverse-surface": "#2d3133",
+                      "status-error": "#DC2626",
+                      "on-surface-variant": "#3e4947",
+                      "secondary": "#006b5f",
+                      "on-tertiary-fixed-variant": "#72361b",
+                      "on-error": "#ffffff",
+                      "primary": "#005c55",
+                      "on-secondary": "#ffffff",
+                      "on-primary-fixed": "#00201d"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-sm": "8px",
+                      "gutter-card": "16px",
+                      "tap-target-min": "48px",
+                      "base": "4px",
+                      "stack-md": "16px",
+                      "stack-lg": "24px",
+                      "margin-mobile": "20px"
+              },
+              "fontFamily": {
+                      "label-lg": ["Inter"],
+                      "headline-xl": ["Inter"],
+                      "headline-lg": ["Inter"],
+                      "headline-lg-mobile": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "label-md": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                      "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                      "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen flex flex-col font-body-md">
+<!-- Top Navigation Bar - Using Shared Component Logic (No border, flat elevation) -->
+<header class="w-full top-0 sticky z-40 bg-surface dark:bg-surface-dim flex items-center justify-between px-margin-mobile h-tap-target-min border-b border-outline-variant">
+<div class="flex items-center gap-4">
+<button class="p-2 -ml-2 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Serene Health</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-full hover:bg-surface-container transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+</div>
+</header>
+<main class="flex-1 max-w-lg mx-auto w-full px-margin-mobile pt-stack-lg pb-32">
+<!-- Success Identity Section -->
+<div class="flex flex-col items-center text-center mb-10">
+<div class="w-24 h-24 bg-primary-fixed rounded-full flex items-center justify-center animate-success shadow-[0_8px_20px_-4px_rgba(0,92,85,0.2)] mb-stack-lg">
+<span class="material-symbols-outlined text-primary text-[48px]" style="font-variation-settings: 'wght' 700;">check</span>
+</div>
+<h2 class="font-headline-xl text-headline-xl text-text-primary mb-2">You're booked!</h2>
+<p class="font-body-md text-text-secondary">Your appointment request has been confirmed. A confirmation email has been sent to your registered address.</p>
+</div>
+<!-- Appointment Ticket Card -->
+<div class="relative bg-surface-card rounded-xl shadow-[0px_4px_12px_rgba(15,23,42,0.05)] overflow-hidden">
+<!-- Ticket Header -->
+<div class="p-gutter-card flex justify-between items-start border-b border-dashed border-outline-variant relative">
+<div>
+<span class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Queue Token</span>
+<p class="font-headline-lg text-headline-lg text-primary">#14</p>
+</div>
+<div class="text-right">
+<span class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Status</span>
+<div class="flex items-center gap-1.5 text-status-success font-label-lg text-label-lg mt-1">
+<span class="w-2 h-2 bg-status-success rounded-full"></span>
+                        Confirmed
+                    </div>
+</div>
+<!-- Ticket Notch Left -->
+<div class="absolute -bottom-3 -left-3 w-6 h-6 bg-background rounded-full"></div>
+<!-- Ticket Notch Right -->
+<div class="absolute -bottom-3 -right-3 w-6 h-6 bg-background rounded-full"></div>
+</div>
+<!-- Ticket Body -->
+<div class="p-gutter-card space-y-stack-md">
+<div class="flex gap-stack-md items-center">
+<div class="w-14 h-14 rounded-full overflow-hidden bg-surface-container flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A professional portrait of Dr. Sarah Jenkins, a female cardiologist in her 40s wearing a clean white medical coat and a subtle stethoscope around her neck. The setting is a brightly lit, high-end medical office with a soft teal color palette and minimal architectural details. The lighting is warm and reassuring, conveying trust and clinical excellence in a modern healthcare environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFXOxhlXOgKZAGnBLQRtKJnl1Z6TggRzvdLepQl_Wiw7QklJ84C7-GLnWYrb2_h9Ca2evlESFLRag2l02ESKGrva7Da94_nyi_mBvtPz3w7wkQRbJ0I4Eb0dI_QzgrTT-GpH3X6WzrKOvJHb5chrGsWSGF9aNhIt-4uL13wUaW_Z7FSF-rqaM1FIp4dQ2sZ3bEExOrVriYZlf01EOKMwGSD6aFyOhfxhOj81TTwKzTjfwrjUyJ0KC9iJghcRGlfQXXVgY8xUlP7CA"/>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-text-primary">Dr. Sarah Jenkins</h3>
+<p class="font-body-md text-text-secondary">Cardiology Specialist</p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-stack-md bg-surface-container-lowest p-stack-md rounded-lg border border-surface-container">
+<div class="space-y-1">
+<div class="flex items-center gap-1.5 text-text-secondary">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+<span class="font-label-md text-label-md">Date</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-primary">Oct 24, 2024</p>
+</div>
+<div class="space-y-1">
+<div class="flex items-center gap-1.5 text-text-secondary">
+<span class="material-symbols-outlined text-[18px]">schedule</span>
+<span class="font-label-md text-label-md">Time</span>
+</div>
+<p class="font-label-lg text-label-lg text-text-primary">10:30 AM</p>
+</div>
+</div>
+<div class="flex items-start gap-stack-md pt-2">
+<div class="w-10 h-10 bg-primary-fixed-dim/20 rounded-full flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-primary">location_on</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-text-primary">City Clinic</h4>
+<p class="font-label-md text-label-md text-text-secondary">124 Wellness Blvd, Suite 300, Central City</p>
+</div>
+</div>
+</div>
+<!-- Mini Map Preview -->
+<div class="w-full h-32 relative bg-surface-container mt-2">
+<img class="w-full h-full object-cover opacity-80" data-alt="A stylized, clean map visualization of a city district with soft teal and grey tones. A prominent clinical map pin icon marks the location of City Clinic. The aesthetic is minimal and high-contrast for readability, following the clinical minimalist brand style with generous whitespace and clear street labels." data-location="London" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDN_VKI0zaHcRILiSoU5FFwS-VAxLV_TVGqS32l5JKIpdEU0TzEGw3mjZ_wRuT4No1598l8RlgpshGNKY5uiVES3ATuiKU5guwM5dORJ4cZz00dk2elPvI0hAWqgG6NtOuiPSuuiO0bH2tr56riRBh712kWPkgx1LFZLExnHU1iRpAU6IBNK1UlFywgC3UWtrMv0FDYPQ6h_bVaNCGWnWT7ufqeGQNFY7dg4KWa-ORwDg3ml1Izs6fdGulzUKn2fxzMrbK_W00LTao"/>
+<div class="absolute inset-0 bg-gradient-to-t from-surface-card to-transparent"></div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="mt-stack-lg space-y-stack-md">
+<button class="w-full bg-primary text-on-primary font-label-lg text-label-lg py-tap-target-min rounded-full shadow-lg hover:bg-primary-container transition-all active:scale-95 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">event_available</span>
+                View my appointments
+            </button>
+<button class="w-full bg-transparent border-2 border-primary text-primary font-label-lg text-label-lg py-tap-target-min rounded-full hover:bg-surface-container-low transition-all active:scale-95 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">calendar_add_on</span>
+                Add to calendar
+            </button>
+</div>
+<!-- Supportive Info -->
+<div class="mt-stack-lg p-stack-md bg-surface-container-low rounded-xl border border-surface-container flex gap-stack-md">
+<span class="material-symbols-outlined text-primary">info</span>
+<p class="font-label-md text-label-md text-on-surface-variant">
+                Need to reschedule? You can modify your appointment up to 24 hours before the scheduled time without any fee.
+            </p>
+</div>
+</main>
+<!-- Bottom Navigation Bar - Following Shared Component Style -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-2 pb-safe bg-surface dark:bg-surface-dim shadow-[0px_-4px_12px_rgba(15,23,42,0.05)] z-50 rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low transition-all p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim font-bold p-2 rounded-lg bg-surface-container-low" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+<span class="font-label-md text-label-md">Appointments</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low transition-all p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Family</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low transition-all p-2 rounded-lg" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions for buttons
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('touchstart', function() {
+                this.classList.add('scale-95');
+            });
+            button.addEventListener('touchend', function() {
+                this.classList.remove('scale-95');
+            });
+        });
+
+        // Simple animation trigger for success state
+        window.addEventListener('DOMContentLoaded', () => {
+            const successRing = document.querySelector('.animate-success');
+            if (successRing) {
+                // Potential for adding particle effects or more refined CSS transitions
+            }
+        });
+    </script>
+</body></html>

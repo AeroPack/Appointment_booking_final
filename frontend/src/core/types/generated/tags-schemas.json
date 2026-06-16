@@ -1,0 +1,76 @@
+{
+  "createTagSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "color": {
+        "type": "string",
+        "pattern": "^#[0-9A-Fa-f]{6}$"
+      },
+      "is_auto": {
+        "type": "boolean"
+      },
+      "rule_definition": {
+        "type": "object",
+        "additionalProperties": {}
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "updateTagSchema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "color": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "rule_definition": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "assignTagSchema": {
+    "type": "object",
+    "properties": {
+      "tag_id": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "required": [
+      "tag_id"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

@@ -1,0 +1,81 @@
+# =============================================================================
+# Appointment Booking — Postgres
+# -----------------------------------------------------------------------------
+# Two usage modes, selected by Compose PROFILES (Compose can't auto-detect a
+# running container, so you pick the profile per environment):
+#
+#   LOCAL (no Postgres yet)  -> spin up an isolated Postgres + auto-load schema:
+#       docker compose --profile localdb up -d
+#     Uses a unique name/volume and host port ${DB_PORT:-5433} so it can NEVER
+#     clash with an existing container on 5432.
+#
+#   VPS (Postgres already running) -> DON'T start a new container; just create
+#   the app database + schema inside the existing one (idempotent, safe to re-run):
+#       docker compose --profile bootstrap run --rm bootstrap
+#     Point it at the existing instance via env (PGPORT / creds in .env).
+# =============================================================================
+
+services:
+
+  # ---- LOCAL dev database (only starts with: --profile localdb) --------------
+  postgres:
+    profiles: ["localdb"]
+    image: postgres:16-alpine
+    container_name: appointment_pg          # unique name -> no clash
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-appointment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-appointment_booking}   # auto-created on first run
+    ports:
+      - "${DB_PORT:-5433}:5432"             # host 5433 -> avoids existing 5432
+    volumes:
+      - appointment_pg_data:/var/lib/postgresql/data      # unique volume
+      # On a FRESH volume, scripts here run once against POSTGRES_DB:
+      - ./src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appointment} -d ${POSTGRES_DB:-appointment_booking}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---- Bootstrap: ensure DB + schema exist in an EXISTING Postgres -----------
+  # (only runs with: --profile bootstrap). Uses host networking so it can reach
+  # a Postgres published on 127.0.0.1:<port> — the local one (5433) OR the VPS
+  # one (usually 5432) — without needing the other container's network name.
+  bootstrap:
+    profiles: ["bootstrap"]
+    image: postgres:16-alpine
+    network_mode: host
+    environment:
+      PGHOST: ${PGHOST:-127.0.0.1}
+      PGPORT: ${PGPORT:-5432}              # set to existing container's published port
+      PGUSER: ${POSTGRES_USER:-postgres}   # must be allowed to CREATE DATABASE
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      APP_DB: ${POSTGRES_DB:-appointment_booking}
+    volumes:
+      - ./src/db/schema.sql:/schema.sql:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        echo ">> Target: $$PGHOST:$$PGPORT  db=$$APP_DB"
+        # 1) create the database only if missing
+        if [ "$$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$$APP_DB'")" = "1" ]; then
+          echo ">> Database already exists."
+        else
+          echo ">> Creating database $$APP_DB ..."
+          psql -d postgres -c "CREATE DATABASE \"$$APP_DB\""
+        fi
+        # 2) apply schema only if it hasn't been applied (no 'clinics' table yet)
+        if [ -z "$$(psql -d "$$APP_DB" -tAc "SELECT to_regclass('public.clinics')")" ]; then
+          echo ">> Applying schema ..."
+          psql -d "$$APP_DB" -v ON_ERROR_STOP=1 -f /schema.sql
+          echo ">> Schema applied."
+        else
+          echo ">> Schema already present, skipping."
+        fi
+        echo ">> Done."
+
+volumes:
+  appointment_pg_data:

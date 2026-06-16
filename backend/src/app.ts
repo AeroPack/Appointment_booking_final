@@ -1,0 +1,51 @@
+import 'dotenv/config';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
+import authRoutes from './modules/auth/auth.routes.js';
+import userRoutes from './modules/users/users.routes.js';
+import doctorRoutes from './modules/doctors/doctors.routes.js';
+import doctorDashboardRoutes from './modules/doctors/dashboard.routes.js';
+import settingsRoutes from './modules/settings/settings.routes.js';
+import appointmentRoutes from './modules/appointments/appointments.routes.js';
+import messagesRoutes from './modules/messages/messages.routes.js';
+import tagsRoutes from './modules/tags/tags.routes.js';
+import { errorHandler } from './middleware/errorHandler.js';
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174'], credentials: true }));
+app.use(express.json());
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    console.log(`[${res.statusCode}] ${req.method} ${req.originalUrl} — ${ms}ms`);
+  });
+  next();
+});
+
+app.get('/', (req: Request, res: Response) => {
+  res.send('Hello World!');
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api', userRoutes);
+app.use('/api', doctorRoutes);
+app.use('/api', doctorDashboardRoutes);
+app.use('/api', settingsRoutes);
+app.use('/api', appointmentRoutes);
+app.use('/api', messagesRoutes);
+app.use('/api', tagsRoutes);
+
+app.use(errorHandler);
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
+}
+
+export default app;

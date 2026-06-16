@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Booking Success - Serene Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#80d5cb",
+                        "primary-fixed": "#9cf2e8",
+                        "status-success": "#16A34A",
+                        "secondary-fixed": "#71f8e4",
+                        "tertiary-container": "#9c573a",
+                        "inverse-on-surface": "#eff1f3",
+                        "surface-container": "#eceef0",
+                        "text-primary": "#0F172A",
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#ffdbce",
+                        "surface-variant": "#e0e3e5",
+                        "status-error": "#DC2626",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#370e00",
+                        "on-tertiary-fixed-variant": "#72361b",
+                        "secondary": "#006b5f",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#d8dadc",
+                        "outline": "#6e7977",
+                        "error": "#ba1a1a",
+                        "on-primary-container": "#a3faef",
+                        "on-secondary-fixed-variant": "#005048",
+                        "surface-bright": "#f7f9fb",
+                        "inverse-surface": "#2d3133",
+                        "surface": "#f7f9fb",
+                        "on-background": "#191c1e",
+                        "secondary-fixed-dim": "#4fdbc8",
+                        "on-surface-variant": "#3e4947",
+                        "status-warning": "#F59E0B",
+                        "surface-tint": "#006a63",
+                        "error-container": "#ffdad6",
+                        "on-surface": "#191c1e",
+                        "on-tertiary": "#ffffff",
+                        "outline-variant": "#bdc9c6",
+                        "surface-container-high": "#e6e8ea",
+                        "on-primary-fixed": "#00201d",
+                        "secondary-container": "#6df5e1",
+                        "on-secondary-fixed": "#00201c",
+                        "background": "#f7f9fb",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f2f4f6",
+                        "on-tertiary-container": "#ffe5db",
+                        "tertiary": "#7f4025",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#00504a",
+                        "surface-container-highest": "#e0e3e5",
+                        "primary-fixed-dim": "#80d5cb",
+                        "primary": "#005c55",
+                        "primary-container": "#0f766e",
+                        "on-secondary-container": "#006f64",
+                        "text-secondary": "#64748B",
+                        "surface-card": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "tap-target-min": "48px",
+                        "stack-lg": "24px",
+                        "base": "4px",
+                        "stack-md": "16px",
+                        "gutter-card": "16px",
+                        "margin-mobile": "20px",
+                        "stack-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "label-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .soft-float {
+            box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        .ticket-perforation {
+            background-image: radial-gradient(circle at 0px 10px, transparent 10px, white 10px);
+            background-size: 100% 20px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-on-surface">
+<!-- TopNavBar (Shared Component Identity) -->
+<header class="w-full top-0 sticky z-50 bg-surface border-b border-outline-variant">
+<div class="flex items-center justify-between px-8 h-tap-target-min w-full max-w-7xl mx-auto">
+<div class="font-headline-md text-headline-md font-bold text-primary">Serene Health</div>
+<nav class="hidden md:flex gap-8">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Home</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-body-md text-body-md" href="#">Appointments</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Family</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Profile</a>
+</nav>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">settings</span>
+<button class="bg-primary text-on-primary px-4 py-2 rounded-full font-label-lg text-label-lg active:scale-95 transition-transform">Book New</button>
+</div>
+</div>
+</header>
+<!-- Main Content: Success Screen -->
+<main class="flex-grow flex items-center justify-center p-6 md:p-12">
+<div class="max-w-2xl w-full flex flex-col items-center text-center space-y-stack-lg">
+<!-- Success Animation/Icon Area -->
+<div class="relative w-24 h-24 flex items-center justify-center bg-secondary-container rounded-full mb-4">
+<span class="material-symbols-outlined text-primary text-[48px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<!-- Subtle atmospheric pulse effect -->
+<div class="absolute inset-0 rounded-full border-4 border-secondary-container animate-ping opacity-25"></div>
+</div>
+<div class="space-y-base">
+<h1 class="font-headline-xl text-headline-xl text-text-primary">You're booked!</h1>
+<p class="font-body-lg text-body-lg text-text-secondary max-w-md mx-auto">
+                    Your appointment has been successfully scheduled. A confirmation email has been sent to your registered address.
+                </p>
+</div>
+<!-- E-Ticket Card -->
+<div class="w-full bg-surface-card rounded-xl soft-float overflow-hidden flex flex-col md:flex-row border border-outline-variant">
+<!-- Ticket Left/Top Side (Doctor & Info) -->
+<div class="flex-grow p-gutter-card flex flex-col text-left space-y-stack-md border-b md:border-b-0 md:border-r border-dashed border-outline-variant relative">
+<!-- Ticket Notch Visuals (Hidden on mobile top/bottom, visible on desktop sides) -->
+<div class="hidden md:block absolute -right-[8px] -top-[8px] w-4 h-4 bg-background rounded-full border border-outline-variant"></div>
+<div class="hidden md:block absolute -right-[8px] -bottom-[8px] w-4 h-4 bg-background rounded-full border border-outline-variant"></div>
+<div class="flex items-center gap-stack-md">
+<img class="w-16 h-16 rounded-lg object-cover border border-outline-variant" data-alt="A professional portrait of a smiling male doctor in a clean clinical environment. He is wearing a white medical coat and a stethoscope, reflecting expertise and approachability. The lighting is bright and even, typical of a high-end modern medical clinic, with a soft-focus background of medical equipment in teal and white tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFgW0LHutADRQuTvhEkph1ovF6T-65FKMen_tN_VWaPYq3dt6qoLuRYfDFPEQoTxdpuw87NvCjWpmXrP6Dy2WRZZRba_V-cxJ6Nm6GUHK0bkDA3Niaoh6OWI8Kk0nt-tciY-l_wy5ip1rJMkA7gYSgzeRSykHuo67FBO2jyne_50hkHqk4NnQKIMWFGgC_DbgriG0cDUdo1cOR1r1xk6aeRAzQGIzvMnUGDQgOOpwYWKW8RZjo-huLD4nH3wBncknIf5GPPiZNdjg"/>
+<div>
+<p class="font-label-md text-label-md text-primary uppercase tracking-wider">Confirmed Doctor</p>
+<h2 class="font-headline-md text-headline-md text-text-primary">Dr. Julian Thorne</h2>
+<p class="font-body-md text-body-md text-text-secondary">Senior Cardiologist</p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-stack-lg pt-4 border-t border-outline-variant">
+<div>
+<p class="font-label-md text-label-md text-text-secondary">Date &amp; Time</p>
+<p class="font-label-lg text-label-lg text-text-primary mt-1">Oct 24, 2024</p>
+<p class="font-label-lg text-label-lg text-text-primary">09:30 AM</p>
+</div>
+<div>
+<p class="font-label-md text-label-md text-text-secondary">Clinic Location</p>
+<p class="font-label-lg text-label-lg text-text-primary mt-1">St. Mary's Wing, 4F</p>
+<p class="font-label-lg text-label-lg text-text-primary">Metropolis Health</p>
+</div>
+</div>
+</div>
+<!-- Ticket Right/Bottom Side (Token & QR) -->
+<div class="w-full md:w-48 bg-surface-container-low p-gutter-card flex flex-col items-center justify-center space-y-stack-md shrink-0">
+<div class="text-center">
+<p class="font-label-md text-label-md text-text-secondary">Token Number</p>
+<p class="text-[40px] font-bold text-primary leading-none mt-2">#14</p>
+</div>
+<div class="w-32 h-32 bg-white p-2 rounded-lg border border-outline-variant flex items-center justify-center">
+<!-- Simulated QR Code Pattern using CSS -->
+<div class="w-full h-full opacity-10" style="background-image: radial-gradient(#005c55 2px, transparent 2px); background-size: 8px 8px;"></div>
+<span class="material-symbols-outlined absolute text-primary text-4xl opacity-80">qr_code_2</span>
+</div>
+<p class="font-label-md text-label-md text-text-secondary italic">Scan at Reception</p>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="w-full flex flex-col md:flex-row gap-stack-md pt-stack-md">
+<button class="flex-1 bg-primary text-on-primary h-tap-target-min px-8 rounded-full font-label-lg text-label-lg flex items-center justify-center gap-2 hover:opacity-90 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[20px]">calendar_add_on</span>
+                    Add to Calendar
+                </button>
+<button class="flex-1 border border-primary text-primary bg-transparent h-tap-target-min px-8 rounded-full font-label-lg text-label-lg flex items-center justify-center gap-2 hover:bg-primary/5 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[20px]">list_alt</span>
+                    View Appointments
+                </button>
+</div>
+<!-- Helpful Tip -->
+<div class="flex items-center gap-3 p-4 bg-surface-container rounded-lg border border-outline-variant w-full max-w-lg text-left">
+<span class="material-symbols-outlined text-primary">info</span>
+<p class="font-label-md text-label-md text-on-surface-variant">
+                    Please arrive 10 minutes early for initial vital checks and check-in procedure.
+                </p>
+</div>
+</div>
+</main>
+<!-- Footer Space -->
+<footer class="p-8 text-center text-text-secondary font-label-md text-label-md">
+        © 2024 Serene Health Clinical Excellence. All rights reserved.
+    </footer>
+<script>
+        // Simple micro-interaction for buttons
+        document.querySelectorAll('button').forEach(button => {
+            button.addEventListener('mousedown', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('mouseup', () => {
+                button.classList.remove('scale-95');
+            });
+        });
+
+        // Simulating a minor atmospheric entrance
+        window.addEventListener('DOMContentLoaded', () => {
+            const mainContent = document.querySelector('main');
+            mainContent.style.opacity = '0';
+            mainContent.style.transform = 'translateY(20px)';
+            mainContent.style.transition = 'opacity 0.8s ease-out, transform 0.8s ease-out';
+            
+            setTimeout(() => {
+                mainContent.style.opacity = '1';
+                mainContent.style.transform = 'translateY(0)';
+            }, 100);
+        });
+    </script>
+</body></html>

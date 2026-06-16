@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-surface": "#2d3133",
+                    "surface": "#f7f9fb",
+                    "primary-fixed": "#9cf2e8",
+                    "error-container": "#ffdad6",
+                    "on-tertiary-fixed": "#370e00",
+                    "surface-container": "#eceef0",
+                    "outline-variant": "#bdc9c6",
+                    "on-tertiary-container": "#ffe5db",
+                    "text-secondary": "#64748B",
+                    "primary-fixed-dim": "#80d5cb",
+                    "on-primary-fixed-variant": "#00504a",
+                    "surface-tint": "#006a63",
+                    "on-error": "#ffffff",
+                    "surface-container-low": "#f2f4f6",
+                    "status-error": "#DC2626",
+                    "text-primary": "#0F172A",
+                    "on-surface-variant": "#3e4947",
+                    "surface-bright": "#f7f9fb",
+                    "background": "#f7f9fb",
+                    "surface-variant": "#e0e3e5",
+                    "secondary-container": "#6df5e1",
+                    "inverse-primary": "#80d5cb",
+                    "inverse-on-surface": "#eff1f3",
+                    "on-primary-fixed": "#00201d",
+                    "surface-dim": "#d8dadc",
+                    "on-secondary-container": "#006f64",
+                    "outline": "#6e7977",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-fixed-variant": "#72361b",
+                    "surface-container-highest": "#e0e3e5",
+                    "status-success": "#16A34A",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-container": "#9c573a",
+                    "surface-container-lowest": "#ffffff",
+                    "status-warning": "#F59E0B",
+                    "primary-container": "#0f766e",
+                    "on-secondary-fixed-variant": "#005048",
+                    "tertiary": "#7f4025",
+                    "on-primary": "#ffffff",
+                    "primary": "#005c55",
+                    "surface-container-high": "#e6e8ea",
+                    "on-background": "#191c1e",
+                    "error": "#ba1a1a",
+                    "on-primary-container": "#a3faef",
+                    "secondary": "#006b5f",
+                    "secondary-fixed-dim": "#4fdbc8",
+                    "on-secondary-fixed": "#00201c",
+                    "tertiary-fixed-dim": "#ffb598",
+                    "secondary-fixed": "#71f8e4",
+                    "tertiary-fixed": "#ffdbce",
+                    "on-surface": "#191c1e",
+                    "surface-card": "#FFFFFF",
+                    "on-secondary": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-md": "16px",
+                    "tap-target-min": "48px",
+                    "stack-sm": "8px",
+                    "margin-mobile": "20px",
+                    "stack-lg": "24px",
+                    "gutter-card": "16px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "headline-lg-mobile": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #f7f9fb;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .soft-float {
+            shadow-sm: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface antialiased min-h-screen pb-32">
+<!-- Top App Bar -->
+<header class="w-full top-0 sticky z-50 bg-surface dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
+<div class="flex items-center justify-between px-margin-mobile h-tap-target-min w-full max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-primary dark:text-primary-fixed-dim p-2 hover:bg-surface-container transition-colors rounded-full active:scale-95 duration-200" data-icon="arrow_back">arrow_back</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">Family Members</h1>
+</div>
+<div class="flex items-center">
+<button class="material-symbols-outlined text-on-surface-variant dark:text-surface-variant p-2 hover:bg-surface-container transition-colors rounded-full active:scale-95 duration-200" data-icon="notifications">notifications</button>
+</div>
+</div>
+</header>
+<main class="max-w-xl mx-auto px-margin-mobile pt-stack-lg space-y-stack-md">
+<!-- Description Section -->
+<div class="mb-stack-lg">
+<p class="font-body-md text-body-md text-text-secondary">Manage healthcare profiles for your dependents and loved ones to coordinate appointments and records easily.</p>
+</div>
+<!-- Family Member Cards List -->
+<div class="grid grid-cols-1 gap-stack-md">
+<!-- Dependent Card: Priya Sharma -->
+<div class="bg-surface-card rounded-xl p-gutter-card flex items-center justify-between shadow-[0px_4px_12px_rgba(15,23,42,0.05)] hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98] duration-200">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-headline-md">
+                        PS
+                    </div>
+<div>
+<h3 class="font-body-lg text-body-lg font-bold text-text-primary">Priya Sharma</h3>
+<p class="font-label-lg text-label-lg text-text-secondary">Wife • 32 years</p>
+</div>
+</div>
+<button class="material-symbols-outlined text-primary p-2 hover:bg-surface-container-low rounded-full transition-colors" data-icon="edit">edit</button>
+</div>
+<!-- Dependent Card: Aarav Sharma -->
+<div class="bg-surface-card rounded-xl p-gutter-card flex items-center justify-between shadow-[0px_4px_12px_rgba(15,23,42,0.05)] hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98] duration-200">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-headline-md">
+                        AS
+                    </div>
+<div>
+<h3 class="font-body-lg text-body-lg font-bold text-text-primary">Aarav Sharma</h3>
+<p class="font-label-lg text-label-lg text-text-secondary">Son • 8 years</p>
+</div>
+</div>
+<button class="material-symbols-outlined text-primary p-2 hover:bg-surface-container-low rounded-full transition-colors" data-icon="edit">edit</button>
+</div>
+<!-- Dependent Card: Rajesh Sharma -->
+<div class="bg-surface-card rounded-xl p-gutter-card flex items-center justify-between shadow-[0px_4px_12px_rgba(15,23,42,0.05)] hover:shadow-md transition-shadow cursor-pointer active:scale-[0.98] duration-200">
+<div class="flex items-center gap-4">
+<div class="w-14 h-14 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-headline-md">
+                        RS
+                    </div>
+<div>
+<h3 class="font-body-lg text-body-lg font-bold text-text-primary">Rajesh Sharma</h3>
+<p class="font-label-lg text-label-lg text-text-secondary">Father • 64 years</p>
+</div>
+</div>
+<button class="material-symbols-outlined text-primary p-2 hover:bg-surface-container-low rounded-full transition-colors" data-icon="edit">edit</button>
+</div>
+<!-- Add Family Member Card -->
+<button class="w-full h-tap-target-min min-h-[80px] border-2 border-dashed border-outline-variant rounded-xl flex items-center justify-center gap-2 text-primary font-label-lg hover:bg-primary-fixed/20 transition-colors active:scale-[0.98] duration-200">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+<span>Add family member</span>
+</button>
+</div>
+<!-- Atmospheric Image Context -->
+<div class="mt-stack-lg rounded-xl overflow-hidden h-48 relative shadow-[0px_4px_12px_rgba(15,23,42,0.05)]">
+<img class="w-full h-full object-cover" data-alt="A warm, candid photograph of a happy multi-generational family sitting together in a sunlit, modern living room. The lighting is soft and golden, highlighting the serene and caring atmosphere of Serene Health. The scene is framed with a minimalist aesthetic, focusing on human connection and well-being. The color palette features soft teals and warm neutrals that align with a premium healthcare experience." src="https://lh3.googleusercontent.com/aida-public/AB6AXuByhkeBUdsVd_Dq--s4k6z1HWkT6GmQEBs0IDK1QHgm63Ucz6VniaC4uMkhhB65D6tL59A-YxgfEc0FXDU8ZTvNlb067xvsv7U9f-2E_vlVbGMP4BeCA0-WYDG3ulGdyjv-IiuxHicHqnycKAYd2lJaFsXrwV_QxwxGpKRxB-hrPErDad3WnOMG1daNn95KO8Sa7oUuAhGVPNyLo97YyTk0VtuvuG8bjtBWhMp2GWbAQK5xytCzvAX7as3Huoyxwke3yi36VvPxB8I"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent flex items-end p-4">
+<p class="text-white font-label-lg">Centralized care for everyone you love.</p>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface dark:bg-surface-dim shadow-[0px_-4px_12px_rgba(15,23,42,0.05)] rounded-t-xl">
+<div class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-2 pb-safe bg-surface dark:bg-surface-dim">
+<!-- Home -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high p-2 rounded-lg transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<!-- Appointments -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high p-2 rounded-lg transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span class="font-label-md text-label-md">Appointments</span>
+</a>
+<!-- Family (Active) -->
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim font-bold p-2 rounded-lg transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="font-label-md text-label-md">Family</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high p-2 rounded-lg transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</div>
+</nav>
+<script>
+        // Micro-interaction for cards
+        document.querySelectorAll('.bg-surface-card').forEach(card => {
+            card.addEventListener('click', () => {
+                // Future expansion: navigate to member details
+                console.log('Member profile clicked');
+            });
+        });
+    </script>
+</body></html>

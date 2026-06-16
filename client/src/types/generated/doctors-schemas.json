@@ -1,0 +1,8 @@
+{
+  "createVenueSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "updateVenueSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

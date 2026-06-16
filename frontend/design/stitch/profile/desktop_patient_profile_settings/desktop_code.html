@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#7f4025",
+                        "on-primary-fixed-variant": "#00504a",
+                        "surface-bright": "#f7f9fb",
+                        "surface": "#f7f9fb",
+                        "inverse-on-surface": "#eff1f3",
+                        "primary-fixed-dim": "#80d5cb",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary-container": "#6df5e1",
+                        "on-tertiary-fixed": "#370e00",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-container": "#eceef0",
+                        "inverse-primary": "#80d5cb",
+                        "status-success": "#16A34A",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#00201c",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#bdc9c6",
+                        "on-tertiary-container": "#ffe5db",
+                        "surface-variant": "#e0e3e5",
+                        "status-error": "#DC2626",
+                        "primary": "#005c55",
+                        "on-secondary-fixed-variant": "#005048",
+                        "primary-fixed": "#9cf2e8",
+                        "primary-container": "#0f766e",
+                        "on-background": "#191c1e",
+                        "text-primary": "#0F172A",
+                        "on-error": "#ffffff",
+                        "surface-container-high": "#e6e8ea",
+                        "background": "#f7f9fb",
+                        "tertiary-container": "#9c573a",
+                        "on-primary-fixed": "#00201d",
+                        "on-surface": "#191c1e",
+                        "status-warning": "#F59E0B",
+                        "outline": "#6e7977",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-card": "#FFFFFF",
+                        "surface-tint": "#006a63",
+                        "on-primary-container": "#a3faef",
+                        "on-tertiary-fixed-variant": "#72361b",
+                        "secondary-fixed-dim": "#4fdbc8",
+                        "surface-dim": "#d8dadc",
+                        "surface-container-highest": "#e0e3e5",
+                        "secondary": "#006b5f",
+                        "on-surface-variant": "#3e4947",
+                        "error-container": "#ffdad6",
+                        "on-secondary-container": "#006f64",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#71f8e4",
+                        "inverse-surface": "#2d3133",
+                        "text-secondary": "#64748B"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "stack-md": "16px",
+                        "stack-sm": "8px",
+                        "tap-target-min": "48px",
+                        "stack-lg": "24px",
+                        "margin-mobile": "20px",
+                        "gutter-card": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .soft-float {
+            box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- Top Navigation Bar -->
+<header class="bg-surface-container-lowest w-full sticky top-0 border-b border-outline-variant z-40">
+<div class="flex justify-between items-center h-16 px-6 md:px-margin-mobile max-w-7xl mx-auto">
+<div class="flex items-center gap-8">
+<span class="font-headline-md text-headline-md font-bold text-primary">CarePulse</span>
+<nav class="hidden md:flex gap-6">
+<a class="text-on-surface-variant font-label-lg text-label-lg hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-on-surface-variant font-label-lg text-label-lg hover:text-primary transition-colors" href="#">My Bookings</a>
+<a class="text-on-surface-variant font-label-lg text-label-lg hover:text-primary transition-colors" href="#">Health Records</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="material-symbols-outlined text-on-surface-variant cursor-pointer active:opacity-80">notifications</div>
+<div class="text-primary font-bold border-b-2 border-primary pb-1 font-label-lg text-label-lg cursor-pointer">Profile</div>
+</div>
+</div>
+</header>
+<main class="max-w-4xl mx-auto py-10 px-margin-mobile">
+<!-- Profile Header Section -->
+<section class="flex flex-col items-center mb-10 text-center">
+<div class="relative group">
+<img alt="User Profile" class="w-32 h-32 rounded-full border-4 border-white soft-float object-cover" data-alt="A professional close-up portrait of a mid-adult man with a friendly expression, set against a soft-focus clinical background. The lighting is bright and airy, reflecting a clean and modern healthcare environment. The image uses a serene palette of soft whites and teals to emphasize trust and reliability in a medical portal context." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMQH3in4ZvSFgLdEV0X-QvANcQoko6Ggy0xmdjjZP4b8nUiBnNcrD6bClQUYUk7bAm2_bcBYTGUkFBqwNWGaWtJIMYz1NrATyQbm3KTVqd5sdF7D_6GFBVpW-AEaC2Kj28OnvpK51l0XHE-hsIxN7cJk0JBrbBp-OxfhaRusZf0-dGxYiQICyabsa0kvRP-0T79GTpyRK9VKmBK0S1lZgQOueVQ4qUQVdzfRfDrOUWxmYacqAWSCDOgYXDoaX0u6laoT-9BbZYW94"/>
+<button class="absolute bottom-0 right-0 bg-primary text-on-primary p-2 rounded-full shadow-lg hover:bg-primary-container transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+</div>
+<h1 class="mt-stack-md font-headline-xl text-headline-xl text-text-primary">Jonathan Walters</h1>
+<p class="text-text-secondary font-body-md text-body-md">+1 (555) 012-3456</p>
+</section>
+<div class="grid grid-cols-1 gap-stack-lg">
+<!-- Personal Details Card -->
+<div class="bg-surface-card p-6 rounded-xl soft-float">
+<div class="flex justify-between items-center mb-6">
+<h2 class="font-headline-lg text-headline-lg text-text-primary">Personal Details</h2>
+<button class="text-primary font-label-lg text-label-lg hover:underline flex items-center gap-1">
+                        Edit
+                    </button>
+</div>
+<div class="space-y-6">
+<div class="group">
+<label class="block font-label-lg text-label-lg text-on-surface-variant mb-2">Full Name</label>
+<div class="h-tap-target-min px-4 flex items-center border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-body-md text-on-surface">
+                            Jonathan Walters
+                        </div>
+</div>
+<div class="group">
+<label class="block font-label-lg text-label-lg text-on-surface-variant mb-2">Email Address</label>
+<div class="h-tap-target-min px-4 flex items-center border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-body-md text-on-surface">
+                            jonathan.walters@email.com
+                        </div>
+</div>
+<div class="group">
+<label class="block font-label-lg text-label-lg text-on-surface-variant mb-2">Residential Address</label>
+<div class="h-tap-target-min px-4 flex items-center border border-outline-variant rounded-lg bg-surface-container-lowest font-body-md text-body-md text-on-surface">
+                            123 Serenity Lane, Wellness Park, NY 10001
+                        </div>
+</div>
+</div>
+</div>
+<!-- Preferences Card -->
+<div class="bg-surface-card p-6 rounded-xl soft-float">
+<h2 class="font-headline-lg text-headline-lg text-text-primary mb-6">Preferences</h2>
+<div class="space-y-2">
+<div class="flex items-center justify-between p-4 hover:bg-surface-container-low rounded-lg transition-all cursor-pointer group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary">notifications</span>
+<div>
+<p class="font-label-lg text-label-lg text-on-surface">Notifications</p>
+<p class="text-label-md text-on-surface-variant">Appointments, reminders, and health tips</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-4 hover:bg-surface-container-low rounded-lg transition-all cursor-pointer group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary">language</span>
+<div>
+<p class="font-label-lg text-label-lg text-on-surface">Language</p>
+<p class="text-label-md text-on-surface-variant">English US</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</div>
+<div class="flex items-center justify-between p-4 hover:bg-surface-container-low rounded-lg transition-all cursor-pointer group">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary">help</span>
+<div>
+<p class="font-label-lg text-label-lg text-on-surface">Help &amp; Support</p>
+<p class="text-label-md text-on-surface-variant">FAQ, chat with support, or feedback</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Danger Zone / Action -->
+<div class="mt-stack-lg flex justify-center">
+<button class="flex items-center gap-2 px-10 h-tap-target-min bg-status-error/10 text-status-error font-label-lg text-label-lg rounded-full hover:bg-status-error hover:text-white transition-all duration-300 active:scale-95 group">
+<span class="material-symbols-outlined">logout</span>
+                    Log out
+                </button>
+</div>
+</div>
+</main>
+<!-- Decorative Bottom Gradient for Depth -->
+<div class="fixed bottom-0 left-0 w-full h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10"></div>
+<script>
+        // Simple micro-interaction for buttons
+        document.querySelectorAll('button, .cursor-pointer').forEach(el => {
+            el.addEventListener('mousedown', () => el.style.transform = 'scale(0.98)');
+            el.addEventListener('mouseup', () => el.style.transform = 'scale(1)');
+            el.addEventListener('mouseleave', () => el.style.transform = 'scale(1)');
+        });
+    </script>
+</body></html>

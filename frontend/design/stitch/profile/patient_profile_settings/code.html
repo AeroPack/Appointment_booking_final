@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .profile-card-shadow {
+      box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "inverse-surface": "#2d3133",
+                  "surface": "#f7f9fb",
+                  "primary-fixed": "#9cf2e8",
+                  "error-container": "#ffdad6",
+                  "on-tertiary-fixed": "#370e00",
+                  "surface-container": "#eceef0",
+                  "outline-variant": "#bdc9c6",
+                  "on-tertiary-container": "#ffe5db",
+                  "text-secondary": "#64748B",
+                  "primary-fixed-dim": "#80d5cb",
+                  "on-primary-fixed-variant": "#00504a",
+                  "surface-tint": "#006a63",
+                  "on-error": "#ffffff",
+                  "surface-container-low": "#f2f4f6",
+                  "status-error": "#DC2626",
+                  "text-primary": "#0F172A",
+                  "on-surface-variant": "#3e4947",
+                  "surface-bright": "#f7f9fb",
+                  "background": "#f7f9fb",
+                  "surface-variant": "#e0e3e5",
+                  "secondary-container": "#6df5e1",
+                  "inverse-primary": "#80d5cb",
+                  "inverse-on-surface": "#eff1f3",
+                  "on-primary-fixed": "#00201d",
+                  "surface-dim": "#d8dadc",
+                  "on-secondary-container": "#006f64",
+                  "outline": "#6e7977",
+                  "on-error-container": "#93000a",
+                  "on-tertiary-fixed-variant": "#72361b",
+                  "surface-container-highest": "#e0e3e5",
+                  "status-success": "#16A34A",
+                  "on-tertiary": "#ffffff",
+                  "tertiary-container": "#9c573a",
+                  "surface-container-lowest": "#ffffff",
+                  "status-warning": "#F59E0B",
+                  "primary-container": "#0f766e",
+                  "on-secondary-fixed-variant": "#005048",
+                  "tertiary": "#7f4025",
+                  "on-primary": "#ffffff",
+                  "primary": "#005c55",
+                  "surface-container-high": "#e6e8ea",
+                  "on-background": "#191c1e",
+                  "error": "#ba1a1a",
+                  "on-primary-container": "#a3faef",
+                  "secondary": "#006b5f",
+                  "secondary-fixed-dim": "#4fdbc8",
+                  "on-secondary-fixed": "#00201c",
+                  "tertiary-fixed-dim": "#ffb598",
+                  "secondary-fixed": "#71f8e4",
+                  "tertiary-fixed": "#ffdbce",
+                  "on-surface": "#191c1e",
+                  "surface-card": "#FFFFFF",
+                  "on-secondary": "#ffffff"
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "full": "9999px"
+          },
+          "spacing": {
+                  "stack-md": "16px",
+                  "tap-target-min": "48px",
+                  "stack-sm": "8px",
+                  "margin-mobile": "20px",
+                  "stack-lg": "24px",
+                  "gutter-card": "16px",
+                  "base": "4px"
+          },
+          "fontFamily": {
+                  "headline-lg-mobile": ["Inter"],
+                  "body-md": ["Inter"],
+                  "body-lg": ["Inter"],
+                  "headline-xl": ["Inter"],
+                  "label-lg": ["Inter"],
+                  "headline-md": ["Inter"],
+                  "label-md": ["Inter"],
+                  "headline-lg": ["Inter"]
+          },
+          "fontSize": {
+                  "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                  "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                  "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                  "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                  "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                  "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                  "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                  "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen flex flex-col">
+<!-- Top App Bar -->
+<header class="w-full top-0 sticky z-40 bg-surface border-b border-outline-variant flex items-center justify-between px-margin-mobile h-tap-target-min max-w-7xl mx-auto">
+<div class="flex items-center gap-4">
+<button class="hover:bg-surface-container transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary" data-icon="menu">menu</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Serene Health</h1>
+</div>
+<div class="flex items-center">
+<button class="hover:bg-surface-container transition-colors p-2 rounded-full active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary" data-icon="notifications">notifications</span>
+</button>
+</div>
+</header>
+<main class="flex-1 max-w-2xl mx-auto w-full px-margin-mobile pb-32">
+<!-- Profile Header Section -->
+<section class="py-stack-lg flex flex-col items-center">
+<div class="relative group">
+<img alt="Aarav Sharma" class="w-24 h-24 rounded-full object-cover border-4 border-white shadow-md" data-alt="A close-up professional portrait of a confident young South Asian man named Aarav Sharma with a warm, gentle smile. He is set against a soft, out-of-focus clinical background with airy lighting. The aesthetic is clean, high-key, and minimalist, utilizing a palette of soft whites and teals to emphasize reliability and healthcare excellence." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQNJX5CHHxkICZCgAk4_5P5DRYqCHLLwiOuFmyyJcbQfsf3VmkW0eWMrQuv60jyNpd8Y2f_FspjUwVzH0GMyj701SscMok6DfTlf_PBOB3bo4hQKG_1AI5DcujzHZCuCtcNWDeJDtHDRWfN9Oubcpl4JcJA2OTXRG_D8PD2D1uHT8tabk1oStFQ3HWPsbj_IVzvMkvzseg5DuO4FQPnKh4-4Nf9RZn3uLdwAUi1Jt1Uq98YN4TVm9bOsai04U7aK64GBK7zGGLG8I"/>
+<button class="absolute bottom-0 right-0 bg-primary text-white p-2 rounded-full shadow-lg active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+</button>
+</div>
+<h2 class="mt-4 font-headline-lg-mobile text-headline-lg-mobile text-text-primary">Aarav Sharma</h2>
+<p class="font-body-md text-text-secondary">+91 98765 43210</p>
+</section>
+<!-- Personal Info Fields -->
+<section class="space-y-stack-md">
+<h3 class="font-label-lg text-label-lg text-text-secondary uppercase tracking-wider px-1">Personal Details</h3>
+<div class="space-y-stack-sm">
+<div class="flex flex-col">
+<label class="font-label-lg text-label-lg mb-1 ml-1 text-on-surface-variant">Full Name</label>
+<div class="relative">
+<input class="w-full h-tap-target-min bg-surface-container-lowest border border-outline-variant rounded-lg px-4 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="text" value="Aarav Sharma"/>
+</div>
+</div>
+<div class="flex flex-col">
+<label class="font-label-lg text-label-lg mb-1 ml-1 text-on-surface-variant">Email Address</label>
+<div class="relative">
+<input class="w-full h-tap-target-min bg-surface-container-lowest border border-outline-variant rounded-lg px-4 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all" type="email" value="aarav.sharma@email.com"/>
+</div>
+</div>
+<div class="flex flex-col">
+<label class="font-label-lg text-label-lg mb-1 ml-1 text-on-surface-variant">Residential Address</label>
+<div class="relative">
+<textarea class="w-full py-3 bg-surface-container-lowest border border-outline-variant rounded-lg px-4 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all resize-none h-24">123, Lotus Apartment, Bandra West, Mumbai, Maharashtra 400050</textarea>
+</div>
+</div>
+</div>
+</section>
+<!-- Settings List -->
+<section class="mt-stack-lg space-y-stack-md">
+<h3 class="font-label-lg text-label-lg text-text-secondary uppercase tracking-wider px-1">Preferences</h3>
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden profile-card-shadow">
+<!-- Row: Notifications -->
+<button class="w-full flex items-center justify-between p-4 hover:bg-surface-container transition-colors active:scale-[0.98] duration-150">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="notifications">notifications</span>
+</div>
+<span class="font-body-md text-text-primary">Notifications</span>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span>
+</button>
+<div class="h-[1px] bg-outline-variant mx-4"></div>
+<!-- Row: Language -->
+<button class="w-full flex items-center justify-between p-4 hover:bg-surface-container transition-colors active:scale-[0.98] duration-150">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="language">language</span>
+</div>
+<div class="flex flex-col items-start">
+<span class="font-body-md text-text-primary">Language</span>
+<span class="text-xs text-text-secondary">English (US)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span>
+</button>
+<div class="h-[1px] bg-outline-variant mx-4"></div>
+<!-- Row: Help -->
+<button class="w-full flex items-center justify-between p-4 hover:bg-surface-container transition-colors active:scale-[0.98] duration-150">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-primary" data-icon="help">help</span>
+</div>
+<span class="font-body-md text-text-primary">Help & Support</span>
+</div>
+<span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span>
+</button>
+</div>
+</section>
+<!-- Logout Row -->
+<section class="mt-stack-lg mb-8">
+<button class="w-full bg-white border border-status-error/20 flex items-center justify-center gap-3 p-4 rounded-xl text-status-error font-headline-md hover:bg-error-container/20 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Log out</span>
+</button>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-2 pb-safe bg-surface shadow-[0px_-4px_12px_rgba(15,23,42,0.05)] z-50 rounded-t-xl">
+<!-- Home -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-all p-2 rounded-lg active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-md text-label-md">Home</span>
+</a>
+<!-- Appointments -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-all p-2 rounded-lg active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_month">calendar_month</span>
+<span class="font-label-md text-label-md">Appointments</span>
+</a>
+<!-- Family -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-low transition-all p-2 rounded-lg active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Family</span>
+</a>
+<!-- Profile (ACTIVE) -->
+<a class="flex flex-col items-center justify-center text-primary font-bold hover:bg-surface-container-low transition-all p-2 rounded-lg active:scale-90" href="#">
+<span class="material-symbols-outlined" data-icon="person" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label-md text-label-md">Profile</span>
+</a>
+</nav>
+<script>
+    // Micro-interaction for input highlighting
+    const inputs = document.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+      input.addEventListener('focus', () => {
+        input.parentElement.parentElement.classList.add('scale-[1.01]');
+        input.parentElement.parentElement.style.transition = 'transform 0.2s ease';
+      });
+      input.addEventListener('blur', () => {
+        input.parentElement.parentElement.classList.remove('scale-[1.01]');
+      });
+    });
+  </script>
+</body></html>

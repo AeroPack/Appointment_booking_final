@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#7f4025",
+                        "on-primary-fixed-variant": "#00504a",
+                        "surface-bright": "#f7f9fb",
+                        "surface": "#f7f9fb",
+                        "inverse-on-surface": "#eff1f3",
+                        "primary-fixed-dim": "#80d5cb",
+                        "tertiary-fixed": "#ffdbce",
+                        "secondary-container": "#6df5e1",
+                        "on-tertiary-fixed": "#370e00",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "surface-container-low": "#f2f4f6",
+                        "surface-container": "#eceef0",
+                        "inverse-primary": "#80d5cb",
+                        "status-success": "#16A34A",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#00201c",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "outline-variant": "#bdc9c6",
+                        "on-tertiary-container": "#ffe5db",
+                        "surface-variant": "#e0e3e5",
+                        "status-error": "#DC2626",
+                        "primary": "#005c55",
+                        "on-secondary-fixed-variant": "#005048",
+                        "primary-fixed": "#9cf2e8",
+                        "primary-container": "#0f766e",
+                        "on-background": "#191c1e",
+                        "text-primary": "#0F172A",
+                        "on-error": "#ffffff",
+                        "surface-container-high": "#e6e8ea",
+                        "background": "#f7f9fb",
+                        "tertiary-container": "#9c573a",
+                        "on-primary-fixed": "#00201d",
+                        "on-surface": "#191c1e",
+                        "status-warning": "#F59E0B",
+                        "outline": "#6e7977",
+                        "on-primary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-card": "#FFFFFF",
+                        "surface-tint": "#006a63",
+                        "on-primary-container": "#a3faef",
+                        "on-tertiary-fixed-variant": "#72361b",
+                        "secondary-fixed-dim": "#4fdbc8",
+                        "surface-dim": "#d8dadc",
+                        "surface-container-highest": "#e0e3e5",
+                        "secondary": "#006b5f",
+                        "on-surface-variant": "#3e4947",
+                        "error-container": "#ffdad6",
+                        "on-secondary-container": "#006f64",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#71f8e4",
+                        "inverse-surface": "#2d3133",
+                        "text-secondary": "#64748B"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "stack-md": "16px",
+                        "stack-sm": "8px",
+                        "tap-target-min": "48px",
+                        "stack-lg": "24px",
+                        "margin-mobile": "20px",
+                        "gutter-card": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .soft-float {
+            box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen">
+<!-- Sidebar Navigation -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low dark:bg-inverse-surface shadow-sm flex flex-col p-4 gap-2 z-50">
+<div class="mb-8 px-2">
+<h1 class="font-headline-md text-headline-md text-primary font-bold">CarePulse</h1>
+<p class="text-on-surface-variant font-label-lg text-label-lg opacity-70">Patient Portal</p>
+</div>
+<nav class="flex-grow space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg font-label-lg text-label-lg transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg font-label-lg text-label-lg transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+                My Bookings
+            </a>
+<!-- Active State -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container rounded-lg font-semibold font-label-lg text-label-lg transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+                Family Members
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg font-label-lg text-label-lg transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">description</span>
+                Health Records
+            </a>
+</nav>
+<div class="mt-auto space-y-1 pt-4 border-t border-outline-variant">
+<button class="w-full bg-primary text-on-primary font-label-lg text-label-lg py-3 rounded-full mb-4 hover:opacity-90 transition-opacity">
+                Book New Appointment
+            </button>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg font-label-lg text-label-lg transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">help</span>
+                Help Center
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg font-label-lg text-label-lg transition-all active:scale-95 duration-150" href="#">
+<span class="material-symbols-outlined">logout</span>
+                Logout
+            </a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-64 p-stack-lg min-h-screen">
+<header class="mb-stack-lg flex justify-between items-center px-margin-mobile">
+<div>
+<h2 class="font-headline-xl text-headline-xl text-text-primary">Family Members</h2>
+<p class="text-text-secondary font-body-md text-body-md mt-1">Manage health records and appointments for your loved ones in one place.</p>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-primary-fixed-dim flex items-center justify-center text-on-primary-fixed font-bold overflow-hidden">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A professional close-up portrait of a friendly man in his late 30s with short hair and a warm smile. The background is a soft, out-of-focus clinical office with clean white walls and natural daylight. The lighting is soft and flattering, emphasizing a clean, modern medical portal aesthetic with high-key whites and subtle teal accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCeXcyvoK4PV3ORzt596HC1Y_tlpQTvURKAr_YZxGRHZI-DVdzggqARd9OvbMZX6fOUh8pr-KUJHie1v2Qo4la7tzOYSv8GUNYuY0O_uOV-bD5Au4llvhTCSibihYPR6VVkaTzTDsbJ5Rfpw48h18xXsTmCV1bAGojcdMbX39rCdpNZ8PYdWi_5eNBzMY-Ynut35Gf-DrzfKKLejHoZpulRfRTgCIjsY2A6qUfd3L-WCSfSBo2AtVok3gXm_4dX7K2II2iFuHeMyBM"/>
+</div>
+</div>
+</header>
+<section class="px-margin-mobile">
+<!-- Bento-style Grid of Family Members -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter-card mb-stack-lg">
+<!-- Card: Sarah -->
+<div class="bg-surface-card rounded-xl p-stack-md soft-float border border-transparent hover:border-primary/20 transition-all group relative">
+<button class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-body-md">edit</span>
+</button>
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-headline-md">
+                            SJ
+                        </div>
+<div>
+<h3 class="font-headline-md text-headline-md text-text-primary">Sarah Johnson</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded-full text-label-md font-label-md">Wife</span>
+<span class="text-text-secondary font-label-md text-label-md">34 Years</span>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-surface-container-low flex justify-between">
+<button class="text-primary font-label-lg text-label-lg hover:underline">View Records</button>
+<span class="text-status-success flex items-center gap-1 font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-status-success"></span> Healthy
+                        </span>
+</div>
+</div>
+<!-- Card: Michael -->
+<div class="bg-surface-card rounded-xl p-stack-md soft-float border border-transparent hover:border-primary/20 transition-all group relative">
+<button class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-body-md">edit</span>
+</button>
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 rounded-full bg-secondary-fixed-dim flex items-center justify-center text-on-secondary-fixed font-bold text-headline-md">
+                            MJ
+                        </div>
+<div>
+<h3 class="font-headline-md text-headline-md text-text-primary">Michael Johnson</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-on-surface-variant rounded-full text-label-md font-label-md">Son</span>
+<span class="text-text-secondary font-label-md text-label-md">8 Years</span>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-surface-container-low flex justify-between">
+<button class="text-primary font-label-lg text-label-lg hover:underline">View Records</button>
+<span class="text-status-warning flex items-center gap-1 font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-status-warning"></span> Checkup Due
+                        </span>
+</div>
+</div>
+<!-- Card: Robert -->
+<div class="bg-surface-card rounded-xl p-stack-md soft-float border border-transparent hover:border-primary/20 transition-all group relative">
+<button class="absolute top-4 right-4 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-body-md">edit</span>
+</button>
+<div class="flex items-center gap-4">
+<div class="w-16 h-16 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed font-bold text-headline-md">
+                            RJ
+                        </div>
+<div>
+<h3 class="font-headline-md text-headline-md text-text-primary">Robert Johnson</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 bg-surface-container-highest text-on-surface-variant rounded-full text-label-md font-label-md">Father</span>
+<span class="text-text-secondary font-label-md text-label-md">68 Years</span>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-surface-container-low flex justify-between">
+<button class="text-primary font-label-lg text-label-lg hover:underline">View Records</button>
+<span class="text-status-success flex items-center gap-1 font-label-md text-label-md">
+<span class="w-2 h-2 rounded-full bg-status-success"></span> Stable
+                        </span>
+</div>
+</div>
+<!-- Add Family Member Card -->
+<button class="bg-transparent rounded-xl p-stack-md border-2 border-dashed border-outline-variant hover:border-primary hover:bg-primary-fixed/10 transition-all flex flex-col items-center justify-center gap-3 h-full min-h-[160px] group">
+<div class="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined">add</span>
+</div>
+<span class="font-label-lg text-label-lg text-on-surface-variant group-hover:text-primary transition-colors">+ Add family member</span>
+</button>
+</div>
+<!-- Illustrative Banner Section -->
+<div class="relative bg-primary-container rounded-xl overflow-hidden min-h-[280px] flex items-center p-stack-lg soft-float">
+<!-- Abstract Shader/Background effect -->
+<div class="absolute inset-0 opacity-20 mix-blend-overlay">
+
+</div>
+<div class="relative z-10 max-w-xl">
+<h2 class="font-headline-lg text-headline-lg text-on-primary-container mb-4">Complete Care for Your Entire Family</h2>
+<p class="font-body-lg text-body-lg text-on-primary-container opacity-90 mb-8">
+                        Serene Health helps you manage vaccination schedules, appointment histories, and emergency contacts for every member of your household in one unified portal.
+                    </p>
+<div class="flex gap-4">
+<button class="px-6 py-3 bg-white text-primary font-label-lg text-label-lg rounded-full hover:bg-surface-bright transition-colors shadow-sm">
+                            Learn About Family Plans
+                        </button>
+<button class="px-6 py-3 border border-on-primary-container text-on-primary-container font-label-lg text-label-lg rounded-full hover:bg-white/10 transition-colors">
+                            Emergency Protocols
+                        </button>
+</div>
+</div>
+<!-- Illustration Image Placeholder -->
+<div class="hidden lg:block absolute right-0 bottom-0 top-0 w-1/3">
+<img alt="Healthcare illustration" class="w-full h-full object-cover object-center mix-blend-screen opacity-80" data-alt="A warm and stylized photography of a diverse family of three generations laughing together in a bright, modern living room with soft clinical teal accents. The composition is clean and minimalist, focusing on the emotion of safety and well-being. Soft, diffused natural light fills the frame, creating a sense of serenity and trust in line with the Serene Health clinical minimalist brand identity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9iQfthLB3m6DvZKQNm14SsNPujKIf45WlUCVlOpd8qZxH7uwFQbMaUdvDY9i1bQkvpit4a8YjOCevlKisWC2PTbawnjp8qW2kEputyMgiL6vteZ3U5AqEwR1JOI7saEVJFOrvjUPwVtC-wFsV1CsSr0ut-bt8CoaCf4RkRgxiB4nrSsRMc1JyaBlLsUfdBNky55_LxLjHmXYTVyI4qt9avwNVosDnoFyOau6-68BdLPBrYyomvEVdHxsx6fTEfrMu6FFWswIdXoQ"/>
+</div>
+</div>
+<!-- Secondary Bento Section: Quick Actions/Insights -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter-card mt-stack-lg">
+<div class="bg-surface-card rounded-xl p-gutter-card soft-float flex items-start gap-4">
+<div class="p-3 bg-secondary-container/30 rounded-lg text-secondary">
+<span class="material-symbols-outlined">event_available</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-text-primary">Next Appointment</h4>
+<p class="text-text-secondary text-label-md font-label-md">Michael Johnson • Aug 14, 10:30 AM</p>
+</div>
+</div>
+<div class="bg-surface-card rounded-xl p-gutter-card soft-float flex items-start gap-4">
+<div class="p-3 bg-primary-container/30 rounded-lg text-primary">
+<span class="material-symbols-outlined">medical_information</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-text-primary">Vaccination Update</h4>
+<p class="text-text-secondary text-label-md font-label-md">Sarah has 2 upcoming boosters</p>
+</div>
+</div>
+<div class="bg-surface-card rounded-xl p-gutter-card soft-float flex items-start gap-4">
+<div class="p-3 bg-tertiary-fixed/30 rounded-lg text-tertiary">
+<span class="material-symbols-outlined">folder_shared</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-text-primary">Shared Access</h4>
+<p class="text-text-secondary text-label-md font-label-md">Robert's records shared with 2 providers</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer Space -->
+<footer class="mt-stack-lg py-12 px-margin-mobile border-t border-outline-variant flex justify-between items-center text-text-secondary font-label-md text-label-md">
+<p>© 2024 CarePulse by Serene Health. All rights reserved.</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-primary transition-colors" href="#">Cookie Settings</a>
+</div>
+</footer>
+</main>
+<script>
+        // Micro-interaction for hover states on family cards
+        const cards = document.querySelectorAll('.group.bg-surface-card');
+        cards.forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-2px)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0)';
+            });
+        });
+    </script>
+</body></html>

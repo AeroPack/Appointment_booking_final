@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Appointment Detail - Serene Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb; /* surface */
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-surface": "#2d3133",
+                      "surface": "#f7f9fb",
+                      "primary-fixed": "#9cf2e8",
+                      "error-container": "#ffdad6",
+                      "on-tertiary-fixed": "#370e00",
+                      "surface-container": "#eceef0",
+                      "outline-variant": "#bdc9c6",
+                      "on-tertiary-container": "#ffe5db",
+                      "text-secondary": "#64748B",
+                      "primary-fixed-dim": "#80d5cb",
+                      "on-primary-fixed-variant": "#00504a",
+                      "surface-tint": "#006a63",
+                      "on-error": "#ffffff",
+                      "surface-container-low": "#f2f4f6",
+                      "status-error": "#DC2626",
+                      "text-primary": "#0F172A",
+                      "on-surface-variant": "#3e4947",
+                      "surface-bright": "#f7f9fb",
+                      "background": "#f7f9fb",
+                      "surface-variant": "#e0e3e5",
+                      "secondary-container": "#6df5e1",
+                      "inverse-primary": "#80d5cb",
+                      "inverse-on-surface": "#eff1f3",
+                      "on-primary-fixed": "#00201d",
+                      "surface-dim": "#d8dadc",
+                      "on-secondary-container": "#006f64",
+                      "outline": "#6e7977",
+                      "on-error-container": "#93000a",
+                      "on-tertiary-fixed-variant": "#72361b",
+                      "surface-container-highest": "#e0e3e5",
+                      "status-success": "#16A34A",
+                      "on-tertiary": "#ffffff",
+                      "tertiary-container": "#9c573a",
+                      "surface-container-lowest": "#ffffff",
+                      "status-warning": "#F59E0B",
+                      "primary-container": "#0f766e",
+                      "on-secondary-fixed-variant": "#005048",
+                      "tertiary": "#7f4025",
+                      "on-primary": "#ffffff",
+                      "primary": "#005c55",
+                      "surface-container-high": "#e6e8ea",
+                      "on-background": "#191c1e",
+                      "error": "#ba1a1a",
+                      "on-primary-container": "#a3faef",
+                      "secondary": "#006b5f",
+                      "secondary-fixed-dim": "#4fdbc8",
+                      "on-secondary-fixed": "#00201c",
+                      "tertiary-fixed-dim": "#ffb598",
+                      "secondary-fixed": "#71f8e4",
+                      "tertiary-fixed": "#ffdbce",
+                      "on-surface": "#191c1e",
+                      "surface-card": "#FFFFFF",
+                      "on-secondary": "#ffffff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "stack-md": "16px",
+                      "tap-target-min": "48px",
+                      "stack-sm": "8px",
+                      "margin-mobile": "20px",
+                      "stack-lg": "24px",
+                      "gutter-card": "16px",
+                      "base": "4px"
+              },
+              "fontFamily": {
+                      "headline-lg-mobile": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "headline-xl": ["Inter"],
+                      "label-lg": ["Inter"],
+                      "headline-md": ["Inter"],
+                      "label-md": ["Inter"],
+                      "headline-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                      "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                      "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                      "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                      "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background min-h-screen pb-stack-lg">
+<!-- Top AppBar Component -->
+<header class="w-full top-0 sticky bg-surface-container-lowest border-b border-outline-variant z-50">
+<div class="flex items-center justify-between px-margin-mobile h-[48px] w-full">
+<div class="flex items-center gap-4">
+<button class="active:opacity-80 transition-opacity flex items-center justify-center min-w-[40px] h-[40px] hover:bg-surface-container-low rounded-full">
+<span class="material-symbols-outlined text-primary" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-headline-md text-headline-md-mobile text-primary">Appointment Detail</h1>
+</div>
+<div class="w-[40px]"></div> <!-- Spacer for centering title if needed by 'small_center_aligned' -->
+</div>
+</header>
+<main class="px-margin-mobile pt-stack-lg space-y-stack-lg max-w-2xl mx-auto">
+<!-- Status & Token Badge Section -->
+<div class="flex justify-between items-center">
+<span class="inline-flex items-center px-4 py-1.5 rounded-full bg-secondary-container text-on-secondary-container font-label-lg text-label-lg">
+<span class="material-symbols-outlined mr-2 text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                Booked
+            </span>
+<div class="text-right">
+<p class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Token Number</p>
+<p class="font-headline-md text-headline-md text-primary">#14</p>
+</div>
+</div>
+<!-- Professional Doctor Card -->
+<div class="bg-surface-container-lowest rounded-xl p-gutter-card shadow-[0px_4px_12px_rgba(15,23,42,0.05)] transition-all">
+<div class="flex items-start gap-stack-md">
+<div class="w-20 h-20 rounded-xl overflow-hidden bg-surface-container flex-shrink-0">
+<img alt="Dr. Sarah Jenkins" class="w-full h-full object-cover" data-alt="A professional portrait of Dr. Sarah Jenkins, a middle-aged female cardiologist with a warm smile. She is wearing a white medical coat with a stethoscope around her neck. The setting is a clean, modern medical office with soft, bright lighting that emphasizes a serene and trustworthy healthcare environment. The color palette is composed of soft whites, teals, and subtle grays, maintaining the clinic's clinical minimalist aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBx8p0hzPd04xkbHfo-vo2FwSyk8rJDW0iP625uAXHpFIWum6-O8HdcKbF5SQal8sSrn5Uqhb9wrkOA41-QrttGwJ_06oK4Nr-V0u73xHI0RegZZe_BoYjfhERa5bWU857l7v6AuJISQbwOxyPMyZyJxQgAmhbNR0aWwJMONUg04E1NN3ftSP58pXtm3EjFTk-VpVzZdKkPdxaY-Yuf9QccvYcST1JQHZnnC0rOmgxk2x99Q3UpJd4oIbCsmX9LbN-hduHFDXdyXZA"/>
+</div>
+<div class="flex-1">
+<h2 class="font-headline-md text-headline-md text-text-primary">Dr. Sarah Jenkins</h2>
+<p class="font-body-md text-body-md text-primary font-semibold">Cardiology Specialist</p>
+<div class="mt-2 flex items-center text-text-secondary">
+<span class="material-symbols-outlined text-[18px] mr-1" data-icon="location_on">location_on</span>
+<span class="font-label-lg text-label-lg">City Clinic, Block B</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Appointment Schedule Bento-like Info -->
+<div class="grid grid-cols-2 gap-stack-md">
+<div class="bg-surface-container-lowest p-gutter-card rounded-xl shadow-[0px_4px_12px_rgba(15,23,42,0.05)] flex flex-col gap-1">
+<span class="material-symbols-outlined text-primary mb-1" data-icon="calendar_month">calendar_month</span>
+<p class="font-label-md text-label-md text-text-secondary">Date</p>
+<p class="font-label-lg text-label-lg text-text-primary">Oct 24, 2023</p>
+</div>
+<div class="bg-surface-container-lowest p-gutter-card rounded-xl shadow-[0px_4px_12px_rgba(15,23,42,0.05)] flex flex-col gap-1">
+<span class="material-symbols-outlined text-primary mb-1" data-icon="schedule">schedule</span>
+<p class="font-label-md text-label-md text-text-secondary">Time</p>
+<p class="font-label-lg text-label-lg text-text-primary">10:30 AM</p>
+</div>
+</div>
+<!-- Patient & Details List -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0px_4px_12px_rgba(15,23,42,0.05)]">
+<div class="p-gutter-card border-b border-surface-container-low">
+<p class="font-label-md text-label-md text-text-secondary mb-1">Patient Name</p>
+<p class="font-body-lg text-body-lg text-text-primary font-medium">Aarav</p>
+</div>
+<div class="p-gutter-card bg-surface-container-lowest">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-[20px]" data-icon="description">description</span>
+<p class="font-label-md text-label-md text-text-secondary">Notes from Clinic</p>
+</div>
+<div class="bg-primary/5 border-l-4 border-primary p-3 rounded-r-lg">
+<p class="font-body-md text-body-md text-on-surface-variant italic leading-relaxed">
+                        "Please bring all your previous cardiac medical records and current medication list for review."
+                    </p>
+</div>
+</div>
+</div>
+<!-- Location Map Preview -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-[0px_4px_12px_rgba(15,23,42,0.05)]">
+<div class="relative h-40 w-full overflow-hidden">
+<img alt="Map location" class="w-full h-full object-cover" data-alt="A clean, minimalist digital map interface showing the precise location of City Clinic. The map features a soft color palette of light grays and teals, with a distinct medical icon pin marking the destination. The surrounding area is simplified to reduce visual noise, emphasizing clarity and ease of navigation in a modern light-mode interface." data-location="City Clinic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCaxVhPRbhgnKU2o7KQXdimV-LiQME0ILR_cZlpeqtCZfC7K2mH4qVlpf4BwMshVQqMDJ2FNuEBZG7-gkZdnvTeXLMQ89cVMPns8mTecMoNBp7dbRwko0B5Q8NeamoBcquGXSnLWyu4QSuka39a2Zvh4VdPJ5LFDVK5-9VXR5USW3lpnynTdbM2gKU9bbZDLYQGqxowWjxiw-Pdlye0Y71PIjH0sFyaFMlcg8PK76uXn_EUPUn6jkM83pMt2GgeSbdbD5CTHZPpQiM"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+<div class="absolute bottom-3 left-4 text-white">
+<p class="font-label-lg text-label-lg font-bold">City Clinic</p>
+<p class="text-[10px] opacity-90">123 Health Ave, Medical District</p>
+</div>
+</div>
+<button class="w-full py-3 flex items-center justify-center gap-2 text-primary font-label-lg text-label-lg hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="directions">directions</span>
+                Get Directions
+            </button>
+</div>
+<!-- Action Area -->
+<div class="pt-stack-lg space-y-4">
+<button class="w-full h-tap-target-min rounded-full bg-primary text-white font-label-lg text-label-lg flex items-center justify-center shadow-md active:scale-95 transition-transform">
+<span class="material-symbols-outlined mr-2" data-icon="edit_calendar">edit_calendar</span>
+                Reschedule Appointment
+            </button>
+<button class="w-full h-tap-target-min rounded-full border-2 border-status-error text-status-error font-label-lg text-label-lg flex items-center justify-center hover:bg-status-error/5 active:scale-95 transition-transform">
+<span class="material-symbols-outlined mr-2" data-icon="cancel">cancel</span>
+                Cancel appointment
+            </button>
+</div>
+</main>
+<!-- Bottom Navigation Component (Suppressed for focused detail task as per UX Goal) -->
+<!-- Determined as focused detail page, BottomNavBar is excluded to prioritize Task-Focused journey -->
+<script>
+        // Micro-interaction for the back button
+        document.querySelector('button span[data-icon="arrow_back"]').parentElement.addEventListener('click', () => {
+            window.history.back();
+        });
+
+        // Simple button active states feedback
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(btn => {
+            btn.addEventListener('touchstart', () => btn.classList.add('opacity-80'));
+            btn.addEventListener('touchend', () => btn.classList.remove('opacity-80'));
+        });
+    </script>
+</body></html>

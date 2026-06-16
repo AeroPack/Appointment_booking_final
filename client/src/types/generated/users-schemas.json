@@ -1,0 +1,8 @@
+{
+  "updateProfileSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "createDependentSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

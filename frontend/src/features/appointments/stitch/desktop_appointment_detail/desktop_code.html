@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CarePulse | Appointment Detail</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary": "#7f4025",
+                    "on-primary-fixed-variant": "#00504a",
+                    "surface-bright": "#f7f9fb",
+                    "surface": "#f7f9fb",
+                    "inverse-on-surface": "#eff1f3",
+                    "primary-fixed-dim": "#80d5cb",
+                    "tertiary-fixed": "#ffdbce",
+                    "secondary-container": "#6df5e1",
+                    "on-tertiary-fixed": "#370e00",
+                    "tertiary-fixed-dim": "#ffb598",
+                    "surface-container-low": "#f2f4f6",
+                    "surface-container": "#eceef0",
+                    "inverse-primary": "#80d5cb",
+                    "status-success": "#16A34A",
+                    "surface-container-lowest": "#ffffff",
+                    "on-secondary-fixed": "#00201c",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "outline-variant": "#bdc9c6",
+                    "on-tertiary-container": "#ffe5db",
+                    "surface-variant": "#e0e3e5",
+                    "status-error": "#DC2626",
+                    "primary": "#005c55",
+                    "on-secondary-fixed-variant": "#005048",
+                    "primary-fixed": "#9cf2e8",
+                    "primary-container": "#0f766e",
+                    "on-background": "#191c1e",
+                    "text-primary": "#0F172A",
+                    "on-error": "#ffffff",
+                    "surface-container-high": "#e6e8ea",
+                    "background": "#f7f9fb",
+                    "tertiary-container": "#9c573a",
+                    "on-primary-fixed": "#00201d",
+                    "on-surface": "#191c1e",
+                    "status-warning": "#F59E0B",
+                    "outline": "#6e7977",
+                    "on-primary": "#ffffff",
+                    "error": "#ba1a1a",
+                    "surface-card": "#FFFFFF",
+                    "surface-tint": "#006a63",
+                    "on-primary-container": "#a3faef",
+                    "on-tertiary-fixed-variant": "#72361b",
+                    "secondary-fixed-dim": "#4fdbc8",
+                    "surface-dim": "#d8dadc",
+                    "surface-container-highest": "#e0e3e5",
+                    "secondary": "#006b5f",
+                    "on-surface-variant": "#3e4947",
+                    "error-container": "#ffdad6",
+                    "on-secondary-container": "#006f64",
+                    "on-secondary": "#ffffff",
+                    "secondary-fixed": "#71f8e4",
+                    "inverse-surface": "#2d3133",
+                    "text-secondary": "#64748B"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "stack-md": "16px",
+                    "stack-sm": "8px",
+                    "tap-target-min": "48px",
+                    "stack-lg": "24px",
+                    "margin-mobile": "20px",
+                    "gutter-card": "16px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "label-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      body {
+        background-color: #f7f9fb;
+        color: #191c1e;
+        font-family: 'Inter', sans-serif;
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .soft-float {
+        box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+      }
+      .pill-button {
+        transition: all 0.2s ease;
+      }
+      .pill-button:active {
+        transform: scale(0.98);
+        filter: brightness(0.9);
+      }
+    </style>
+</head>
+<body class="min-h-screen">
+<!-- TopNavBar -->
+<nav class="bg-surface-container-lowest dark:bg-inverse-surface w-full sticky top-0 border-b border-outline-variant dark:border-outline z-40">
+<div class="flex justify-between items-center h-16 px-margin-mobile w-full">
+<div class="flex items-center gap-4">
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed cursor-pointer">CarePulse</div>
+</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">Dashboard</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-body-md text-body-md" href="#">My Bookings</a>
+<a class="text-on-surface-variant dark:text-on-surface-variant font-body-md text-body-md hover:text-primary transition-colors" href="#">Family Members</a>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer active:opacity-80">notifications</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer active:opacity-80">settings</span>
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border border-outline-variant">
+<img alt="User profile avatar" class="w-full h-full object-cover" data-alt="A professional headshot of a young male patient with a friendly expression, set against a soft-focus clinical interior with neutral tones and clean lighting, maintaining a modern and trustworthy healthcare aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAndudimN2-LTLiM_uRlGQUJMc9-t6s11FfEpnYcNA-sRbzY6kmIQaCB5jRazLFqEI8cwlKcvWOkIhEDfr7mUbQwtC-zyjZaI9XqulZP6nHcp9dGx-R88ERcraYcB0IhkjkU1SuW1UsDFvvl-SMR_L9RDZmV23ece1gqHVu7jTSswQElq5HQBHmQ1cNqlZFHPzrGToyI4xrPzUFZib75HFPAmaE1H8_ty4wJsiI9LTVMWrP-mKoy7M4Oz_3LBiNFSnjEIuljfsTe04"/>
+</div>
+</div>
+</div>
+</nav>
+<!-- SideNavBar (Hidden on desktop as per JSON layout, but available) -->
+<!-- Content Canvas -->
+<main class="max-w-4xl mx-auto px-margin-mobile py-stack-lg">
+<!-- Header Actions -->
+<div class="flex items-center gap-2 mb-stack-md cursor-pointer group w-fit" onclick="window.history.back()">
+<span class="material-symbols-outlined text-primary group-hover:-translate-x-1 transition-transform">arrow_back</span>
+<span class="font-label-lg text-label-lg text-primary">Back to Bookings</span>
+</div>
+<!-- Appointment Detail Card -->
+<div class="bg-surface-container-lowest rounded-xl soft-float overflow-hidden border border-outline-variant/30">
+<!-- Status Header -->
+<div class="px-gutter-card py-stack-md bg-secondary-container/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div class="flex items-center gap-3">
+<div class="bg-status-success/10 text-status-success px-3 py-1 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-lg text-label-lg">Booked</span>
+</div>
+<span class="text-on-surface-variant font-label-lg text-label-lg">Appointment ID: #CP-82910</span>
+</div>
+<div class="bg-primary text-on-primary px-4 py-2 rounded-lg soft-float">
+<span class="font-headline-md text-headline-md">Token #14</span>
+</div>
+</div>
+<div class="p-gutter-card space-y-stack-lg">
+<!-- Doctor & Patient Section -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
+<!-- Doctor Profile -->
+<div class="flex items-start gap-4 p-stack-md rounded-lg bg-surface-container-low border border-outline-variant/20">
+<img alt="Dr. Sarah Jenkins" class="w-16 h-16 rounded-full object-cover border-2 border-primary-fixed shadow-sm" data-alt="A portrait of a confident female cardiologist named Dr. Sarah Jenkins wearing professional medical attire including a white lab coat and stethoscope. She is standing in a brightly lit, modern hospital hallway with clean architectural lines and a serene blue and white color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtdkF5Wd99ChCiwEODL3Am95T59WbRZ3R_RfmRA6ywW8aDneR7niOhjycKzKhOhQu8UiX0EEp2PVaSR_SBxm2PSPAanTnHZoPCXNG0JzYlIjaSp187RiXC8jGWEpozdd5zMjeGwumnyaJVPVU89NciD84dyYM_ezj8KxtSGdYsGt1wRs9gKz-LIaxtxM838ZC4omw1IHf3tpUt1m4DWrcZoIbcz9T4KYW_RenvKAoXFqEPknLVUjOCxpRPKpn8cqPdVCHZdb_v-1A"/>
+<div>
+<h2 class="font-headline-md text-headline-md text-text-primary">Dr. Sarah Jenkins</h2>
+<p class="font-body-md text-body-md text-primary font-semibold">Cardiology Specialist</p>
+<p class="font-label-md text-label-md text-text-secondary mt-1">12 Years Experience</p>
+</div>
+</div>
+<!-- Patient Profile -->
+<div class="flex items-start gap-4 p-stack-md rounded-lg bg-surface-container-low border border-outline-variant/20">
+<div class="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-headline-lg text-headline-lg">
+                            A
+                        </div>
+<div>
+<h2 class="font-headline-md text-headline-md text-text-primary">Aarav Patel</h2>
+<p class="font-body-md text-body-md text-text-secondary">Primary Patient</p>
+<p class="font-label-md text-label-md text-text-secondary mt-1">Age: 28 | Male</p>
+</div>
+</div>
+</div>
+<!-- Date and Time Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-stack-md">
+<div class="flex flex-col gap-1 p-4 bg-surface-container rounded-xl border border-outline-variant/30">
+<span class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Date</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">calendar_month</span>
+<span class="font-body-lg text-body-lg font-bold">Oct 24, 2023</span>
+</div>
+</div>
+<div class="flex flex-col gap-1 p-4 bg-surface-container rounded-xl border border-outline-variant/30">
+<span class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Time</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">schedule</span>
+<span class="font-body-lg text-body-lg font-bold">09:30 AM</span>
+</div>
+</div>
+<div class="flex flex-col gap-1 p-4 bg-surface-container rounded-xl border border-outline-variant/30">
+<span class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Estimated Wait</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-status-warning">hourglass_empty</span>
+<span class="font-body-lg text-body-lg font-bold">15 - 20 mins</span>
+</div>
+</div>
+</div>
+<!-- Notes Section -->
+<div class="space-y-stack-sm">
+<h3 class="font-label-lg text-label-lg text-text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">description</span>
+                        Notes from Clinic
+                    </h3>
+<blockquote class="border-l-4 border-primary bg-surface-container-low p-stack-md rounded-r-lg italic text-on-surface-variant font-body-md text-body-md">
+                        "Please arrive 15 minutes early for registration. Bring your latest blood report and current medications. The consultation will take approximately 30 minutes. Wear comfortable clothing for a potential ECG."
+                    </blockquote>
+</div>
+<!-- Map Section -->
+<div class="space-y-stack-sm">
+<h3 class="font-label-lg text-label-lg text-text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">location_on</span>
+                        Location
+                    </h3>
+<div class="flex flex-col md:flex-row gap-gutter-card bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/20">
+<div class="w-full md:w-1/3 h-48 relative">
+<img alt="Clinic Map Location" class="w-full h-full object-cover" data-alt="A clean and detailed digital map graphic showing the location of a medical clinic in a modern city neighborhood. The map features minimalist design with soft primary teal and white tones, highlighting local landmarks and providing a calm, functional aesthetic consistent with a health portal UI." data-location="City Clinic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3IUQMZ1a8fmAowAgLTejZCXrNb2ix8SbAf2SV9ASayn9h7QIKFmVOw4RjNrAxMEZ75zVnzAEu0LU4FHXAaYGxHGvHgzCYz5VOz8annoVzKA5QydQWeZpPeLSF-9LRejc_RpSO-gRuQF0eWSd5tuHrMvAqRPWq8MUALMJEbZHCCmaRwceKhE5qkB693m5HBGQwfUHRWbbF2ARyC7TqumVb9nPYJTkUqKUH4bbeSWCGcxuYL3H15QIqrPCibuKBAbtoAg0Ld6jp0HA"/>
+<div class="absolute inset-0 bg-primary/10 pointer-events-none"></div>
+</div>
+<div class="p-gutter-card flex-1 flex flex-col justify-center">
+<h4 class="font-headline-md text-headline-md text-text-primary">City Health Clinic</h4>
+<p class="font-body-md text-body-md text-text-secondary mt-1">123 Wellness Boulevard, Suite 400<br/>Central District, Metro City</p>
+<button class="mt-stack-md w-fit flex items-center gap-2 font-label-lg text-label-lg text-primary hover:underline group">
+<span class="material-symbols-outlined text-[20px]">directions</span>
+                                Get Directions
+                            </button>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="pt-stack-lg border-t border-outline-variant flex flex-col md:flex-row gap-stack-md">
+<button class="pill-button flex-1 bg-primary text-on-primary font-label-lg text-label-lg py-tap-target-min rounded-full flex items-center justify-center gap-2 hover:bg-primary-container transition-colors soft-float">
+<span class="material-symbols-outlined">event_repeat</span>
+                        Reschedule Appointment
+                    </button>
+<button class="pill-button flex-1 bg-transparent border-2 border-error text-error font-label-lg text-label-lg py-tap-target-min rounded-full flex items-center justify-center gap-2 hover:bg-error/5 transition-colors">
+<span class="material-symbols-outlined">cancel</span>
+                        Cancel Appointment
+                    </button>
+</div>
+</div>
+</div>
+<!-- Support Info -->
+<div class="mt-stack-lg text-center">
+<p class="font-label-md text-label-md text-text-secondary">
+                Need help? Contact our support at <span class="text-primary font-semibold">support@serenehealth.com</span> or call 1-800-SERENE
+            </p>
+</div>
+</main>
+<!-- Bottom Navigation (Mobile Only) -->
+<div class="md:hidden fixed bottom-0 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant px-margin-mobile py-2 z-40 flex justify-around items-center">
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-medium">Dashboard</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">calendar_today</span>
+<span class="text-[10px] font-bold">Bookings</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">group</span>
+<span class="text-[10px] font-medium">Family</span>
+</div>
+<div class="flex flex-col items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined">description</span>
+<span class="text-[10px] font-medium">Records</span>
+</div>
+</div>
+<script>
+        // Simple interactive feedback for buttons
+        document.querySelectorAll('.pill-button').forEach(button => {
+            button.addEventListener('mousedown', function() {
+                this.classList.add('opacity-80');
+            });
+            button.addEventListener('mouseup', function() {
+                this.classList.remove('opacity-80');
+            });
+        });
+    </script>
+</body></html>

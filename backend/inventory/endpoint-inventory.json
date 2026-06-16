@@ -1,0 +1,441 @@
+{
+  "generatedAt": "2026-06-10T08:47:02.989Z",
+  "totalEndpoints": 30,
+  "modules": {
+    "auth": {
+      "basePath": "/api/auth",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/auth/request-otp",
+          "middlewares": [
+            "rateLimit",
+            "validate"
+          ],
+          "handler": "sendOtp",
+          "schemas": [
+            "requestOtpSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/auth/verify-otp",
+          "middlewares": [
+            "rateLimit",
+            "validate"
+          ],
+          "handler": "verifyOtp",
+          "schemas": [
+            "verifyOtpSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/auth/refresh",
+          "middlewares": [
+            "validate"
+          ],
+          "handler": "refresh",
+          "schemas": [
+            "refreshSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/auth/logout",
+          "middlewares": [
+            "authGuard",
+            "validate"
+          ],
+          "handler": "logout",
+          "schemas": [
+            "logoutSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "GET",
+          "path": "/api/auth/me",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "me",
+          "schemas": [],
+          "roles": []
+        }
+      ]
+    },
+    "users": {
+      "basePath": "/api",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/users/me",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "getMe",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/users/me",
+          "middlewares": [
+            "authGuard",
+            "validate"
+          ],
+          "handler": "updateMe",
+          "schemas": [
+            "updateProfileSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/users/dependents",
+          "middlewares": [
+            "authGuard",
+            "validate"
+          ],
+          "handler": "createDependent",
+          "schemas": [
+            "createDependentSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "GET",
+          "path": "/api/users/dependents",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "getDependents",
+          "schemas": [],
+          "roles": []
+        }
+      ]
+    },
+    "doctors": {
+      "basePath": "/api",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/doctors/:doctorId/profile",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "getDoctorProfile",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/venues",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "createVenue",
+          "schemas": [
+            "createVenueSchema"
+          ],
+          "roles": [
+            "doctor",
+            "staff"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/venues",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "getVenues",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/venues/:id",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "patchVenue",
+          "schemas": [
+            "updateVenueSchema"
+          ],
+          "roles": [
+            "doctor",
+            "staff"
+          ]
+        }
+      ]
+    },
+    "settings": {
+      "basePath": "/api",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/appointment-setting",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "getSettings",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "PUT",
+          "path": "/api/appointment-setting",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "putSettings",
+          "schemas": [
+            "putSettingsSchema"
+          ],
+          "roles": [
+            "doctor",
+            "staff"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/message-templates",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "listTemplates",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/message-templates",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "createTemplate",
+          "schemas": [
+            "createTemplateSchema"
+          ],
+          "roles": [
+            "doctor",
+            "staff"
+          ]
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/message-templates/:id",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "updateTemplate",
+          "schemas": [
+            "updateTemplateSchema"
+          ],
+          "roles": [
+            "doctor",
+            "staff"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/message-templates/:id",
+          "middlewares": [
+            "authGuard",
+            "requireRole"
+          ],
+          "handler": "deleteTemplate",
+          "schemas": [],
+          "roles": [
+            "doctor",
+            "staff"
+          ]
+        }
+      ]
+    },
+    "appointments": {
+      "basePath": "/api",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/patient/find-slots",
+          "middlewares": [
+            "authGuard",
+            "validate"
+          ],
+          "handler": "findSlots",
+          "schemas": [
+            "findSlotsSchema"
+          ],
+          "roles": []
+        },
+        {
+          "method": "POST",
+          "path": "/api/patient/book-slot",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "bookSlot",
+          "schemas": [
+            "bookSlotSchema"
+          ],
+          "roles": [
+            "patient"
+          ]
+        }
+      ]
+    },
+    "messages": {
+      "basePath": "/api",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/send-message",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "sendMessage",
+          "schemas": [
+            "sendMessageSchema"
+          ],
+          "roles": [
+            "staff"
+          ]
+        }
+      ]
+    },
+    "tags": {
+      "basePath": "/api",
+      "endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/tags",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "createTag",
+          "schemas": [
+            "createTagSchema"
+          ],
+          "roles": [
+            "staff",
+            "doctor"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/tags",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "listTags",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "GET",
+          "path": "/api/tags/:id",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "getTag",
+          "schemas": [],
+          "roles": []
+        },
+        {
+          "method": "PATCH",
+          "path": "/api/tags/:id",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "updateTag",
+          "schemas": [
+            "updateTagSchema"
+          ],
+          "roles": [
+            "staff",
+            "doctor"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/tags/:id",
+          "middlewares": [
+            "authGuard",
+            "requireRole"
+          ],
+          "handler": "deleteTag",
+          "schemas": [],
+          "roles": [
+            "staff",
+            "doctor"
+          ]
+        },
+        {
+          "method": "POST",
+          "path": "/api/users/:userId/tags",
+          "middlewares": [
+            "authGuard",
+            "requireRole",
+            "validate"
+          ],
+          "handler": "assignTag",
+          "schemas": [
+            "assignTagSchema"
+          ],
+          "roles": [
+            "staff",
+            "doctor"
+          ]
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/users/:userId/tags/:tagId",
+          "middlewares": [
+            "authGuard",
+            "requireRole"
+          ],
+          "handler": "unassignTag",
+          "schemas": [],
+          "roles": [
+            "staff",
+            "doctor"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/api/users/:userId/tags",
+          "middlewares": [
+            "authGuard"
+          ],
+          "handler": "listUserTags",
+          "schemas": [],
+          "roles": []
+        }
+      ]
+    }
+  }
+}

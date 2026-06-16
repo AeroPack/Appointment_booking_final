@@ -1,0 +1,72 @@
+(node:36343) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+FAIL src/test/tags.test.ts
+  ● Console
+
+    console.log
+      bookSlot controller {
+        patient_id: '75a02b32-734b-4805-867c-7f06efd7482a',
+        clinicId: '2a0da053-22d6-4b8c-a711-0b95aa01e8b9'
+      }
+
+      at bookSlot (src/modules/appointments/appointments.controller.ts:28:13)
+
+    console.log
+      evaluateAutoTags {
+        patientId: '75a02b32-734b-4805-867c-7f06efd7482a',
+        clinicId: '2a0da053-22d6-4b8c-a711-0b95aa01e8b9',
+        autoTagsCount: 2,
+        autoTags: [
+          { name: 'New Patient', rule: [Object] },
+          { name: 'Old Patient', rule: [Object] }
+        ]
+      }
+
+      at TagsService.evaluateAutoTags (src/modules/tags/tags.service.ts:79:13)
+
+    console.log
+      countPatientAppointments { patientId: '75a02b32-734b-4805-867c-7f06efd7482a', count: 1 }
+
+      at TagsService.evaluateAutoTags (src/modules/tags/tags.service.ts:83:13)
+
+    console.log
+      booking result {
+        success: true,
+        data: {
+          id: '8b749a44-cf7a-4b9e-9874-143615b13541',
+          doctor_id: 'c57304f6-404a-4b48-8819-025a2a2ecb8a',
+          patient_id: '75a02b32-734b-4805-867c-7f06efd7482a',
+          scheduled_start: '2026-06-17T03:30:00.000Z',
+          scheduled_end: '2026-06-17T03:45:00.000Z',
+          token_number: 1,
+          appointment_status: 'booked',
+          venue: null
+        }
+      }
+
+      at Object.<anonymous> (src/test/tags.test.ts:198:13)
+
+  ● Auto-tag evaluation › [unit] first booking → "New Patient"; subsequent → "Old Patient"
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: "New Patient"
+    Received array: []
+
+      200 |     const tagsAfterFirst = await getUserTags(patient.id);
+      201 |     const namesAfterFirst = tagsAfterFirst.map((r: any) => r.name);
+    > 202 |     expect(namesAfterFirst).toContain('New Patient');
+          |                             ^
+      203 |     expect(namesAfterFirst).not.toContain('Old Patient');
+      204 |
+      205 |     const slot2 = futureIST(7, 9, 15);
+
+      at Object.<anonymous> (src/test/tags.test.ts:202:29)
+
+
+Test Suites: 1 failed, 7 skipped, 1 of 8 total
+Tests:       1 failed, 90 skipped, 91 total
+Snapshots:   0 total
+Time:        3.31 s, estimated 55 s
+Ran all test suites with tests matching "Auto-tag".
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

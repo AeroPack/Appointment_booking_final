@@ -1,0 +1,61 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: appointment_pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-appointment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-appointment_booking}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appointment} -d ${POSTGRES_DB:-appointment_booking}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - appointment_network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: appointment_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-appointment}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-appointment_booking}
+      JWT_SECRET: ${JWT_SECRET:-appointment-booking-jwt-secret-dev-only-change-in-production}
+    ports:
+      - "5000:5000"
+    networks:
+      - appointment_network
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost
+    container_name: appointment_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    networks:
+      - appointment_network
+
+volumes:
+  pg_data:
+
+networks:
+  appointment_network:
+    driver: bridge

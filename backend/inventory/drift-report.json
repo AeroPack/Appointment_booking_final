@@ -1,0 +1,44 @@
+[
+  {
+    "module": "auth",
+    "missing": [
+      "features/auth/authApi.ts (empty)",
+      "features/auth/types.ts (empty)"
+    ]
+  },
+  {
+    "module": "users",
+    "missing": [
+      "features/users/usersApi.ts (empty)",
+      "features/users/types.ts (empty)"
+    ]
+  },
+  {
+    "module": "doctors",
+    "missing": [
+      "features/doctors/doctorsApi.ts (empty)",
+      "features/doctors/types.ts (empty)"
+    ]
+  },
+  {
+    "module": "settings",
+    "missing": [
+      "features/settings/settingsApi.ts (empty)",
+      "features/settings/types.ts (empty)"
+    ]
+  },
+  {
+    "module": "appointments",
+    "missing": [
+      "features/appointments/appointmentsApi.ts (empty)",
+      "features/appointments/types.ts (empty)"
+    ]
+  },
+  {
+    "module": "tags",
+    "missing": [
+      "features/tags/tagsApi.ts (empty)",
+      "features/tags/types.ts (empty)"
+    ]
+  }
+]

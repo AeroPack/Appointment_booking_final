@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Confirm Booking | Serene Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-primary": "#80d5cb",
+                    "primary-fixed": "#9cf2e8",
+                    "status-success": "#16A34A",
+                    "secondary-fixed": "#71f8e4",
+                    "tertiary-container": "#9c573a",
+                    "inverse-on-surface": "#eff1f3",
+                    "surface-container": "#eceef0",
+                    "text-primary": "#0F172A",
+                    "on-error-container": "#93000a",
+                    "tertiary-fixed": "#ffdbce",
+                    "surface-variant": "#e0e3e5",
+                    "status-error": "#DC2626",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed": "#370e00",
+                    "on-tertiary-fixed-variant": "#72361b",
+                    "secondary": "#006b5f",
+                    "on-error": "#ffffff",
+                    "surface-dim": "#d8dadc",
+                    "outline": "#6e7977",
+                    "error": "#ba1a1a",
+                    "on-primary-container": "#a3faef",
+                    "on-secondary-fixed-variant": "#005048",
+                    "surface-bright": "#f7f9fb",
+                    "inverse-surface": "#2d3133",
+                    "surface": "#f7f9fb",
+                    "on-background": "#191c1e",
+                    "secondary-fixed-dim": "#4fdbc8",
+                    "on-surface-variant": "#3e4947",
+                    "status-warning": "#F59E0B",
+                    "surface-tint": "#006a63",
+                    "error-container": "#ffdad6",
+                    "on-surface": "#191c1e",
+                    "on-tertiary": "#ffffff",
+                    "outline-variant": "#bdc9c6",
+                    "surface-container-high": "#e6e8ea",
+                    "on-primary-fixed": "#00201d",
+                    "secondary-container": "#6df5e1",
+                    "on-secondary-fixed": "#00201c",
+                    "background": "#f7f9fb",
+                    "tertiary-fixed-dim": "#ffb598",
+                    "on-primary": "#ffffff",
+                    "surface-container-low": "#f2f4f6",
+                    "on-tertiary-container": "#ffe5db",
+                    "tertiary": "#7f4025",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed-variant": "#00504a",
+                    "surface-container-highest": "#e0e3e5",
+                    "primary-fixed-dim": "#80d5cb",
+                    "primary": "#005c55",
+                    "primary-container": "#0f766e",
+                    "on-secondary-container": "#006f64",
+                    "text-secondary": "#64748B",
+                    "surface-card": "#FFFFFF"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "tap-target-min": "48px",
+                    "stack-lg": "24px",
+                    "base": "4px",
+                    "stack-md": "16px",
+                    "gutter-card": "16px",
+                    "margin-mobile": "20px",
+                    "stack-sm": "8px"
+            },
+            "fontFamily": {
+                    "label-lg": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-xl": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                    "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .soft-float {
+            box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        .mesh-bg {
+            background-color: #f7f9fb;
+            background-image: radial-gradient(at 0% 0%, rgba(0, 92, 85, 0.03) 0, transparent 50%), 
+                              radial-gradient(at 100% 100%, rgba(0, 106, 99, 0.03) 0, transparent 50%);
+        }
+    </style>
+</head>
+<body class="bg-background min-h-screen mesh-bg flex flex-col">
+<!-- TopNavBar (Shell Component) -->
+<header class="w-full top-0 sticky z-50 bg-surface border-b border-outline-variant">
+<nav class="flex items-center justify-between px-8 h-tap-target-min w-full max-w-7xl mx-auto">
+<div class="font-headline-md text-headline-md font-bold text-primary">Serene Health</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Home</a>
+<a class="font-body-md text-body-md text-primary font-bold border-b-2 border-primary pb-1" href="#">Appointments</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Family</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Profile</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">notifications</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant">
+<img alt="User profile avatar" data-alt="A professional and friendly portrait of a female healthcare professional with a warm smile, set against a clean, softly lit minimalist clinical background. The image uses a high-key lighting style with a palette of soft whites and teals to convey trust and calmness, matching a modern corporate healthcare brand aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAK1dKcZAu2s_ldq5QHc1xMa8rdIJ5w5bs9LRUS4rx7EqI9ZJdcipPpBRjMSbVur3XFx4QT3ZrZYltIgUbhddRgqVtjjmr4zsxHfeb6jF3l2zOH8TPXg7kplPZBx5c4snPcGhr5mj9udOt6qlXASJLAOpBOg17Wx8DtQtLA7LfK-L8OyZQngDM_u03QaPIOKF4b2eBWwG_Ru4lhlQOdoNKSeidvj0Pu_g_HuNmMfgcdtx_sfTHFBfAMqLyzAehxQhn8HQljfQoXWkU"/>
+</div>
+</div>
+</nav>
+</header>
+<main class="flex-grow flex items-center justify-center p-gutter-card md:p-12">
+<!-- Confirm Booking Card -->
+<section class="w-full max-w-xl bg-surface-card rounded-xl soft-float overflow-hidden border border-outline-variant/30 animate-in fade-in slide-in-from-bottom-4 duration-700">
+<!-- Header -->
+<div class="p-8 pb-4">
+<h1 class="font-headline-xl text-headline-xl text-text-primary">Confirm Booking</h1>
+<p class="font-body-md text-body-md text-text-secondary mt-2">Please review your appointment details below before finalizing your booking.</p>
+</div>
+<!-- Booking Details List -->
+<div class="px-8 py-4 space-y-stack-md">
+<div class="flex items-start gap-4 p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">person</span>
+</div>
+<div class="flex-grow">
+<p class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Patient</p>
+<p class="font-body-lg text-body-lg text-text-primary font-semibold">Sarah Jenkins</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">medical_services</span>
+</div>
+<div class="flex-grow">
+<p class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Doctor</p>
+<p class="font-body-lg text-body-lg text-text-primary font-semibold">Dr. Michael Chen</p>
+<p class="font-body-md text-body-md text-text-secondary">Senior Cardiologist</p>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-stack-md">
+<div class="flex items-start gap-4 p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+<div class="flex-grow">
+<p class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Date/Time</p>
+<p class="font-body-md text-body-md text-text-primary font-semibold">Oct 24, 2023</p>
+<p class="font-body-md text-body-md text-text-secondary">10:30 AM - 11:00 AM</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/20">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">location_on</span>
+</div>
+<div class="flex-grow">
+<p class="font-label-md text-label-md text-text-secondary uppercase tracking-wider">Venue</p>
+<p class="font-body-md text-body-md text-text-primary font-semibold">Main Clinic</p>
+<p class="font-body-md text-body-md text-text-secondary">Suite 402, Level 4</p>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-secondary-container/20 border border-secondary/10">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<p class="font-body-md text-body-md text-text-primary font-medium">Consultation Fee</p>
+</div>
+<p class="font-headline-md text-headline-md text-secondary font-bold">$50.00</p>
+</div>
+</div>
+<!-- Disclaimer -->
+<div class="px-8 py-4">
+<div class="flex gap-3 p-4 bg-surface-container-low rounded-lg">
+<span class="material-symbols-outlined text-outline text-xl">info</span>
+<p class="font-label-lg text-label-lg text-on-surface-variant leading-relaxed">
+                        By confirming, you agree to our 24-hour cancellation policy. A full refund is available for appointments canceled at least 24 hours in advance.
+                    </p>
+</div>
+</div>
+<!-- Actions -->
+<div class="p-8 pt-4 flex flex-col gap-4">
+<button class="w-full h-tap-target-min bg-primary text-white rounded-full font-label-lg text-label-lg hover:bg-primary-container active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
+                    Confirm Booking
+                    <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<a class="w-full text-center py-2 font-label-lg text-label-lg text-text-secondary hover:text-primary transition-colors flex items-center justify-center gap-1" href="#">
+<span class="material-symbols-outlined text-lg">chevron_left</span>
+                    Back to Selection
+                </a>
+</div>
+</section>
+</main>
+<!-- Footer / Bottom Shell Placeholder -->
+<footer class="w-full py-8 px-8 border-t border-outline-variant/30 flex flex-col md:flex-row items-center justify-between gap-4 max-w-7xl mx-auto">
+<p class="font-label-md text-label-md text-text-secondary">© 2023 Serene Health. All rights reserved.</p>
+<div class="flex gap-6">
+<a class="font-label-md text-label-md text-text-secondary hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="font-label-md text-label-md text-text-secondary hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="font-label-md text-label-md text-text-secondary hover:text-primary transition-colors" href="#">Help Center</a>
+</div>
+</footer>
+<script>
+        // Micro-interaction for the primary button
+        const confirmBtn = document.querySelector('button');
+        confirmBtn.addEventListener('click', () => {
+            confirmBtn.innerHTML = `
+                <span class="animate-spin material-symbols-outlined">sync</span>
+                Processing...
+            `;
+            confirmBtn.classList.add('opacity-80', 'pointer-events-none');
+            
+            setTimeout(() => {
+                confirmBtn.innerHTML = `
+                    <span class="material-symbols-outlined">check_circle</span>
+                    Booking Confirmed
+                `;
+                confirmBtn.classList.replace('bg-primary', 'bg-status-success');
+                confirmBtn.classList.remove('shadow-primary/20');
+                confirmBtn.classList.add('shadow-status-success/20');
+            }, 1500);
+        });
+    </script>
+</body></html>

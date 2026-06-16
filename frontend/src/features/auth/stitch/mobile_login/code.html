@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Login - Serene Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-container": "#0f766e",
+                        "secondary-fixed-dim": "#4fdbc8",
+                        "on-primary": "#ffffff",
+                        "secondary-fixed": "#71f8e4",
+                        "status-success": "#16A34A",
+                        "outline-variant": "#bdc9c6",
+                        "on-surface": "#191c1e",
+                        "surface-tint": "#006a63",
+                        "primary-fixed-dim": "#80d5cb",
+                        "on-secondary-container": "#006f64",
+                        "inverse-primary": "#80d5cb",
+                        "primary": "#005c55",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed": "#370e00",
+                        "error": "#ba1a1a",
+                        "surface-variant": "#e0e3e5",
+                        "surface-bright": "#f7f9fb",
+                        "tertiary-fixed-dim": "#ffb598",
+                        "status-error": "#DC2626",
+                        "on-tertiary-fixed-variant": "#72361b",
+                        "surface-container": "#eceef0",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-container": "#ffe5db",
+                        "on-secondary": "#ffffff",
+                        "on-primary-fixed-variant": "#00504a",
+                        "secondary-container": "#6df5e1",
+                        "surface-container-low": "#f2f4f6",
+                        "on-primary-container": "#a3faef",
+                        "on-secondary-fixed-variant": "#005048",
+                        "background": "#f7f9fb",
+                        "error-container": "#ffdad6",
+                        "outline": "#6e7977",
+                        "surface-container-high": "#e6e8ea",
+                        "on-tertiary": "#ffffff",
+                        "on-primary-fixed": "#00201d",
+                        "on-error-container": "#93000a",
+                        "inverse-on-surface": "#eff1f3",
+                        "tertiary-fixed": "#ffdbce",
+                        "tertiary-container": "#9c573a",
+                        "surface-container-highest": "#e0e3e5",
+                        "text-secondary": "#64748B",
+                        "secondary": "#006b5f",
+                        "surface": "#f7f9fb",
+                        "inverse-surface": "#2d3133",
+                        "status-warning": "#F59E0B",
+                        "tertiary": "#7f4025",
+                        "on-secondary-fixed": "#00201c",
+                        "primary-fixed": "#9cf2e8",
+                        "text-primary": "#0F172A",
+                        "on-surface-variant": "#3e4947",
+                        "on-background": "#191c1e",
+                        "surface-dim": "#d8dadc",
+                        "surface-card": "#FFFFFF"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "tap-target-min": "48px",
+                        "stack-lg": "24px",
+                        "gutter-card": "16px",
+                        "stack-md": "16px",
+                        "stack-sm": "8px",
+                        "margin-mobile": "20px",
+                        "base": "4px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-lg": ["Inter"],
+                        "headline-xl": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                        "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                        "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #F8FAFC; /* Overriding with explicit user request while keeping system context */
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .soft-float {
+            box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+        }
+        input:focus {
+            outline: none;
+            border-color: #0f766e;
+            box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.1);
+        }
+    </style>
+</head>
+<body class="font-body-md text-on-surface antialiased">
+<!-- Top Navigation Shell - Suppressed for Login per UX Goal -->
+<main class="min-h-screen flex flex-col items-center justify-between px-margin-mobile py-12">
+<!-- Header Section -->
+<div class="w-full flex flex-col items-center space-y-stack-lg mt-8">
+<div class="w-16 h-16 flex items-center justify-center">
+<img alt="Serene Health Logo" class="w-full h-auto object-contain" src="data:image/png;base64,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"/>
+</div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-center text-text-primary px-4 max-w-xs">
+                Book your appointment in seconds
+            </h1>
+</div>
+<!-- Form Section -->
+<div class="w-full max-w-sm flex flex-col space-y-stack-lg">
+<div class="flex flex-col space-y-stack-sm">
+<label class="font-label-lg text-label-lg text-on-surface-variant" for="phone">
+                    Phone Number
+                </label>
+<div class="relative flex items-center">
+<span class="absolute left-4 font-body-md text-on-surface font-semibold">+91</span>
+<input class="w-full h-[48px] pl-14 pr-4 bg-surface-container-lowest border border-outline-variant rounded-xl font-body-md text-on-surface transition-all duration-200" id="phone" maxlength="10" placeholder="00000 00000" type="tel"/>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant">
+                    Enter your registered mobile number
+                </p>
+</div>
+<button class="w-full h-[48px] bg-primary-container text-on-primary font-label-lg text-label-lg rounded-full soft-float active:scale-[0.98] transition-transform duration-150 flex items-center justify-center" id="send-otp-btn">
+                Send OTP
+            </button>
+</div>
+<!-- Footer Section -->
+<div class="w-full text-center pb-8">
+<p class="font-label-md text-label-md text-text-secondary">
+                We'll text you a 6-digit code.
+            </p>
+<div class="mt-8 flex justify-center space-x-2">
+<div class="w-2 h-2 rounded-full bg-primary/20"></div>
+<div class="w-2 h-2 rounded-full bg-primary/10"></div>
+<div class="w-2 h-2 rounded-full bg-primary/5"></div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Shell - Suppressed for Login per UX Goal -->
+<script>
+        document.getElementById('send-otp-btn').addEventListener('click', function() {
+            const phoneInput = document.getElementById('phone');
+            if (phoneInput.value.length === 10) {
+                this.innerHTML = '<span class="material-symbols-outlined animate-spin">progress_activity</span>';
+                this.style.opacity = '0.8';
+                
+                // Micro-interaction simulation
+                setTimeout(() => {
+                    this.innerHTML = 'OTP Sent';
+                    this.classList.replace('bg-primary-container', 'bg-status-success');
+                }, 1500);
+            } else {
+                phoneInput.classList.add('border-status-error');
+                setTimeout(() => {
+                    phoneInput.classList.remove('border-status-error');
+                }, 2000);
+            }
+        });
+
+        // Numeric input only
+        document.getElementById('phone').addEventListener('input', function (e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+    </script>
+</body></html>

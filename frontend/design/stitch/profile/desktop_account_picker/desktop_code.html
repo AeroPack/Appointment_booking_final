@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Account Picker - Serene Health</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "primary-container": "#0f766e",
+                "inverse-primary": "#80d5cb",
+                "on-surface": "#191c1e",
+                "text-secondary": "#64748B",
+                "on-secondary-fixed": "#00201c",
+                "primary": "#005c55",
+                "on-primary": "#ffffff",
+                "surface-variant": "#e0e3e5",
+                "on-secondary-container": "#006f64",
+                "on-tertiary-fixed": "#370e00",
+                "background": "#f7f9fb",
+                "error-container": "#ffdad6",
+                "on-primary-container": "#a3faef",
+                "secondary-fixed": "#71f8e4",
+                "on-tertiary-container": "#ffe5db",
+                "error": "#ba1a1a",
+                "surface-container-highest": "#e0e3e5",
+                "tertiary-fixed-dim": "#ffb598",
+                "secondary-fixed-dim": "#4fdbc8",
+                "on-primary-fixed-variant": "#00504a",
+                "outline-variant": "#bdc9c6",
+                "surface-dim": "#d8dadc",
+                "tertiary-fixed": "#ffdbce",
+                "surface-container": "#eceef0",
+                "on-secondary": "#ffffff",
+                "on-error-container": "#93000a",
+                "on-primary-fixed": "#00201d",
+                "status-error": "#DC2626",
+                "primary-fixed": "#9cf2e8",
+                "on-error": "#ffffff",
+                "text-primary": "#0F172A",
+                "surface-container-low": "#f2f4f6",
+                "on-tertiary": "#ffffff",
+                "on-background": "#191c1e",
+                "inverse-on-surface": "#eff1f3",
+                "surface": "#f7f9fb",
+                "outline": "#6e7977",
+                "surface-container-high": "#e6e8ea",
+                "secondary": "#006b5f",
+                "status-success": "#16A34A",
+                "on-surface-variant": "#3e4947",
+                "primary-fixed-dim": "#80d5cb",
+                "status-warning": "#F59E0B",
+                "inverse-surface": "#2d3133",
+                "tertiary": "#7f4025",
+                "surface-container-lowest": "#ffffff",
+                "surface-tint": "#006a63",
+                "surface-bright": "#f7f9fb",
+                "surface-card": "#FFFFFF",
+                "on-tertiary-fixed-variant": "#72361b",
+                "on-secondary-fixed-variant": "#005048",
+                "tertiary-container": "#9c573a",
+                "secondary-container": "#6df5e1"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+            },
+            "spacing": {
+                "tap-target-min": "48px",
+                "stack-sm": "8px",
+                "stack-md": "16px",
+                "stack-lg": "24px",
+                "margin-mobile": "20px",
+                "base": "4px",
+                "gutter-card": "16px"
+            },
+            "fontFamily": {
+                "label-lg": ["Inter"],
+                "headline-md": ["Inter"],
+                "headline-xl": ["Inter"],
+                "body-lg": ["Inter"],
+                "headline-lg-mobile": ["Inter"],
+                "body-md": ["Inter"],
+                "headline-lg": ["Inter"],
+                "label-md": ["Inter"]
+            },
+            "fontSize": {
+                "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                "headline-xl": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                "headline-lg-mobile": ["22px", {"lineHeight": "28px", "fontWeight": "700"}],
+                "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                "label-md": ["12px", {"lineHeight": "16px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f7f9fb;
+        -webkit-font-smoothing: antialiased;
+      }
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .profile-card-shadow {
+        box-shadow: 0px 4px 12px rgba(15, 23, 42, 0.05);
+      }
+      .profile-card-active {
+        outline: 2px solid #005c55;
+        background-color: #f0fdfa;
+      }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center">
+<!-- Top Navigation Anchor (Desktop Optimized) -->
+<header class="w-full top-0 sticky bg-surface-container-lowest border-b border-outline-variant z-50">
+<div class="flex items-center justify-between px-margin-mobile md:px-32 h-[64px] max-w-7xl mx-auto w-full">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer active:opacity-80 transition-opacity">arrow_back</span>
+<h1 class="font-headline-md text-headline-md text-primary">Serene Health</h1>
+</div>
+<div class="hidden md:flex gap-8 items-center">
+<span class="text-primary font-bold font-label-lg text-label-lg cursor-pointer">Accounts</span>
+<span class="text-on-surface-variant font-label-lg text-label-lg cursor-pointer hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors">Help</span>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow w-full max-w-5xl px-margin-mobile md:px-0 py-stack-lg flex flex-col items-center justify-center">
+<!-- Header Section -->
+<section class="text-center mb-12">
+<h2 class="font-headline-xl text-headline-xl text-primary mb-4">Who's visiting today?</h2>
+<p class="font-body-lg text-body-lg text-text-secondary">Select the profile you would like to manage or book for.</p>
+</section>
+<!-- Profile Grid (Bento Style/Desktop Balanced) -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter-card w-full" id="profileGrid">
+<!-- Primary Account Holder -->
+<button class="profile-card group flex flex-col items-center p-8 bg-surface-container-lowest rounded-xl profile-card-shadow border border-transparent hover:border-primary/20 transition-all duration-300 text-center min-h-[220px] justify-center cursor-pointer" onclick="selectProfile(this)">
+<div class="w-20 h-20 rounded-full bg-primary-container flex items-center justify-center mb-4 text-on-primary-container font-headline-lg text-headline-lg group-hover:scale-105 transition-transform">
+                    JD
+                </div>
+<h3 class="font-headline-md text-headline-md text-text-primary">John Doe</h3>
+<p class="font-label-md text-label-md text-text-secondary mt-1">Primary • 42 years</p>
+</button>
+<!-- Dependent 1 -->
+<button class="profile-card group flex flex-col items-center p-8 bg-surface-container-lowest rounded-xl profile-card-shadow border border-transparent hover:border-primary/20 transition-all duration-300 text-center min-h-[220px] justify-center cursor-pointer" onclick="selectProfile(this)">
+<div class="w-20 h-20 rounded-full bg-secondary-container flex items-center justify-center mb-4 text-on-secondary-container font-headline-lg text-headline-lg group-hover:scale-105 transition-transform">
+                    AD
+                </div>
+<h3 class="font-headline-md text-headline-md text-text-primary">Alice Doe</h3>
+<p class="font-label-md text-label-md text-text-secondary mt-1">Dependent • 12 years</p>
+</button>
+<!-- Dependent 2 -->
+<button class="profile-card group flex flex-col items-center p-8 bg-surface-container-lowest rounded-xl profile-card-shadow border border-transparent hover:border-primary/20 transition-all duration-300 text-center min-h-[220px] justify-center cursor-pointer" onclick="selectProfile(this)">
+<div class="w-20 h-20 rounded-full bg-tertiary-fixed flex items-center justify-center mb-4 text-on-tertiary-fixed font-headline-lg text-headline-lg group-hover:scale-105 transition-transform">
+                    OD
+                </div>
+<h3 class="font-headline-md text-headline-md text-text-primary">Oliver Doe</h3>
+<p class="font-label-md text-label-md text-text-secondary mt-1">Dependent • 8 years</p>
+</button>
+<!-- Add Family Member Card (Dashed) -->
+<button class="flex flex-col items-center p-8 bg-transparent border-2 border-dashed border-outline-variant rounded-xl hover:border-primary hover:bg-primary/5 transition-all duration-300 text-center min-h-[220px] justify-center group">
+<div class="w-16 h-16 rounded-full border-2 border-outline-variant flex items-center justify-center mb-4 text-outline-variant group-hover:text-primary group-hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-[32px]">add</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface-variant group-hover:text-primary transition-colors">Add a family member</h3>
+<p class="font-label-md text-label-md text-text-secondary mt-1">Add dependents or elders</p>
+</button>
+</div>
+<!-- Action Button (Hidden until selection) -->
+<div class="mt-12 opacity-0 transform translate-y-4 transition-all duration-500 pointer-events-none" id="continueAction">
+<button class="bg-primary hover:bg-primary-container text-white px-12 py-4 rounded-full font-headline-md text-headline-md shadow-lg active:scale-95 transition-all">
+                Continue with <span id="selectedName">Profile</span>
+</button>
+</div>
+</main>
+<!-- Visual Polish: Atmosphere Background -->
+<div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+<div class="absolute top-[-10%] right-[-5%] w-[40%] h-[50%] bg-primary/5 blur-[120px] rounded-full"></div>
+<div class="absolute bottom-[-10%] left-[-5%] w-[30%] h-[40%] bg-secondary/5 blur-[100px] rounded-full"></div>
+</div>
+<!-- JavaScript for micro-interactions -->
+<script>
+        function selectProfile(element) {
+            // Remove active class from all profiles
+            document.querySelectorAll('.profile-card').forEach(card => {
+                card.classList.remove('profile-card-active', 'profile-card-shadow');
+                card.classList.add('profile-card-shadow');
+            });
+
+            // Add active class to clicked profile
+            element.classList.add('profile-card-active');
+            element.classList.remove('profile-card-shadow');
+
+            // Show continue button
+            const name = element.querySelector('h3').innerText;
+            const actionContainer = document.getElementById('continueAction');
+            const nameSpan = document.getElementById('selectedName');
+            
+            nameSpan.innerText = name;
+            actionContainer.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+            actionContainer.classList.add('opacity-100', 'translate-y-0');
+            
+            // Interaction feedback
+            element.animate([
+                { transform: 'scale(1)' },
+                { transform: 'scale(0.98)' },
+                { transform: 'scale(1)' }
+            ], {
+                duration: 200,
+                easing: 'ease-out'
+            });
+        }
+    </script>
+</body></html>

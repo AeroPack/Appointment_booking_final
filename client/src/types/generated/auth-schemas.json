@@ -1,0 +1,14 @@
+{
+  "requestOtpSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "verifyOtpSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "refreshSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "logoutSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

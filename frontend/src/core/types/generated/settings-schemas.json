@@ -1,0 +1,262 @@
+{
+  "periodSchema": {
+    "type": "object",
+    "properties": {
+      "day_of_week": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 7
+      },
+      "start_time": {
+        "type": "string",
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+      },
+      "end_time": {
+        "type": "string",
+        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+      },
+      "venue_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "slot_duration_minutes": {
+        "type": "integer",
+        "exclusiveMinimum": 0
+      },
+      "max_patients_per_slot": {
+        "type": "integer",
+        "exclusiveMinimum": 0
+      }
+    },
+    "required": [
+      "day_of_week",
+      "start_time",
+      "end_time",
+      "slot_duration_minutes",
+      "max_patients_per_slot"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "reminderSchema": {
+    "type": "object",
+    "properties": {
+      "template_type": {
+        "type": "string",
+        "enum": [
+          "reminder",
+          "booking_confirmation",
+          "appointment_cancelled"
+        ]
+      },
+      "offset_minutes": {
+        "type": "integer",
+        "exclusiveMinimum": 0
+      },
+      "subject": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string",
+        "minLength": 1
+      },
+      "channel": {
+        "type": "string",
+        "enum": [
+          "whatsapp",
+          "sms",
+          "email"
+        ]
+      }
+    },
+    "required": [
+      "template_type",
+      "content"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "putSettingsSchema": {
+    "type": "object",
+    "properties": {
+      "doctor_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "periods": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "day_of_week": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "start_time": {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            "end_time": {
+              "type": "string",
+              "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+            },
+            "venue_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "slot_duration_minutes": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "max_patients_per_slot": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            }
+          },
+          "required": [
+            "day_of_week",
+            "start_time",
+            "end_time",
+            "slot_duration_minutes",
+            "max_patients_per_slot"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "reminders": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "template_type": {
+              "type": "string",
+              "enum": [
+                "reminder",
+                "booking_confirmation",
+                "appointment_cancelled"
+              ]
+            },
+            "offset_minutes": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "subject": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1
+            },
+            "channel": {
+              "type": "string",
+              "enum": [
+                "whatsapp",
+                "sms",
+                "email"
+              ]
+            }
+          },
+          "required": [
+            "template_type",
+            "content"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "doctor_id",
+      "periods",
+      "reminders"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "createTemplateSchema": {
+    "type": "object",
+    "properties": {
+      "doctor_id": {
+        "type": "string",
+        "format": "uuid"
+      },
+      "template_type": {
+        "type": "string",
+        "enum": [
+          "reminder",
+          "booking_confirmation",
+          "appointment_cancelled"
+        ]
+      },
+      "subject": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string",
+        "minLength": 1
+      },
+      "offset_minutes": {
+        "type": "integer",
+        "exclusiveMinimum": 0
+      },
+      "channel": {
+        "type": "string",
+        "enum": [
+          "whatsapp",
+          "sms",
+          "email"
+        ]
+      }
+    },
+    "required": [
+      "template_type",
+      "content"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "updateTemplateSchema": {
+    "type": "object",
+    "properties": {
+      "template_type": {
+        "type": "string",
+        "enum": [
+          "reminder",
+          "booking_confirmation",
+          "appointment_cancelled"
+        ]
+      },
+      "subject": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string",
+        "minLength": 1
+      },
+      "offset_minutes": {
+        "anyOf": [
+          {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "channel": {
+        "type": "string",
+        "enum": [
+          "whatsapp",
+          "sms",
+          "email"
+        ]
+      },
+      "is_active": {
+        "type": "boolean"
+      }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  }
+}

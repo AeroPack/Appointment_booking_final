@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lsof -ti:5000)",
+      "Bash(lsof -ti:5173)",
+      "mcp__plugin_ecc_chrome-devtools__new_page",
+      "mcp__plugin_ecc_chrome-devtools__take_screenshot",
+      "mcp__plugin_ecc_chrome-devtools__take_snapshot",
+      "mcp__plugin_ecc_chrome-devtools__fill",
+      "mcp__plugin_ecc_chrome-devtools__click",
+      "mcp__plugin_ecc_chrome-devtools__list_console_messages",
+      "Bash(pm2 logs *)",
+      "Bash(journalctl --user -n 10)",
+      "Read(//tmp/**)",
+      "mcp__plugin_ecc_chrome-devtools__get_console_message",
+      "Bash(tmux list-panes *)",
+      "Bash(PGPASSWORD=change_me psql -h localhost -p 5433 -U appointment -d appointment_booking -c \"SELECT otp_hash, expires_at, used FROM otps WHERE mobile_number='9999999999' ORDER BY created_at DESC LIMIT 1;\")",
+      "Bash(docker exec *)",
+      "Bash(node -e ' *)",
+      "mcp__plugin_ecc_chrome-devtools__evaluate_script",
+      "mcp__plugin_ecc_chrome-devtools__navigate_page",
+      "Bash(git -C /home/dell/Documents/AppointMentBooking rebase --abort)",
+      "Bash(git -C /home/dell/Documents/AppointMentBooking status --short)",
+      "Bash(git -C /home/dell/Documents/AppointMentBooking log --oneline -3)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git -C /home/dell/Documents/AppointMentBooking status)",
+      "Bash(git -C /home/dell/Documents/AppointMentBooking log --oneline -5)"
+    ]
+  }
+}
