@@ -57,11 +57,11 @@ jobs:
             docker pull $IMAGE_NAME:latest
 
             echo "Stopping old container..."
-            docker stop frontend || true
-            docker rm frontend || true
+            docker stop appointment_booking_frontend || true
+            docker rm appointment_booking_frontend || true
 
             echo "Starting new container..."
-            docker run -d --name frontend \
+            docker run -d --name appointment_booking_frontend \
               --network appointment_network \
-              -p 3001:80 \
+              -p 7679:80 \
               $IMAGE_NAME:latest

@@ -2,7 +2,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: appointment_pg
+    container_name: appointment_booking_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-appointment}
@@ -22,7 +22,7 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: appointment_backend
+    container_name: appointment_booking_backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -40,7 +40,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: /api
-    container_name: appointment_frontend
+    container_name: appointment_booking_frontend
     restart: unless-stopped
     depends_on:
       - backend
