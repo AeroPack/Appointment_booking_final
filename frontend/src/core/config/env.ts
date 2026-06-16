@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const envSchema = z.object({
-  VITE_API_URL: z.string().url().default('http://localhost:3000'),
+  VITE_API_URL: z.string().default('/api'),
   VITE_APP_NAME: z.string().default('Appointment Booking'),
 })
 

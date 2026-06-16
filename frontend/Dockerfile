@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm ci
 COPY tsconfig.json tsconfig.node.json vite.config.ts postcss.config.js tailwind.config.js components.json index.html ./
 COPY src/ src/
-ARG VITE_API_URL=http://localhost
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npx vite build
 
