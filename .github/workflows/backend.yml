@@ -39,6 +39,16 @@ jobs:
     needs: build-and-push
 
     steps:
+      - name: Copy schema files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "backend/src/db/schema.sql,backend/migrations/"
+          target: "/tmp/appointment-booking/"
+          strip_components: 1
+
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.1.0
         with:
@@ -47,6 +57,30 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             IMAGE_NAME=${{ secrets.DOCKER_HUB_USERNAME }}/backend
+
+            echo "Ensuring PostgreSQL container is running..."
+            docker start new_project_db 2>/dev/null || docker run -d \
+              --name new_project_db \
+              --network aeropos-backend_default \
+              -e POSTGRES_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              postgres:15-alpine
+
+            echo "Ensuring appointment_booking database exists..."
+            docker exec new_project_db psql -U postgres -tc \
+              "SELECT 1 FROM pg_database WHERE datname='appointment_booking'" | grep -q 1 \
+              || docker exec new_project_db psql -U postgres -c "CREATE DATABASE appointment_booking"
+
+            echo "Applying schema..."
+            docker cp /tmp/appointment-booking/src/db/schema.sql new_project_db:/schema.sql
+            docker exec new_project_db psql -U postgres -d appointment_booking -f /schema.sql
+
+            echo "Applying migrations..."
+            for f in /tmp/appointment-booking/migrations/*.sql; do
+              [ -f "$f" ] || continue
+              name=$(basename "$f")
+              docker cp "$f" new_project_db:"/$name"
+              docker exec new_project_db psql -U postgres -d appointment_booking -f "/$name"
+            done
 
             echo "Pulling latest image..."
             docker pull $IMAGE_NAME:latest
