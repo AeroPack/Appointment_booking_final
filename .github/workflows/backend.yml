@@ -39,6 +39,9 @@ jobs:
     needs: build-and-push
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Copy schema files to server
         uses: appleboy/scp-action@v0.1.7
         with:
