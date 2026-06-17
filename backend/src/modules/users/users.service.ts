@@ -4,6 +4,22 @@ import { UsersRepository } from './users.repository.js';
 
 const FORBIDDEN_FIELDS = ['clinic_id', 'role', 'parent_user_id'];
 
+function parseDateOfBirth(value: string): string {
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return value;
+  }
+  // MM/DD/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [m, day, y] = value.split('/');
+    const iso = `${y}-${m}-${day}`;
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) return iso;
+  }
+  throw new AppError(400, 'INVALID_DATE', 'date_of_birth must be YYYY-MM-DD or MM/DD/YYYY');
+}
+
 export class UsersService {
   constructor(private readonly repo: UsersRepository) {}
 
@@ -23,7 +39,7 @@ export class UsersService {
     if (input.name !== undefined) data.name = input.name;
     if (input.email !== undefined) data.email = input.email;
     if (input.address !== undefined) data.address = input.address;
-    if (input.date_of_birth !== undefined) data.date_of_birth = input.date_of_birth;
+    if (input.date_of_birth !== undefined) data.date_of_birth = parseDateOfBirth(input.date_of_birth);
     if (input.city !== undefined) data.city = input.city;
     if (input.state !== undefined) data.state = input.state;
     if (input.zip_code !== undefined) data.zip_code = input.zip_code;
@@ -48,7 +64,7 @@ export class UsersService {
       email: input.email,
       address: input.address,
       relationship: input.relationship,
-      date_of_birth: input.date_of_birth,
+      date_of_birth: input.date_of_birth ? parseDateOfBirth(input.date_of_birth) : undefined,
     });
     return user;
   }
@@ -65,7 +81,10 @@ export class UsersService {
     const allowed = ['name', 'mobile_number', 'email', 'address', 'relationship', 'date_of_birth'];
     const data: Record<string, unknown> = {};
     for (const key of allowed) {
-      if (input[key] !== undefined) data[key] = input[key];
+      if (input[key] === undefined) continue;
+      data[key] = key === 'date_of_birth'
+        ? parseDateOfBirth(input[key] as string)
+        : input[key];
     }
     if (Object.keys(data).length === 0) {
       throw new AppError(400, 'NO_FIELDS', 'No valid fields to update');
@@ -108,7 +127,7 @@ export class UsersService {
       role: 'patient',
       mobile_number: input.mobile_number || null,
       email: input.email || null,
-      date_of_birth: input.date_of_birth || null,
+      date_of_birth: input.date_of_birth ? parseDateOfBirth(input.date_of_birth) : null,
       address: input.address || null,
     });
   }

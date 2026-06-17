@@ -38,14 +38,21 @@ function StatusIndicator({ status, message }: { status: SaveStatus; message?: st
   )
 }
 
-const FIELDS = [
-  { label: 'Email Address',   name: 'email'   as const },
-  { label: 'Date of Birth',   name: 'dob'     as const },
-  { label: 'Primary Address', name: 'address' as const },
-  { label: 'City',            name: 'city'    as const },
-  { label: 'State',           name: 'state'   as const },
-  { label: 'Zip Code',        name: 'zipCode' as const },
+const FIELDS: { label: string; name: keyof PersonalInfoFormData; type?: string }[] = [
+  { label: 'Email Address',   name: 'email'   },
+  { label: 'Date of Birth',   name: 'dob',    type: 'date' },
+  { label: 'Primary Address', name: 'address' },
+  { label: 'City',            name: 'city'    },
+  { label: 'State',           name: 'state'   },
+  { label: 'Zip Code',        name: 'zipCode' },
 ]
+
+function formatDob(value: string) {
+  if (!value) return '—'
+  const d = new Date(value + 'T00:00:00')
+  if (isNaN(d.getTime())) return value
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+}
 
 export function PersonalInfoForm({
   formData,
@@ -78,6 +85,7 @@ export function PersonalInfoForm({
               <div key={field.name} className="flex flex-col gap-1">
                 <label className="text-[12px] font-medium text-[#64748B]">{field.label}</label>
                 <Input
+                  type={field.type}
                   name={field.name}
                   value={formData[field.name]}
                   onChange={onChange}
@@ -111,7 +119,9 @@ export function PersonalInfoForm({
               >
                 <div className="space-y-1">
                   <label className="text-[12px] font-medium text-[#64748B]">{field.label}</label>
-                  <p className="text-[16px] text-[#191c1e] max-w-[240px] truncate">{formData[field.name]}</p>
+                  <p className="text-[16px] text-[#191c1e] max-w-[240px] truncate">
+                    {field.name === 'dob' ? formatDob(formData.dob) : formData[field.name]}
+                  </p>
                 </div>
                 <PenLine className="w-5 h-5 text-[#6e7977]" />
               </div>
@@ -140,6 +150,7 @@ export function PersonalInfoForm({
             <div className="flex flex-col gap-2">
               <label className="text-[14px] font-semibold text-[#3e4947]">Date of Birth</label>
               <Input
+                type="date"
                 name="dob"
                 value={formData.dob}
                 onChange={onChange}
