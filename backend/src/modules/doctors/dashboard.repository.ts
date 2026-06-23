@@ -22,10 +22,14 @@ export class DashboardRepository {
     const result = await pool.query(
       `SELECT a.id,
               pat.name AS patient_name,
+              pat.mobile_number AS phone,
+              pat.gender,
+              EXTRACT(YEAR FROM age(pat.date_of_birth))::int AS age,
               a.token_number,
               a.scheduled_start,
               a.appointment_status,
-              COALESCE(v.name, '') AS venue_name
+              COALESCE(v.name, '') AS venue_name,
+              COALESCE(a.notes, '') AS reason
        FROM appointments a
        JOIN users pat ON pat.id = a.patient_id
        LEFT JOIN venues v ON v.id = a.venue_id

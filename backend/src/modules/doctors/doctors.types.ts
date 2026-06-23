@@ -72,3 +72,32 @@ export interface UpdateDoctorProfileInput {
   consultation_fee?: number;
   experience_years?: number;
 }
+
+export interface BookingPoliciesRow {
+  booking_min_notice_hours: number;
+  booking_max_advance_days: number;
+  auto_confirm_bookings: boolean;
+  cancellation_window_hours: number;
+}
+
+export interface UpdateBookingPoliciesInput {
+  booking_min_notice_hours?: number;
+  booking_max_advance_days?: number;
+  auto_confirm_bookings?: boolean;
+  cancellation_window_hours?: number;
+}
+
+export interface DoctorLeaveRow {
+  id: string;
+  doctor_id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface CreateLeaveInput {
+  start_date: string;
+  end_date: string;
+  reason?: string;
+}

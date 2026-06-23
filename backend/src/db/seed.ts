@@ -20,6 +20,13 @@ interface DoctorSeed {
   bio: string;
 }
 
+interface PatientSeed {
+  name: string;
+  mobile: string;
+  gender: 'Male' | 'Female';
+  date_of_birth: string; // YYYY-MM-DD
+}
+
 interface VenueSeed {
   name: string;
   address: string;
@@ -82,6 +89,21 @@ const DOCTORS: DoctorSeed[] = [
 const VENUES: VenueSeed[] = [
   { name: 'Kiran Heart Centre', address: 'U-2, Prasad Nagar, Karol Bagh, Opp. Prasad Nagar Police Station, Delhi 110060', phone: '011-25720771' },
   { name: 'Sir Ganga Ram Hospital Pvt. OPD', address: 'F-24, First Floor, Ganga Ram Hospital, Rajinder Nagar, Delhi 110060, Room No. 16, Ground floor, Echo Lab', phone: '+91-8527684291' },
+];
+
+const PATIENTS: PatientSeed[] = [
+  { name: 'Amit Sharma',      mobile: '9812345001', gender: 'Male',   date_of_birth: '1990-03-15' },
+  { name: 'Priyanka Gupta',   mobile: '9812345002', gender: 'Female', date_of_birth: '1985-07-22' },
+  { name: 'Rahul Verma',      mobile: '9812345003', gender: 'Male',   date_of_birth: '1978-11-10' },
+  { name: 'Neha Singh',       mobile: '9812345004', gender: 'Female', date_of_birth: '1992-01-05' },
+  { name: 'Vikram Patel',     mobile: '9812345005', gender: 'Male',   date_of_birth: '1968-06-18' },
+  { name: 'Anjali Reddy',     mobile: '9812345006', gender: 'Female', date_of_birth: '1983-09-30' },
+  { name: 'Suresh Kumar',     mobile: '9812345007', gender: 'Male',   date_of_birth: '1955-04-12' },
+  { name: 'Deepika Nair',     mobile: '9812345008', gender: 'Female', date_of_birth: '1988-12-25' },
+  { name: 'Arjun Mehta',      mobile: '9812345009', gender: 'Male',   date_of_birth: '1975-08-08' },
+  { name: 'Kavita Joshi',     mobile: '9812345010', gender: 'Female', date_of_birth: '1995-02-14' },
+  { name: 'Mohit Saxena',     mobile: '9812345011', gender: 'Male',   date_of_birth: '1970-10-20' },
+  { name: 'Pooja Iyer',       mobile: '9812345012', gender: 'Female', date_of_birth: '1982-05-28' },
 ];
 
 async function seed() {
@@ -159,14 +181,24 @@ async function seed() {
   const clinicId = clinic.rows[0].id;
   console.log('Clinic created:', clinicId);
 
-  // Patient
-  const patient = await pool.query(
+  // Patients
+  const patientIds: string[] = [];
+  for (const p of PATIENTS) {
+    const result = await pool.query(
+      `INSERT INTO users (clinic_id, name, mobile_number, role, gender, date_of_birth, is_verified)
+       VALUES ($1, $2, $3, 'patient', $4, $5, true) RETURNING id`,
+      [clinicId, p.name, p.mobile, p.gender, p.date_of_birth]
+    );
+    patientIds.push(result.rows[0].id);
+    console.log(`Patient created: ${p.name} (${result.rows[0].id})`);
+  }
+  // Also keep a "Test Patient" for other existing flows
+  const testPatient = await pool.query(
     `INSERT INTO users (clinic_id, name, mobile_number, role, is_verified)
      VALUES ($1, 'Test Patient', $2, 'patient', true) RETURNING id`,
     [clinicId, MOBILE]
   );
-  console.log('Patient created:', patient.rows[0].id, 'mobile:', MOBILE);
-  const patientId = patient.rows[0].id;
+  console.log('Test Patient created:', testPatient.rows[0].id, 'mobile:', MOBILE);
 
   // Staff
   const staff = await pool.query(
@@ -242,14 +274,15 @@ async function seed() {
     return d.toISOString();
   };
 
-  const makeAppointment = async (doctorIdx: number, daysOffset: number, hour: number, minute: number, status: string, token: number, venueIdx?: number) => {
+  const makeAppointment = async (doctorIdx: number, patientIdx: number, daysOffset: number, hour: number, minute: number, status: string, token: number, venueIdx?: number, notes?: string) => {
     const start = dateOffset(daysOffset, hour, minute);
     const end = dateOffset(daysOffset, hour, minute + 30);
     const vid = venueIdx !== undefined ? venueIds[venueIdx] : venueIds[0];
+    const pid = patientIds[patientIdx];
     const apt = await pool.query(
-      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_status)
-       VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8) RETURNING id`,
-      [clinicId, doctorIds[doctorIdx], patientId, vid, start, end, token, status]
+      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_status, notes)
+       VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [clinicId, doctorIds[doctorIdx], pid, vid, start, end, token, status, notes || null]
     );
     return apt.rows[0].id;
   };
@@ -265,23 +298,26 @@ async function seed() {
   // ---- Appointments ----
   // All appointments use unique hour/minute combos to avoid violating
   // uniq_patient_per_slot (same patient can't have two appointments at same scheduled_start).
-  // Today's appointments (for dashboard)
+  // Today's appointments (for dashboard) — 12 patients for Dr. Rajat Mohan
   const todayAppts = [
-    { doctorIdx: 0, hour: 9, minute: 0, status: 'booked', token: 1, venueIdx: 0 },
-    { doctorIdx: 0, hour: 9, minute: 30, status: 'booked', token: 2, venueIdx: 0 },
-    { doctorIdx: 0, hour: 10, minute: 0, status: 'finished', token: 3, venueIdx: 0 },
-    { doctorIdx: 0, hour: 14, minute: 0, status: 'booked', token: 1, venueIdx: 1 },
-    { doctorIdx: 1, hour: 11, minute: 0, status: 'booked', token: 1, venueIdx: 0 },
-    { doctorIdx: 1, hour: 11, minute: 20, status: 'finished', token: 2, venueIdx: 0 },
-    { doctorIdx: 1, hour: 12, minute: 0, status: 'no_show', token: 3, venueIdx: 0 },
-    { doctorIdx: 2, hour: 15, minute: 0, status: 'booked', token: 1, venueIdx: 1 },
-    { doctorIdx: 2, hour: 15, minute: 15, status: 'booked', token: 2, venueIdx: 1 },
-    { doctorIdx: 3, hour: 8, minute: 0, status: 'finished', token: 1, venueIdx: 0 },
-    { doctorIdx: 4, hour: 16, minute: 0, status: 'booked', token: 1, venueIdx: 2 },
+    // Kiran Heart Centre (morning shift)
+    { doctorIdx: 0, patientIdx: 0,  hour: 9,  minute: 0,  status: 'finished',  token: 1,  venueIdx: 0, notes: 'General cardiac checkup' },
+    { doctorIdx: 0, patientIdx: 1,  hour: 9,  minute: 30, status: 'finished',  token: 2,  venueIdx: 0, notes: 'Blood pressure monitoring' },
+    { doctorIdx: 0, patientIdx: 2,  hour: 10, minute: 0,  status: 'booked',    token: 3,  venueIdx: 0, notes: 'ECG review and follow-up' },
+    { doctorIdx: 0, patientIdx: 3,  hour: 10, minute: 30, status: 'booked',    token: 4,  venueIdx: 0, notes: 'Post-angioplasty review' },
+    { doctorIdx: 0, patientIdx: 4,  hour: 11, minute: 0,  status: 'booked',    token: 5,  venueIdx: 0, notes: 'Chest pain consultation' },
+    { doctorIdx: 0, patientIdx: 5,  hour: 11, minute: 30, status: 'no_show',   token: 6,  venueIdx: 0, notes: 'Regular heart checkup' },
+    // Sir Ganga Ram Hospital OPD (afternoon shift)
+    { doctorIdx: 0, patientIdx: 6,  hour: 14, minute: 0,  status: 'booked',    token: 1,  venueIdx: 1, notes: 'Cardiac stress test review' },
+    { doctorIdx: 0, patientIdx: 7,  hour: 14, minute: 30, status: 'finished',  token: 2,  venueIdx: 1, notes: 'Cholesterol management' },
+    { doctorIdx: 0, patientIdx: 8,  hour: 15, minute: 0,  status: 'booked',    token: 3,  venueIdx: 1, notes: 'Heart valve assessment' },
+    { doctorIdx: 0, patientIdx: 9,  hour: 15, minute: 30, status: 'booked',    token: 4,  venueIdx: 1, notes: 'ECG abnormality follow-up' },
+    { doctorIdx: 0, patientIdx: 10, hour: 16, minute: 0,  status: 'cancelled', token: 5,  venueIdx: 1, notes: 'Pre-operative cardiac clearance' },
+    { doctorIdx: 0, patientIdx: 11, hour: 16, minute: 30, status: 'booked',    token: 6,  venueIdx: 1, notes: 'Arrhythmia evaluation' },
   ];
 
   for (const a of todayAppts) {
-    const aptId = await makeAppointment(a.doctorIdx, 0, a.hour, a.minute, a.status, a.token, a.venueIdx);
+    const aptId = await makeAppointment(a.doctorIdx, a.patientIdx, 0, a.hour, a.minute, a.status, a.token, a.venueIdx, a.notes);
     if (a.status === 'finished' || a.status === 'no_show') {
       await insertHistory(aptId, 'booked', a.status, doctorIds[a.doctorIdx]);
     }
@@ -290,21 +326,21 @@ async function seed() {
 
   // Past appointments
   const pastAppts = [
-    { doctorIdx: 0, daysOffset: -1, hour: 10, minute: 0, status: 'finished', token: 1 },
-    { doctorIdx: 0, daysOffset: -1, hour: 14, minute: 0, status: 'finished', token: 1 },
-    { doctorIdx: 1, daysOffset: -2, hour: 11, minute: 0, status: 'finished', token: 1 },
-    { doctorIdx: 1, daysOffset: -2, hour: 14, minute: 0, status: 'cancelled', token: 2 },
-    { doctorIdx: 2, daysOffset: -1, hour: 11, minute: 0, status: 'finished', token: 1 },
-    { doctorIdx: 3, daysOffset: -3, hour: 9, minute: 0, status: 'finished', token: 1 },
-    { doctorIdx: 4, daysOffset: -2, hour: 14, minute: 0, status: 'finished', token: 1 },
-    { doctorIdx: 4, daysOffset: -1, hour: 15, minute: 0, status: 'no_show', token: 1 },
-    { doctorIdx: 0, daysOffset: -3, hour: 11, minute: 0, status: 'cancelled', token: 1 },
+    { doctorIdx: 0, patientIdx: 0, daysOffset: -1, hour: 10, minute: 0, status: 'finished', token: 1 },
+    { doctorIdx: 0, patientIdx: 1, daysOffset: -1, hour: 14, minute: 0, status: 'finished', token: 1 },
+    { doctorIdx: 1, patientIdx: 2, daysOffset: -2, hour: 11, minute: 0, status: 'finished', token: 1 },
+    { doctorIdx: 1, patientIdx: 3, daysOffset: -2, hour: 14, minute: 0, status: 'cancelled', token: 2 },
+    { doctorIdx: 2, patientIdx: 4, daysOffset: -1, hour: 11, minute: 0, status: 'finished', token: 1 },
+    { doctorIdx: 3, patientIdx: 5, daysOffset: -3, hour: 9, minute: 0, status: 'finished', token: 1 },
+    { doctorIdx: 4, patientIdx: 6, daysOffset: -2, hour: 14, minute: 0, status: 'finished', token: 1 },
+    { doctorIdx: 4, patientIdx: 7, daysOffset: -1, hour: 15, minute: 0, status: 'no_show', token: 1 },
+    { doctorIdx: 0, patientIdx: 8, daysOffset: -3, hour: 11, minute: 0, status: 'cancelled', token: 1 },
   ];
 
   for (const a of pastAppts) {
-    const aptId = await makeAppointment(a.doctorIdx, a.daysOffset, a.hour, a.minute, a.status, a.token);
+    const aptId = await makeAppointment(a.doctorIdx, a.patientIdx, a.daysOffset, a.hour, a.minute, a.status, a.token);
     if (a.status === 'finished' || a.status === 'cancelled' || a.status === 'no_show') {
-      const changedBy = a.status === 'cancelled' ? patientId : doctorIds[a.doctorIdx];
+      const changedBy = a.status === 'cancelled' ? patientIds[a.patientIdx] : doctorIds[a.doctorIdx];
       await insertHistory(aptId, 'booked', a.status, changedBy);
     }
   }
@@ -312,16 +348,16 @@ async function seed() {
 
   // Future appointments
   const futureAppts = [
-    { doctorIdx: 0, daysOffset: 1, hour: 9, minute: 0, status: 'booked', token: 1 },
-    { doctorIdx: 0, daysOffset: 1, hour: 9, minute: 30, status: 'booked', token: 2 },
-    { doctorIdx: 1, daysOffset: 2, hour: 11, minute: 0, status: 'booked', token: 1 },
-    { doctorIdx: 2, daysOffset: 1, hour: 15, minute: 0, status: 'booked', token: 1 },
-    { doctorIdx: 3, daysOffset: 3, hour: 8, minute: 0, status: 'booked', token: 1 },
-    { doctorIdx: 4, daysOffset: 2, hour: 14, minute: 0, status: 'booked', token: 1 },
+    { doctorIdx: 0, patientIdx: 0,  daysOffset: 1, hour: 9,  minute: 0,  status: 'booked', token: 1 },
+    { doctorIdx: 0, patientIdx: 1,  daysOffset: 1, hour: 9,  minute: 30, status: 'booked', token: 2 },
+    { doctorIdx: 1, patientIdx: 2,  daysOffset: 2, hour: 11, minute: 0,  status: 'booked', token: 1 },
+    { doctorIdx: 2, patientIdx: 3,  daysOffset: 1, hour: 15, minute: 0,  status: 'booked', token: 1 },
+    { doctorIdx: 3, patientIdx: 4,  daysOffset: 3, hour: 8,  minute: 0,  status: 'booked', token: 1 },
+    { doctorIdx: 4, patientIdx: 5,  daysOffset: 2, hour: 14, minute: 0,  status: 'booked', token: 1 },
   ];
 
   for (const a of futureAppts) {
-    await makeAppointment(a.doctorIdx, a.daysOffset, a.hour, a.minute, a.status, a.token);
+    await makeAppointment(a.doctorIdx, a.patientIdx, a.daysOffset, a.hour, a.minute, a.status, a.token);
   }
   console.log('Future appointments created');
 

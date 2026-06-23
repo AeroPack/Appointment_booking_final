@@ -1,5 +1,5 @@
 import pool from '../../config/db.js';
-import type { DoctorOwnProfileRow, DoctorProfileRow, VenueRow, VenueWithAddress } from './doctors.types.js';
+import type { DoctorOwnProfileRow, DoctorProfileRow, VenueRow, VenueWithAddress, BookingPoliciesRow, DoctorLeaveRow } from './doctors.types.js';
 
 export interface DoctorListItem {
   id: string;
@@ -131,5 +131,57 @@ export class DoctorsRepository {
       [id, clinicId, ...values]
     );
     return result.rows[0] || null;
+  }
+
+  // ─── Booking Policies ───────────────────────────────────────────────────────
+
+  async getBookingPolicies(userId: string): Promise<BookingPoliciesRow | null> {
+    const result = await pool.query(
+      `SELECT booking_min_notice_hours, booking_max_advance_days,
+              auto_confirm_bookings, cancellation_window_hours
+       FROM doctor_profiles WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async updateBookingPolicies(userId: string, data: Record<string, unknown>): Promise<void> {
+    const keys = Object.keys(data);
+    if (keys.length === 0) return;
+    const setClauses = keys.map((k, i) => `${k} = $${i + 2}`);
+    const values = keys.map((k) => data[k]);
+    await pool.query(
+      `UPDATE doctor_profiles SET ${setClauses.join(', ')} WHERE user_id = $1`,
+      [userId, ...values]
+    );
+  }
+
+  // ─── Doctor Leaves ──────────────────────────────────────────────────────────
+
+  async findLeaves(doctorId: string): Promise<DoctorLeaveRow[]> {
+    const result = await pool.query(
+      `SELECT id, doctor_id, start_date, end_date, reason, created_at
+       FROM doctor_leaves WHERE doctor_id = $1 ORDER BY start_date`,
+      [doctorId]
+    );
+    return result.rows;
+  }
+
+  async createLeave(doctorId: string, data: { start_date: string; end_date: string; reason?: string }): Promise<DoctorLeaveRow> {
+    const result = await pool.query(
+      `INSERT INTO doctor_leaves (doctor_id, start_date, end_date, reason)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, doctor_id, start_date, end_date, reason, created_at`,
+      [doctorId, data.start_date, data.end_date, data.reason || null]
+    );
+    return result.rows[0];
+  }
+
+  async deleteLeave(leaveId: string, doctorId: string): Promise<boolean> {
+    const result = await pool.query(
+      `DELETE FROM doctor_leaves WHERE id = $1 AND doctor_id = $2`,
+      [leaveId, doctorId]
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 }
