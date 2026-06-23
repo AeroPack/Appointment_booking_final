@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -34,7 +34,7 @@ const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
-//ok
+
 const APPT_CONFIG: Record<AppointmentType, {
   label: string;
   pill: string;
@@ -251,9 +251,14 @@ function MonthView({
     const daysInPrevMonth = new Date(year, month, 0).getDate();
     const result: Array<{ day: number; key: string; isCurrentMonth: boolean; isToday: boolean }> = [];
 
+    const prevYear = month === 0 ? year - 1 : year;
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const nextYear = month === 11 ? year + 1 : year;
+    const nextMonth = month === 11 ? 0 : month + 1;
+
     for (let i = firstDay - 1; i >= 0; i--) {
       const d = daysInPrevMonth - i;
-      result.push({ day: d, key: toDateKey(year, month - 1, d), isCurrentMonth: false, isToday: false });
+      result.push({ day: d, key: toDateKey(prevYear, prevMonth, d), isCurrentMonth: false, isToday: false });
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const k = toDateKey(year, month, d);
@@ -261,7 +266,7 @@ function MonthView({
     }
     const remaining = result.length <= 35 ? 35 - result.length : 42 - result.length;
     for (let d = 1; d <= remaining; d++) {
-      result.push({ day: d, key: toDateKey(year, month + 1, d), isCurrentMonth: false, isToday: false });
+      result.push({ day: d, key: toDateKey(nextYear, nextMonth, d), isCurrentMonth: false, isToday: false });
     }
     return result;
   }, [year, month]);
@@ -552,6 +557,10 @@ function AddAppointmentModal({
   const [type, setType] = useState<AppointmentType>("checkup");
   const [date, setDate] = useState(toDateKey(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate()));
 
+  useEffect(() => {
+    setDate(toDateKey(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate()));
+  }, [defaultDate]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -559,8 +568,8 @@ function AddAppointmentModal({
     if (!patient || !time || !date) return;
     
     const [hours, minutes] = time.split(':').map(Number);
-    const endDate = new Date(0, 0, 0, hours ?? 0, (minutes ?? 0) + 30);
-    const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+    const totalMinutes = ((hours ?? 0) * 60 + (minutes ?? 0) + 30) % (24 * 60);
+    const endTime = `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 
     onAdd(date, {
       id: Math.random().toString(36).substr(2, 9),
