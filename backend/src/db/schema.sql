@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS users (
   email           TEXT,
   role            VARCHAR(10) NOT NULL DEFAULT 'patient'
                     CHECK (role IN ('doctor', 'patient', 'staff')),
+  gender          VARCHAR(10) CHECK (gender IN ('Male', 'Female', 'Other')),
   address         TEXT,
   date_of_birth   DATE,
   city            TEXT,

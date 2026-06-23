@@ -71,3 +71,48 @@ export async function patchVenue(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
+
+export async function getBookingPolicies(req: Request, res: Response, next: NextFunction) {
+  try {
+    const policies = await service.getBookingPolicies(req.auth!.userId);
+    res.json(success(policies));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateBookingPolicies(req: Request, res: Response, next: NextFunction) {
+  try {
+    const policies = await service.updateBookingPolicies(req.auth!.userId, req.body);
+    res.json(success(policies));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getLeaves(req: Request, res: Response, next: NextFunction) {
+  try {
+    const leaves = await service.getLeaves(req.auth!.userId);
+    res.json(success(leaves));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createLeave(req: Request, res: Response, next: NextFunction) {
+  try {
+    const leave = await service.createLeave(req.auth!.userId, req.body);
+    res.status(201).json(success(leave));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteLeave(req: Request, res: Response, next: NextFunction) {
+  try {
+    await service.deleteLeave(req.params.id as string, req.auth!.userId);
+    res.json(success({ deleted: true }));
+  } catch (err) {
+    next(err);
+  }
+}

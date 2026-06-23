@@ -1,422 +1,759 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from "react";
 import {
   ChevronDown,
   ChevronUp,
   Clock,
   Trash2,
-  PlusCircle,
+  Plus,
   Save,
-} from 'lucide-react';
-import { Button } from '@/core/components/ui/button';
-import { useAppSelector } from '@/core/store/hooks';
-import { useGetAppointmentSettingsQuery, useUpdateAppointmentSettingsMutation, useGetVenuesQuery } from '@/features/settings/settingsApi';
+  Info,
+  Copy,
+  AlertTriangle,
+  CalendarClock,
+  Loader2,
+  MapPin,
+  MoreVertical,
+  Pencil,
+  Check,
+  X
+} from "lucide-react";
+import { Button } from "@/core/components/ui/button";
+import { Switch } from "@/core/components/ui/switch";
+import { useAppSelector } from "@/core/store/hooks";
+import {
+  useGetAppointmentSettingsQuery,
+  useUpdateAppointmentSettingsMutation,
+  useGetVenuesQuery,
+} from "@/features/settings/settingsApi";
+import { useCreateVenueMutation, useUpdateVenueMutation } from "@/features/doctors/venuesApi";
 
-type Shift = {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Shift {
   id: string;
-  start: string;
-  end: string;
-  venueId: string;
-};
+  start: string; // HH:MM (24h)
+  end: string; // HH:MM (24h)
+}
 
-type DaySchedule = {
+interface DaySchedule {
+  dayOfWeek: number; // 1 = Mon … 7 = Sun
   day: string;
   short: string;
   active: boolean;
-  expanded: boolean;
   shifts: Shift[];
-};
+}
+
+interface VenueSchedule {
+  venueId: string;
+  venueName: string;
+  expanded: boolean;
+  isActive: boolean;
+  days: DaySchedule[];
+}
+
+type CopyTarget = "weekdays" | "all";
 
 const DAY_NAMES: { day: string; short: string }[] = [
-  { day: 'Monday', short: 'MON' },
-  { day: 'Tuesday', short: 'TUE' },
-  { day: 'Wednesday', short: 'WED' },
-  { day: 'Thursday', short: 'THU' },
-  { day: 'Friday', short: 'FRI' },
-  { day: 'Saturday', short: 'SAT' },
-  { day: 'Sunday', short: 'SUN' },
+  { day: "Monday", short: "Mon" },
+  { day: "Tuesday", short: "Tue" },
+  { day: "Wednesday", short: "Wed" },
+  { day: "Thursday", short: "Thu" },
+  { day: "Friday", short: "Fri" },
+  { day: "Saturday", short: "Sat" },
+  { day: "Sunday", short: "Sun" },
 ];
 
-function timeToDisplay(t: string): string {
-  const [h = 0, m = 0] = t.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
+const DEFAULT_SHIFT = { start: "09:00", end: "17:00" };
+const SLOT_PRESETS = [5, 10, 15, 20, 30, 45, 60];
+
+// ─── Time helpers ───────────────────────────────────────────────────────────
+
+function normalizeTime(t: string): string {
+  return t.slice(0, 5);
 }
 
-function displayToTime(s: string): string {
-  const match = s.match(/(\d+):(\d+)\s*(AM|PM)/i);
-  if (!match) return s;
-  let h = parseInt(match[1]!);
-  const m = match[2]!;
-  if (match[3]!.toUpperCase() === 'PM' && h !== 12) h += 12;
-  if (match[3]!.toUpperCase() === 'AM' && h === 12) h = 0;
-  return `${String(h).padStart(2, '0')}:${m}`;
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
 }
+
+function formatTime12(t: string): string {
+  const [h = 0, m = 0] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function countSlots(start: string, end: string, durationMin: number): number {
+  const diff = timeToMinutes(end) - timeToMinutes(start);
+  if (diff <= 0 || durationMin <= 0) return 0;
+  return Math.floor(diff / durationMin);
+}
+
+/** Returns a validation message for a shift, or null when valid. */
+function shiftError(shift: Shift, shifts: Shift[], index: number): string | null {
+  const s = timeToMinutes(shift.start);
+  const e = timeToMinutes(shift.end);
+  if (e <= s) return "End time must be after start time";
+  for (let i = 0; i < shifts.length; i++) {
+    if (i === index) continue;
+    const other = shifts[i]!;
+    const os = timeToMinutes(other.start);
+    const oe = timeToMinutes(other.end);
+    if (oe <= os) continue;
+    if (s < oe && os < e) return "Overlaps another shift";
+  }
+  return null;
+}
+
+// ─── Day Row ──────────────────────────────────────────────────────────────────
+
+interface DayRowProps {
+  day: DaySchedule;
+  slotDuration: number;
+  maxPatients: number;
+  onToggleActive: () => void;
+  onAddShift: () => void;
+  onDeleteShift: (shiftIndex: number) => void;
+  onUpdateShift: (shiftIndex: number, field: "start" | "end", value: string) => void;
+  onCopy: (target: CopyTarget) => void;
+}
+
+function DayRow({
+  day,
+  slotDuration,
+  maxPatients,
+  onToggleActive,
+  onAddShift,
+  onDeleteShift,
+  onUpdateShift,
+  onCopy,
+}: DayRowProps) {
+  const [copyOpen, setCopyOpen] = useState(false);
+
+  const dayTotalSlots = day.shifts.reduce(
+    (sum, s) => sum + countSlots(s.start, s.end, slotDuration),
+    0
+  );
+
+  return (
+    <div
+      className={`rounded-xl border transition-colors ${
+        day.active ? "border-border bg-card" : "border-border bg-muted/30"
+      }`}
+    >
+      {/* Day header */}
+      <div className="flex items-center justify-between gap-3 p-3 sm:p-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Switch checked={day.active} onCheckedChange={onToggleActive} aria-label={`Toggle ${day.day}`} />
+          <div className="min-w-0">
+            <p className={`font-semibold text-sm ${day.active ? "text-foreground" : "text-muted-foreground"}`}>
+              {day.day}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {day.active
+                ? dayTotalSlots > 0
+                  ? `${dayTotalSlots} slots/day`
+                  : "Add a shift"
+                : "Closed"}
+            </p>
+          </div>
+        </div>
+
+        {day.active && day.shifts.length > 0 && (
+          <div className="relative shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground"
+              onClick={() => setCopyOpen((o) => !o)}
+            >
+              <Copy className="h-4 w-4" />
+              <span className="hidden sm:inline">Copy</span>
+            </Button>
+            {copyOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setCopyOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-lg py-1">
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                    onClick={() => {
+                      onCopy("weekdays");
+                      setCopyOpen(false);
+                    }}
+                  >
+                    Copy to weekdays
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                    onClick={() => {
+                      onCopy("all");
+                      setCopyOpen(false);
+                    }}
+                  >
+                    Copy to all days
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Shifts */}
+      {day.active && (
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-3 border-t border-border pt-3">
+          {day.shifts.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">No shifts yet — add one below.</p>
+          )}
+
+          {day.shifts.map((shift, shiftIndex) => {
+            const error = shiftError(shift, day.shifts, shiftIndex);
+            const slots = countSlots(shift.start, shift.end, slotDuration);
+            return (
+              <div key={shift.id} className="flex flex-col gap-1.5">
+                <div className="flex items-end gap-2 sm:gap-3">
+                  <label className="flex-1 flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">Start</span>
+                    <input
+                      type="time"
+                      value={shift.start}
+                      onChange={(e) => onUpdateShift(shiftIndex, "start", e.target.value)}
+                      className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
+                        error ? "border-red-400" : "border-input"
+                      }`}
+                    />
+                  </label>
+                  <label className="flex-1 flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">End</span>
+                    <input
+                      type="time"
+                      value={shift.end}
+                      onChange={(e) => onUpdateShift(shiftIndex, "end", e.target.value)}
+                      className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
+                        error ? "border-red-400" : "border-input"
+                      }`}
+                    />
+                  </label>
+                  <button
+                    onClick={() => onDeleteShift(shiftIndex)}
+                    aria-label="Remove shift"
+                    className="h-10 w-10 shrink-0 flex items-center justify-center text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {error ? (
+                  <p className="flex items-center gap-1 text-xs text-red-600">
+                    <AlertTriangle className="h-3 w-3 shrink-0" /> {error}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {formatTime12(shift.start)} – {formatTime12(shift.end)} ·{" "}
+                    <span className="font-medium text-foreground">{slots} slots</span>
+                    {slots > 0 && ` · up to ${slots * maxPatients} patients`}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            onClick={onAddShift}
+            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline w-fit"
+          >
+            <Plus className="h-4 w-4" /> Add shift
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function Availability() {
-  const authUser = useAppSelector(state => state.auth.user);
-  const doctorId = authUser?.id ?? '';
+  const authUser = useAppSelector((state) => state.auth.user);
+  const doctorId = authUser?.id ?? "";
 
   const { data: settings, isLoading } = useGetAppointmentSettingsQuery(doctorId, { skip: !doctorId });
   const [updateSettings, { isLoading: isSaving }] = useUpdateAppointmentSettingsMutation();
   const { data: venues = [] } = useGetVenuesQuery();
-  const [schedule, setSchedule] = useState<DaySchedule[]>([]);
+
+  const [createVenue] = useCreateVenueMutation();
+  const [updateVenue] = useUpdateVenueMutation();
+
+  const [schedule, setSchedule] = useState<VenueSchedule[]>([]);
   const [slotDuration, setSlotDuration] = useState(15);
   const [maxPatients, setMaxPatients] = useState(10);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  const [addingVenue, setAddingVenue] = useState(false);
+  const [newVenueName, setNewVenueName] = useState("");
+  const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
+  const [editVenueName, setEditVenueName] = useState("");
+  const [menuOpenVenueId, setMenuOpenVenueId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!settings) return;
+    if (!settings || !venues.length) return;
     const periods = settings.periods;
 
-    const grouped = DAY_NAMES.map((name, idx) => {
-      const dayOfWeek = idx + 1;
-      const dayPeriods = periods.filter(p => p.day_of_week === dayOfWeek);
-
-      return {
-        day: name.day,
-        short: name.short,
-        active: dayPeriods.length > 0,
-        expanded: false,
-        shifts: dayPeriods.map((p, i) => ({
-          id: `${name.short}-${i}`,
-          start: timeToDisplay(p.start_time),
-          end: timeToDisplay(p.end_time),
-          venueId: p.venue?.id ?? '',
-        })),
-      };
+    const newSchedule: VenueSchedule[] = venues.map((venue) => {
+      const venuePeriods = periods.filter((p) => p.venue?.id === venue.id);
+      const days = DAY_NAMES.map((name, idx) => {
+        const dayOfWeek = idx + 1;
+        const dayPeriods = venuePeriods.filter((p) => p.day_of_week === dayOfWeek);
+        return {
+          dayOfWeek,
+          day: name.day,
+          short: name.short,
+          active: dayPeriods.length > 0,
+          shifts: dayPeriods.map((p, i) => ({
+            id: `${name.short}-${i}`,
+            start: normalizeTime(p.start_time),
+            end: normalizeTime(p.end_time),
+          })),
+        };
+      });
+      const isActive = (venue as any).is_active !== false;
+      return { venueId: venue.id, venueName: venue.name, expanded: isActive, isActive, days };
     });
 
-    setSchedule(grouped);
+    setSchedule(newSchedule);
 
     if (periods.length > 0) {
       setSlotDuration(periods[0]!.slot_duration_minutes);
       setMaxPatients(periods[0]!.max_patients_per_slot);
     }
-  }, [settings]);
+  }, [settings, venues]);
 
-  const toggleExpand = (index: number) => {
-    setSchedule(prev => prev.map((d, i) => i === index ? { ...d, expanded: !d.expanded } : d));
+  const hasErrors = useMemo(
+    () =>
+      schedule.some((v) =>
+        v.isActive && v.days.some((d) => d.active && d.shifts.some((sh, i) => shiftError(sh, d.shifts, i) !== null))
+      ),
+    [schedule]
+  );
+
+  const toggleVenueExpand = (venueIndex: number) => {
+    setSchedule((prev) => prev.map((v, i) => (i === venueIndex ? { ...v, expanded: !v.expanded } : v)));
   };
 
-  const toggleActive = (index: number) => {
-    setSchedule(prev => prev.map((d, i) => i === index ? { ...d, active: !d.active } : d));
+  const toggleActive = (venueIndex: number, dayIndex: number) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) => {
+                if (j !== dayIndex) return d;
+                const nextActive = !d.active;
+                const shifts =
+                  nextActive && d.shifts.length === 0
+                    ? [{ id: `${d.short}-0`, ...DEFAULT_SHIFT }]
+                    : d.shifts;
+                return { ...d, active: nextActive, shifts };
+              }),
+            }
+      )
+    );
   };
 
-  const handleVenueChange = (dayIndex: number, shiftIndex: number, venueId: string) => {
-    setSchedule(prev => prev.map((d, i) => i !== dayIndex ? d : {
-      ...d,
-      shifts: d.shifts.map((s, j) => j !== shiftIndex ? s : { ...s, venueId }),
-    }));
+  const handleAddShift = (venueIndex: number, dayIndex: number) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) =>
+                j !== dayIndex
+                  ? d
+                  : { ...d, shifts: [...d.shifts, { id: `${d.short}-${Date.now()}`, ...DEFAULT_SHIFT }] }
+              ),
+            }
+      )
+    );
   };
 
-  const handleAddShift = (dayIndex: number) => {
-    setSchedule(prev => prev.map((d, i) => i !== dayIndex ? d : {
-      ...d,
-      shifts: [...d.shifts, {
-        id: `${d.short}-${d.shifts.length}`,
-        start: '9:00 AM',
-        end: '5:00 PM',
-        venueId: venues[0]?.id ?? '',
-      }],
-    }));
+  const handleDeleteShift = (venueIndex: number, dayIndex: number, shiftIndex: number) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) =>
+                j !== dayIndex ? d : { ...d, shifts: d.shifts.filter((_, k) => k !== shiftIndex) }
+              ),
+            }
+      )
+    );
   };
 
-  const handleDeleteShift = (dayIndex: number, shiftIndex: number) => {
-    setSchedule(prev => prev.map((d, i) => i !== dayIndex ? d : {
-      ...d,
-      shifts: d.shifts.filter((_, j) => j !== shiftIndex),
-    }));
+  const updateShiftTime = (
+    venueIndex: number,
+    dayIndex: number,
+    shiftIndex: number,
+    field: "start" | "end",
+    value: string
+  ) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) =>
+                j !== dayIndex
+                  ? d
+                  : {
+                      ...d,
+                      shifts: d.shifts.map((s, k) => (k !== shiftIndex ? s : { ...s, [field]: value })),
+                    }
+              ),
+            }
+      )
+    );
+  };
+
+  const copyDayTo = (venueIndex: number, dayIndex: number, target: CopyTarget) => {
+    setSchedule((prev) =>
+      prev.map((v, i) => {
+        if (i !== venueIndex) return v;
+        const source = v.days[dayIndex]!;
+        return {
+          ...v,
+          days: v.days.map((d, j) => {
+            if (j === dayIndex) return d;
+            const isWeekday = d.dayOfWeek >= 1 && d.dayOfWeek <= 5;
+            if (target === "weekdays" && !isWeekday) return d;
+            return {
+              ...d,
+              active: true,
+              shifts: source.shifts.map((s, k) => ({ id: `${d.short}-${k}`, start: s.start, end: s.end })),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const handleAddVenue = async () => {
+    if (!newVenueName.trim()) return;
+    try {
+      await createVenue({ name: newVenueName }).unwrap();
+      setAddingVenue(false);
+      setNewVenueName("");
+    } catch {}
+  };
+
+  const handleRenameVenue = async (id: string) => {
+    if (!editVenueName.trim()) return;
+    try {
+      await updateVenue({ id, name: editVenueName }).unwrap();
+      setEditingVenueId(null);
+    } catch {}
+  };
+
+  const handleToggleVenueActive = async (id: string, currentStatus: boolean) => {
+    try {
+      await updateVenue({ id, is_active: !currentStatus }).unwrap();
+      setMenuOpenVenueId(null);
+    } catch {}
   };
 
   const handleSave = async () => {
-    if (!doctorId) return;
-    const periods = schedule.flatMap((day, idx) => {
-      if (!day.active) return [];
-      return day.shifts.map(s => ({
-        day_of_week: idx + 1,
-        start_time: displayToTime(s.start),
-        end_time: displayToTime(s.end),
-        venue_id: s.venueId || undefined,
-        slot_duration_minutes: slotDuration,
-        max_patients_per_slot: maxPatients,
-      }));
+    if (!doctorId || hasErrors) return;
+    const periods = schedule.flatMap((venue) => {
+      // Omit periods for inactive venues so they are cleared from schedule
+      if (!venue.isActive) return [];
+      return venue.days.flatMap((day) => {
+        if (!day.active) return [];
+        return day.shifts.map((s) => ({
+          day_of_week: day.dayOfWeek,
+          start_time: s.start,
+          end_time: s.end,
+          venue_id: venue.venueId,
+          slot_duration_minutes: slotDuration,
+          max_patients_per_slot: maxPatients,
+        }));
+      });
     });
 
-    await updateSettings({
-      doctor_id: doctorId,
-      periods,
-      reminders: [],
-    });
+    try {
+      await updateSettings({ doctor_id: doctorId, periods, reminders: [] }).unwrap();
+      setSavedAt(Date.now());
+      setTimeout(() => setSavedAt(null), 2500);
+    } catch {
+      // Error surfaced via RTK Query mutation state; keep the user's edits intact.
+    }
   };
 
-  const renderTimeInput = (value: string) => (
-    <div className="relative">
-      <input
-        type="text"
-        readOnly
-        value={value}
-        className="w-full h-[48px] pl-4 pr-10 bg-[#f2f4f6] md:bg-white border border-[#bdc9c6] rounded-lg text-[#191c1e] text-[16px] focus:border-[#005c55] focus:ring-1 focus:ring-[#005c55] outline-none cursor-pointer"
-      />
-      <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#191c1e] pointer-events-none" />
-    </div>
-  );
-
-  if (isLoading) {
+  if (isLoading || !venues.length) {
     return (
-      <div className="min-h-screen bg-[#f7f9fb] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="flex h-full items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
+  const saveLabel = isSaving ? "Saving…" : savedAt ? "Saved" : "Save changes";
+
   return (
-    <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] font-body-base antialiased pb-[120px] md:pb-12">
-
-
-      <main className="max-w-[1000px] mx-auto px-4 md:px-10 py-6 md:py-10">
-        {/* GLOBAL SETTINGS */}
-        <section className="mb-6 bg-white rounded-xl border border-[#eceef0] p-4 md:p-6">
-          <h3 className="text-[14px] font-bold text-[#0F172A] mb-3">General Settings</h3>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium text-[#64748B]">Slot Duration (min)</span>
-              <input
-                type="number"
-                value={slotDuration}
-                onChange={(e) => setSlotDuration(Math.max(5, Number(e.target.value)))}
-                className="w-24 h-[48px] px-3 bg-white border border-[#bdc9c6] rounded-lg text-[#191c1e] text-[14px] focus:border-[#005c55] focus:ring-1 focus:ring-[#005c55] outline-none"
-              />
+    <div className="flex flex-col h-full bg-background">
+      {/* Header */}
+      <header className="bg-card border-b border-border px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <CalendarClock className="h-5 w-5" />
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[12px] font-medium text-[#64748B]">Max Patients / Slot</span>
-              <input
-                type="number"
-                value={maxPatients}
-                onChange={(e) => setMaxPatients(Math.max(1, Number(e.target.value)))}
-                className="w-24 h-[48px] px-3 bg-white border border-[#bdc9c6] rounded-lg text-[#191c1e] text-[14px] focus:border-[#005c55] focus:ring-1 focus:ring-[#005c55] outline-none"
-              />
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-foreground">Availability</h2>
+              <p className="text-sm text-muted-foreground">Set your regular weekly clinic hours</p>
             </div>
           </div>
-        </section>
+          <div className="hidden sm:block shrink-0">
+            <Button onClick={handleSave} disabled={isSaving || hasErrors} className="gap-2">
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {saveLabel}
+            </Button>
+          </div>
+        </div>
+      </header>
 
-        {/* WEEKLY SCHEDULE GRID */}
-        <section className="space-y-4">
-          <h2 className="md:hidden text-[12px] font-bold text-[#64748B] uppercase tracking-wider mb-2">Weekly Availability</h2>
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
+          {/* Onboarding hint */}
+          <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
+            <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p className="text-foreground font-medium">How scheduling works</p>
+              <p>
+                Turn on the days you see patients and set your sitting hours (shifts). Each shift is
+                split into appointment <span className="font-medium text-foreground">slots</span> of
+                the duration below, and each slot can hold your{" "}
+                <span className="font-medium text-foreground">max patients</span>. Use{" "}
+                <span className="font-medium text-foreground">Copy</span> to reuse a day's hours
+                across the week.
+              </p>
+            </div>
+          </div>
 
-          {/* Main Days (Mon-Fri) */}
-          {schedule.slice(0, 5).map((dayData, index) => (
-            <div key={dayData.day}>
+          {/* General settings */}
+          <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+            <h3 className="text-sm font-semibold text-foreground mb-1">Slot settings</h3>
+            <p className="text-xs text-muted-foreground mb-4">Applied to every venue and day.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-foreground">Slot duration</span>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <select
+                    value={slotDuration}
+                    onChange={(e) => setSlotDuration(Number(e.target.value))}
+                    className="h-10 w-full pl-9 pr-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    {SLOT_PRESETS.map((m) => (
+                      <option key={m} value={m}>
+                        {m} minutes
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <span className="text-xs text-muted-foreground">How long each appointment lasts.</span>
+              </label>
 
-              {/* MOBILE ACCORDION VIEW */}
-              <div className="md:hidden bg-white rounded-xl border border-[#eceef0] shadow-sm mb-3">
-                <button
-                  className="w-full flex items-center justify-between p-4 hover:bg-[#f7f9fb] transition-colors"
-                  onClick={() => toggleExpand(index)}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-[14px] font-bold text-[#005c55] w-10 text-left uppercase">{dayData.short}</span>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium text-foreground">Max patients per slot</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={maxPatients}
+                  onChange={(e) => setMaxPatients(Math.max(1, Number(e.target.value)))}
+                  className="h-10 w-full px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                />
+                <span className="text-xs text-muted-foreground">How many patients can book the same slot.</span>
+              </label>
+            </div>
+          </section>
+
+          {/* Venues Header */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-foreground">Venues</h3>
+            {!addingVenue && (
+              <Button variant="outline" size="sm" onClick={() => setAddingVenue(true)} className="gap-1.5 h-8">
+                <Plus className="h-4 w-4" /> Add venue
+              </Button>
+            )}
+          </div>
+
+          {addingVenue && (
+            <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+              <label className="text-sm font-medium text-foreground">New Venue Name</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={newVenueName}
+                  onChange={(e) => setNewVenueName(e.target.value)}
+                  placeholder="e.g. City Clinic"
+                  className="h-10 flex-1 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddVenue()}
+                />
+                <Button onClick={handleAddVenue} disabled={!newVenueName.trim()} className="gap-1.5 h-10">
+                  <Save className="h-4 w-4" /> Save
+                </Button>
+                <Button variant="ghost" onClick={() => setAddingVenue(false)} className="h-10 px-3">
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Venue schedules */}
+          {schedule.map((venueData, venueIndex) => {
+            const activeCount = venueData.days.filter((d) => d.active).length;
+            const isEditing = editingVenueId === venueData.venueId;
+            return (
+              <section
+                key={venueData.venueId}
+                className={`rounded-xl border border-border bg-card overflow-hidden transition-opacity ${!venueData.isActive ? "opacity-75" : ""}`}
+              >
+                <div className="w-full flex items-center justify-between gap-3 p-4 hover:bg-accent/40 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                    {isEditing ? (
+                      <div className="flex items-center gap-2 flex-1 max-w-sm" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={editVenueName}
+                          onChange={(e) => setEditVenueName(e.target.value)}
+                          className="h-8 flex-1 px-2 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenameVenue(venueData.venueId);
+                            if (e.key === "Escape") setEditingVenueId(null);
+                          }}
+                        />
+                        <button onClick={() => handleRenameVenue(venueData.venueId)} className="text-green-600 hover:text-green-700 p-1 rounded-md hover:bg-green-50">
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setEditingVenueId(null)} className="text-red-600 hover:text-red-700 p-1 rounded-md hover:bg-red-50">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-foreground truncate cursor-pointer" onClick={() => toggleVenueExpand(venueIndex)}>
+                          {venueData.venueName}
+                        </span>
+                        {!venueData.isActive && (
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0 uppercase tracking-wider">
+                            Inactive
+                          </span>
+                        )}
+                        {venueData.isActive && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditVenueName(venueData.venueName);
+                              setEditingVenueId(venueData.venueId);
+                            }}
+                            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                            aria-label="Rename venue"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {dayData.expanded ? (
-                    <ChevronUp className="w-5 h-5 text-[#6e7977] transition-transform" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5 text-[#6e7977] transition-transform" />
-                  )}
-                </button>
-
-                {dayData.expanded && (
-                  <div className="p-4 pt-0 flex flex-col gap-4 bg-white">
-                    <div className="h-[1px] bg-[#eceef0] w-full" />
-
-                    {dayData.active && dayData.shifts.length > 0 ? (
-                      dayData.shifts.map((shift, shiftIndex) => (
-                        <div key={shift.id} className="flex flex-col gap-3 relative">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[12px] font-medium text-[#64748B]">Start</span>
-                              {renderTimeInput(shift.start)}
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[12px] font-medium text-[#64748B]">End</span>
-                              {renderTimeInput(shift.end)}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[12px] font-medium text-[#64748B]">Venue</span>
-                            <div className="relative">
-                               <select
-                                 value={shift.venueId}
-                                 onChange={(e) => handleVenueChange(index, shiftIndex, e.target.value)}
-                                 className="w-full h-[48px] px-3 pr-10 bg-[#f2f4f6] border border-[#bdc9c6] rounded-lg text-[#191c1e] appearance-none focus:border-[#005c55] focus:ring-1 focus:ring-[#005c55] outline-none"
-                               >
-                                  <option value="">Select venue</option>
-                                  {venues.map(v => (
-                                    <option key={v.id} value={v.id}>{v.name}</option>
-                                  ))}
-                               </select>
-                               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6e7977] pointer-events-none" />
-                            </div>
-                          </div>
-                          <div className="flex justify-end pt-1">
-                            <button onClick={() => handleDeleteShift(index, shiftIndex)} className="text-[#DC2626] hover:bg-[#ffdad6] p-2 rounded-lg transition-colors">
-                              <Trash2 className="w-5 h-5" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground hidden sm:inline-block">
+                      {activeCount} {activeCount === 1 ? "day" : "days"} open
+                    </span>
+                    <button className="p-1.5 rounded-md hover:bg-accent text-muted-foreground" onClick={(e) => {
+                      e.stopPropagation();
+                      toggleVenueExpand(venueIndex);
+                    }}>
+                      {venueData.expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                    </button>
+                    <div className="relative">
+                      <button
+                        className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenVenueId((prev) => (prev === venueData.venueId ? null : venueData.venueId));
+                        }}
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+                      {menuOpenVenueId === venueData.venueId && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpenVenueId(null); }} />
+                          <div className="absolute right-0 top-full mt-1 z-20 w-32 rounded-lg border border-border bg-card shadow-lg py-1">
+                            <button
+                              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleVenueActive(venueData.venueId, venueData.isActive);
+                              }}
+                            >
+                              {venueData.isActive ? "Deactivate" : "Restore"}
                             </button>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="italic text-[#64748B] text-[14px] py-2 text-center">Not accepting appointments on this day.</div>
-                    )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                    {dayData.active && (
-                      <button onClick={() => handleAddShift(index)} className="flex items-center gap-2 text-[#005c55] font-semibold text-[14px] mt-2 py-2 hover:bg-[#f2f4f6] rounded-lg transition-colors w-fit px-2">
-                        <PlusCircle className="w-5 h-5" /> Add period
-                      </button>
-                    )}
+                {venueData.expanded && venueData.isActive && (
+                  <div className="px-3 sm:px-4 pb-4 pt-0 flex flex-col gap-3 border-t border-border">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-3">
+                      Weekly hours
+                    </p>
+                    {venueData.days.map((dayData, dayIndex) => (
+                      <DayRow
+                        key={dayData.day}
+                        day={dayData}
+                        slotDuration={slotDuration}
+                        maxPatients={maxPatients}
+                        onToggleActive={() => toggleActive(venueIndex, dayIndex)}
+                        onAddShift={() => handleAddShift(venueIndex, dayIndex)}
+                        onDeleteShift={(si) => handleDeleteShift(venueIndex, dayIndex, si)}
+                        onUpdateShift={(si, field, value) =>
+                          updateShiftTime(venueIndex, dayIndex, si, field, value)
+                        }
+                        onCopy={(target) => copyDayTo(venueIndex, dayIndex, target)}
+                      />
+                    ))}
                   </div>
                 )}
-              </div>
+              </section>
+            );
+          })}
 
-              {/* DESKTOP BENTO VIEW */}
-              <div className={`hidden md:flex bg-white rounded-xl border border-[#bdc9c6] overflow-hidden transition-all shadow-sm mb-4 ${!dayData.active ? 'bg-[#f8fafc]' : ''}`}>
-                <div className={`w-[200px] p-6 border-r border-[#bdc9c6] flex flex-col justify-between shrink-0 ${!dayData.active ? 'bg-[#f8fafc]' : 'bg-[#f8fafc]'}`}>
-                  <div>
-                    <h3 className="text-[20px] font-bold text-[#0F172A]">{dayData.day}</h3>
-                    <div className={`inline-flex px-3 py-1 mt-2 rounded-full text-[12px] font-semibold ${dayData.active ? 'bg-[#16A34A]/10 text-[#16A34A]' : 'bg-[#e2e8f0] text-[#64748B]'}`}>
-                      {dayData.active ? 'Active' : 'Unavailable'}
-                    </div>
-                  </div>
-                  <div className="mt-6">
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={dayData.active} onChange={() => toggleActive(index)} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-[#d8dadc] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005c55]"></div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex-1 p-6">
-                  {!dayData.active ? (
-                    <div className="h-full flex items-center justify-center italic text-[#64748B] text-[16px]">
-                      Not accepting appointments on this day.
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {dayData.shifts.map((shift, shiftIndex) => (
-                        <div key={shift.id} className="flex gap-4 items-end">
-                          <div className="flex flex-col gap-1 w-36">
-                            {shiftIndex === 0 && <span className="text-[12px] font-medium text-[#64748B]">Start Time</span>}
-                            {renderTimeInput(shift.start)}
-                          </div>
-                          <div className="flex flex-col gap-1 w-36">
-                            {shiftIndex === 0 && <span className="text-[12px] font-medium text-[#64748B]">End Time</span>}
-                            {renderTimeInput(shift.end)}
-                          </div>
-                          <div className="flex flex-col gap-1 flex-1">
-                            {shiftIndex === 0 && <span className="text-[12px] font-medium text-[#64748B]">Venue</span>}
-                            <div className="relative">
-                               <select
-                                 value={shift.venueId}
-                                 onChange={(e) => handleVenueChange(index, shiftIndex, e.target.value)}
-                                 className="w-full h-[48px] px-4 pr-10 bg-white border border-[#bdc9c6] rounded-lg text-[#191c1e] text-[14px] appearance-none focus:border-[#005c55] focus:ring-1 focus:ring-[#005c55] outline-none cursor-pointer"
-                               >
-                                  <option value="">Select venue</option>
-                                  {venues.map(v => (
-                                    <option key={v.id} value={v.id}>{v.name}</option>
-                                  ))}
-                               </select>
-                               <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#6e7977] pointer-events-none" />
-                            </div>
-                          </div>
-                          <button onClick={() => handleDeleteShift(index, shiftIndex)} className="w-[48px] h-[48px] flex items-center justify-center text-[#DC2626] hover:bg-[#ffdad6] rounded-lg transition-colors shrink-0">
-                             <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      ))}
-                      <button onClick={() => handleAddShift(index)} className="flex items-center gap-2 text-[#005c55] font-semibold text-[14px] mt-4 hover:underline py-2">
-                         <PlusCircle className="w-5 h-5" /> Add period
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          ))}
-
-          {/* Weekend Cluster (Sat-Sun) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-2 md:mt-4">
-            {schedule.slice(5, 7).map((dayData, index) => (
-              <div key={dayData.day}>
-
-                {/* Mobile Weekend Accordion */}
-                <div className="md:hidden bg-white rounded-xl border border-[#eceef0] shadow-sm">
-                  <button
-                    className="w-full flex items-center justify-between p-4 hover:bg-[#f7f9fb] transition-colors"
-                    onClick={() => toggleExpand(index + 5)}
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-[14px] font-bold text-[#005c55] w-10 text-left uppercase">{dayData.short}</span>
-                      <span className="text-[12px] text-[#64748B] italic">No shifts set</span>
-                    </div>
-                    {dayData.expanded ? (
-                      <ChevronUp className="w-5 h-5 text-[#6e7977] transition-transform" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-[#6e7977] transition-transform" />
-                    )}
-                  </button>
-                  {dayData.expanded && (
-                    <div className="p-4 pt-0 bg-white">
-                      <div className="h-[1px] bg-[#eceef0] w-full mb-4" />
-                      <div className="italic text-[#64748B] text-[14px] py-2 text-center">Not accepting appointments on this day.</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Desktop Weekend Compact Card */}
-                <div className="hidden md:flex bg-[#f8fafc] rounded-xl border border-[#bdc9c6] p-6 justify-between items-center opacity-80 shadow-sm">
-                  <div>
-                    <h4 className="font-bold text-[#0F172A] text-[16px]">{dayData.day}</h4>
-                    <span className="text-[12px] font-medium text-[#64748B]">Unavailable</span>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={dayData.active} onChange={() => toggleActive(index + 5)} className="sr-only peer" />
-                    <div className="w-11 h-6 bg-[#d8dadc] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#005c55]"></div>
-                  </label>
-                </div>
-
-              </div>
-            ))}
-          </div>
-
-        </section>
-      </main>
-
-      {/* MOBILE FIXED BOTTOM ACTIONS */}
-
-      {/* Mobile Save Button */}
-      <div className="md:hidden fixed bottom-[90px] left-0 w-full px-4 z-40">
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="w-full h-[52px] bg-[#005c55] hover:bg-[#0f766e] text-white rounded-full font-bold text-[16px] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <Save className="w-5 h-5" />
-          {isSaving ? 'Saving...' : 'Save Changes'}
-        </Button>
+          {hasErrors && (
+            <p className="flex items-center gap-1.5 text-sm text-red-600">
+              <AlertTriangle className="h-4 w-4 shrink-0" /> Fix the highlighted shifts before saving.
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Desktop Save Button */}
-      <div className="hidden md:fixed md:flex bottom-8 right-8 z-40">
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="px-8 h-[52px] bg-[#005c55] hover:bg-[#0f766e] text-white rounded-full font-bold text-[16px] shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <Save className="w-5 h-5" />
-          {isSaving ? 'Saving...' : 'Save Changes'}
+      {/* Mobile sticky save bar */}
+      <div className="sm:hidden border-t border-border bg-card p-3">
+        <Button onClick={handleSave} disabled={isSaving || hasErrors} className="w-full h-11 gap-2">
+          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          {saveLabel}
         </Button>
       </div>
-
     </div>
   );
 }

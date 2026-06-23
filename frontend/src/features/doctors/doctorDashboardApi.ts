@@ -10,10 +10,14 @@ interface DoctorStats {
 interface TodayPatient {
   id: string
   patient_name: string
+  phone: string | null
+  gender: string | null
+  age: number | null
   token_number: number
   scheduled_start: string
   appointment_status: string
   venue_name: string | null
+  reason: string
 }
 
 interface DateParam {

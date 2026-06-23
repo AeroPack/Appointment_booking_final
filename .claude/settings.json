@@ -26,7 +26,9 @@
       "Bash(git commit *)",
       "Bash(git push *)",
       "Bash(git -C /home/dell/Documents/AppointMentBooking status)",
-      "Bash(git -C /home/dell/Documents/AppointMentBooking log --oneline -5)"
+      "Bash(git -C /home/dell/Documents/AppointMentBooking log --oneline -5)",
+      "Bash(cat src/features/doctors/venuesApi.ts)",
+      "Bash(sed -n '1,60p' src/pages/staff/Venues.tsx)"
     ]
   }
 }

@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-appointment}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
       POSTGRES_DB: ${POSTGRES_DB:-appointment_booking}
+    ports:
+      - "5432:5432"
     volumes:
       - appointment_pg_data:/var/lib/postgresql/data
       - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
@@ -32,6 +34,8 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-appointment}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-appointment_booking}
       JWT_SECRET: ${JWT_SECRET:-appointment-booking-jwt-secret-dev-only-change-in-production}
+    ports:
+      - "5000:5000"
     networks:
       - appointment_network
 

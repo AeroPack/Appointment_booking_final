@@ -1,5 +1,5 @@
 import { AppError } from '../../utils/response.js';
-import type { CreateVenueInput, UpdateVenueInput, UpdateDoctorProfileInput } from './doctors.types.js';
+import type { CreateVenueInput, UpdateVenueInput, UpdateDoctorProfileInput, UpdateBookingPoliciesInput, CreateLeaveInput } from './doctors.types.js';
 import { DoctorsRepository } from './doctors.repository.js';
 
 export class DoctorsService {
@@ -64,5 +64,55 @@ export class DoctorsService {
     const venue = await this.repo.updateVenue(venueId, clinicId, data);
     if (!venue) throw new AppError(404, 'VENUE_NOT_FOUND', 'Venue not found');
     return venue;
+  }
+
+  // ─── Booking Policies ───────────────────────────────────────────────────────
+
+  async getBookingPolicies(userId: string) {
+    const policies = await this.repo.getBookingPolicies(userId);
+    if (!policies) {
+      // Return defaults if doctor_profile row doesn't exist yet
+      return {
+        booking_min_notice_hours: 2,
+        booking_max_advance_days: 30,
+        auto_confirm_bookings: true,
+        cancellation_window_hours: 24,
+      };
+    }
+    return policies;
+  }
+
+  async updateBookingPolicies(userId: string, input: UpdateBookingPoliciesInput) {
+    const data: Record<string, unknown> = {};
+    if (input.booking_min_notice_hours !== undefined) data.booking_min_notice_hours = input.booking_min_notice_hours;
+    if (input.booking_max_advance_days !== undefined) data.booking_max_advance_days = input.booking_max_advance_days;
+    if (input.auto_confirm_bookings !== undefined) data.auto_confirm_bookings = input.auto_confirm_bookings;
+    if (input.cancellation_window_hours !== undefined) data.cancellation_window_hours = input.cancellation_window_hours;
+
+    if (Object.keys(data).length === 0) {
+      throw new AppError(400, 'NO_FIELDS', 'No valid fields to update');
+    }
+
+    await this.repo.updateBookingPolicies(userId, data);
+    return this.getBookingPolicies(userId);
+  }
+
+  // ─── Doctor Leaves ──────────────────────────────────────────────────────────
+
+  async getLeaves(doctorId: string) {
+    return this.repo.findLeaves(doctorId);
+  }
+
+  async createLeave(doctorId: string, input: CreateLeaveInput) {
+    return this.repo.createLeave(doctorId, {
+      start_date: input.start_date,
+      end_date: input.end_date,
+      reason: input.reason,
+    });
+  }
+
+  async deleteLeave(leaveId: string, doctorId: string) {
+    const deleted = await this.repo.deleteLeave(leaveId, doctorId);
+    if (!deleted) throw new AppError(404, 'LEAVE_NOT_FOUND', 'Leave entry not found');
   }
 }
