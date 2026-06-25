@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Settings as SettingsIcon,
   Clock,
@@ -15,10 +15,18 @@ import {
   Ban,
   Zap,
   X,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  AlertTriangle,
+  CalendarClock,
+  MapPin,
+  MoreVertical,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
-import { Card } from "@/core/components/ui/card";
 import {
   useGetBookingPoliciesQuery,
   useUpdateBookingPoliciesMutation,
@@ -27,6 +35,13 @@ import {
   useDeleteLeaveMutation,
 } from "@/features/doctors/doctorSettingsApi";
 import type { BookingPolicies, DoctorLeave } from "@/features/doctors/doctorSettingsApi";
+import {
+  useGetAppointmentSettingsQuery,
+  useUpdateAppointmentSettingsMutation,
+  useGetVenuesQuery,
+} from "@/features/settings/settingsApi";
+import { useCreateVenueMutation, useUpdateVenueMutation } from "@/features/doctors/venuesApi";
+import { useAppSelector } from "@/core/store/hooks";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -59,11 +74,85 @@ const CANCELLATION_PRESETS = [
   { value: 48, label: "48 hours before" },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Availability Types ──────────────────────────────────────────────────────
 
-function formatDateForInput(iso: string): string {
-  return iso.slice(0, 10);
+interface Shift {
+  id: string;
+  start: string;
+  end: string;
 }
+
+interface DaySchedule {
+  dayOfWeek: number;
+  day: string;
+  short: string;
+  active: boolean;
+  shifts: Shift[];
+}
+
+interface VenueSchedule {
+  venueId: string;
+  venueName: string;
+  expanded: boolean;
+  isActive: boolean;
+  days: DaySchedule[];
+}
+
+type CopyTarget = "weekdays" | "all";
+
+const DAY_NAMES: { day: string; short: string }[] = [
+  { day: "Monday", short: "Mon" },
+  { day: "Tuesday", short: "Tue" },
+  { day: "Wednesday", short: "Wed" },
+  { day: "Thursday", short: "Thu" },
+  { day: "Friday", short: "Fri" },
+  { day: "Saturday", short: "Sat" },
+  { day: "Sunday", short: "Sun" },
+];
+
+const DEFAULT_SHIFT = { start: "09:00", end: "17:00" };
+const SLOT_PRESETS = [5, 10, 15, 20, 30, 45, 60];
+
+// ─── Time helpers ───────────────────────────────────────────────────────────
+
+function normalizeTime(t: string): string {
+  return t.slice(0, 5);
+}
+
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+function formatTime12(t: string): string {
+  const [h = 0, m = 0] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+function countSlots(start: string, end: string, durationMin: number): number {
+  const diff = timeToMinutes(end) - timeToMinutes(start);
+  if (diff <= 0 || durationMin <= 0) return 0;
+  return Math.floor(diff / durationMin);
+}
+
+function shiftError(shift: Shift, shifts: Shift[], index: number): string | null {
+  const s = timeToMinutes(shift.start);
+  const e = timeToMinutes(shift.end);
+  if (e <= s) return "End time must be after start time";
+  for (let i = 0; i < shifts.length; i++) {
+    if (i === index) continue;
+    const other = shifts[i]!;
+    const os = timeToMinutes(other.start);
+    const oe = timeToMinutes(other.end);
+    if (oe <= os) continue;
+    if (s < oe && os < e) return "Overlaps another shift";
+  }
+  return null;
+}
+
+// ─── General Settings Helpers ────────────────────────────────────────────────
 
 function formatDateReadable(iso: string): string {
   const d = new Date(iso + "T00:00:00");
@@ -77,348 +166,167 @@ function isLeaveInPast(endDate: string): boolean {
 }
 
 type SaveStatus = "idle" | "saving" | "success" | "error";
+type TabId = "general" | "availability";
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Day Row Component ──────────────────────────────────────────────────────
 
-export function Settings() {
-  // ─ Queries
-  const { data: policies, isLoading: policiesLoading } = useGetBookingPoliciesQuery();
-  const { data: leaves = [], isLoading: leavesLoading } = useGetLeavesQuery();
-  const [updatePolicies] = useUpdateBookingPoliciesMutation();
-  const [createLeave] = useCreateLeaveMutation();
-  const [deleteLeave] = useDeleteLeaveMutation();
+interface DayRowProps {
+  day: DaySchedule;
+  slotDuration: number;
+  maxPatients: number;
+  onToggleActive: () => void;
+  onAddShift: () => void;
+  onDeleteShift: (shiftIndex: number) => void;
+  onUpdateShift: (shiftIndex: number, field: "start" | "end", value: string) => void;
+  onCopy: (target: CopyTarget) => void;
+}
 
-  // ─ Local state for policies
-  const [local, setLocal] = useState<BookingPolicies>({
-    booking_min_notice_hours: 2,
-    booking_max_advance_days: 30,
-    auto_confirm_bookings: true,
-    cancellation_window_hours: 24,
-  });
+function DayRow({
+  day,
+  slotDuration,
+  maxPatients,
+  onToggleActive,
+  onAddShift,
+  onDeleteShift,
+  onUpdateShift,
+  onCopy,
+}: DayRowProps) {
+  const [copyOpen, setCopyOpen] = useState(false);
 
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const hasLoadedRef = useRef(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ─ Leave form state
-  const [addingLeave, setAddingLeave] = useState(false);
-  const [leaveStart, setLeaveStart] = useState("");
-  const [leaveEnd, setLeaveEnd] = useState("");
-  const [leaveReason, setLeaveReason] = useState("");
-
-  // ─ Sync from server
-  useEffect(() => {
-    if (policies) {
-      setLocal(policies);
-      hasLoadedRef.current = true;
-    }
-  }, [policies]);
-
-  // ─ Auto-save policies on change (debounced)
-  const handleSave = async () => {
-    setSaveStatus("saving");
-    try {
-      await updatePolicies(local).unwrap();
-      setSaveStatus("success");
-      setTimeout(() => setSaveStatus("idle"), 2000);
-    } catch {
-      setSaveStatus("error");
-      setTimeout(() => setSaveStatus("idle"), 4000);
-    }
-  };
-
-  const handleSaveRef = useRef(handleSave);
-  useEffect(() => { handleSaveRef.current = handleSave; });
-
-  useEffect(() => {
-    if (!hasLoadedRef.current) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => handleSaveRef.current(), 600);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [local]);
-
-  // ─ Leave handlers
-  const handleAddLeave = async () => {
-    if (!leaveStart || !leaveEnd) return;
-    try {
-      await createLeave({
-        start_date: leaveStart,
-        end_date: leaveEnd,
-        reason: leaveReason || undefined,
-      }).unwrap();
-      setAddingLeave(false);
-      setLeaveStart("");
-      setLeaveEnd("");
-      setLeaveReason("");
-    } catch {}
-  };
-
-  const handleDeleteLeave = async (id: string) => {
-    try {
-      await deleteLeave(id).unwrap();
-    } catch {}
-  };
-
-  // ─ Loading state
-  if (policiesLoading || leavesLoading) {
-    return (
-      <div className="flex h-full items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  const SaveIndicator = () => {
-    if (saveStatus === "idle") return null;
-    return (
-      <div className={`flex items-center gap-1.5 text-xs font-medium transition-opacity ${
-        saveStatus === "success" ? "text-green-600" : saveStatus === "error" ? "text-red-600" : "text-muted-foreground"
-      }`}>
-        {saveStatus === "saving" && <Loader2 className="h-3 w-3 animate-spin" />}
-        {saveStatus === "success" && <CheckCircle2 className="h-3 w-3" />}
-        {saveStatus === "error" && <AlertCircle className="h-3 w-3" />}
-        {saveStatus === "saving" ? "Saving…" : saveStatus === "success" ? "Saved" : "Save failed"}
-      </div>
-    );
-  };
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  // Split leaves into upcoming and past
-  const upcomingLeaves = leaves.filter((l) => !isLeaveInPast(l.end_date));
-  const pastLeaves = leaves.filter((l) => isLeaveInPast(l.end_date));
+  const dayTotalSlots = day.shifts.reduce(
+    (sum, s) => sum + countSlots(s.start, s.end, slotDuration),
+    0
+  );
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border px-4 sm:px-6 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-              <SettingsIcon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-foreground">Settings</h2>
-              <p className="text-sm text-muted-foreground">Booking policies, time off & preferences</p>
-            </div>
+    <div
+      className={`rounded-xl border transition-colors ${
+        day.active ? "border-border bg-card" : "border-border bg-muted/30"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3 p-3 sm:p-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Switch checked={day.active} onCheckedChange={onToggleActive} aria-label={`Toggle ${day.day}`} />
+          <div className="min-w-0">
+            <p className={`font-semibold text-sm ${day.active ? "text-foreground" : "text-muted-foreground"}`}>
+              {day.day}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {day.active
+                ? dayTotalSlots > 0
+                  ? `${dayTotalSlots} slots/day`
+                  : "Add a shift"
+                : "Closed"}
+            </p>
           </div>
-          <SaveIndicator />
         </div>
-      </header>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-
-          {/* ────────────── BOOKING POLICIES ────────────── */}
-          <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
-            <div className="flex items-center gap-2 mb-1">
-              <Shield className="h-5 w-5 text-primary" />
-              <h3 className="text-base font-semibold text-foreground">Booking Policies</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">
-              Control how and when patients can book with you.
-            </p>
-
-            <div className="space-y-6">
-              {/* Minimum notice */}
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  Minimum notice before booking
-                </label>
-                <select
-                  value={local.booking_min_notice_hours}
-                  onChange={(e) => setLocal((p) => ({ ...p, booking_min_notice_hours: Number(e.target.value) }))}
-                  className="h-10 w-full sm:w-64 px-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {NOTICE_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Patients must book at least this long before the appointment time.
-                </p>
-              </div>
-
-              {/* Max advance */}
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                  Maximum advance booking
-                </label>
-                <select
-                  value={local.booking_max_advance_days}
-                  onChange={(e) => setLocal((p) => ({ ...p, booking_max_advance_days: Number(e.target.value) }))}
-                  className="h-10 w-full sm:w-64 px-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {ADVANCE_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  How far in advance patients can book. Slots beyond this won't appear.
-                </p>
-              </div>
-
-              {/* Auto-confirm */}
-              <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Zap className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-medium text-foreground">Auto-confirm bookings</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    When on, new appointments are instantly confirmed. When off, they go into a pending queue for you or your staff to approve.
-                  </p>
-                </div>
-                <Switch
-                  checked={local.auto_confirm_bookings}
-                  onCheckedChange={(c) => setLocal((p) => ({ ...p, auto_confirm_bookings: c }))}
-                  aria-label="Auto-confirm bookings"
-                />
-              </div>
-
-              {/* Cancellation window */}
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <Ban className="h-4 w-4 text-muted-foreground" />
-                  Patient cancellation window
-                </label>
-                <select
-                  value={local.cancellation_window_hours}
-                  onChange={(e) => setLocal((p) => ({ ...p, cancellation_window_hours: Number(e.target.value) }))}
-                  className="h-10 w-full sm:w-64 px-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {CANCELLATION_PRESETS.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  Patients can only cancel up to this time before the appointment. After this cutoff, they cannot self-cancel.
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* ────────────── TIME OFF / VACATION ────────────── */}
-          <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <CalendarOff className="h-5 w-5 text-primary" />
-                <h3 className="text-base font-semibold text-foreground">Time Off</h3>
-              </div>
-              {!addingLeave && (
-                <Button variant="outline" size="sm" onClick={() => setAddingLeave(true)} className="gap-1.5 h-8">
-                  <Plus className="h-4 w-4" /> Add leave
-                </Button>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">
-              Block out dates when you're unavailable. Patients won't be able to book during these periods.
-            </p>
-
-            {/* Add leave form */}
-            {addingLeave && (
-              <div className="rounded-lg border border-border bg-muted/20 p-4 mb-4 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">Start date</span>
-                    <input
-                      type="date"
-                      value={leaveStart}
-                      min={todayStr}
-                      onChange={(e) => {
-                        setLeaveStart(e.target.value);
-                        if (leaveEnd && e.target.value > leaveEnd) setLeaveEnd(e.target.value);
-                      }}
-                      className="h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-xs font-medium text-muted-foreground">End date</span>
-                    <input
-                      type="date"
-                      value={leaveEnd}
-                      min={leaveStart || todayStr}
-                      onChange={(e) => setLeaveEnd(e.target.value)}
-                      className="h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </label>
-                </div>
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Reason (optional)</span>
-                  <input
-                    type="text"
-                    value={leaveReason}
-                    onChange={(e) => setLeaveReason(e.target.value)}
-                    placeholder="e.g. Medical conference, Vacation"
-                    className="h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </label>
-                <div className="flex gap-2 pt-1">
-                  <Button onClick={handleAddLeave} disabled={!leaveStart || !leaveEnd} className="gap-1.5">
-                    <Save className="h-4 w-4" /> Save
-                  </Button>
-                  <Button
-                    variant="ghost"
+        {day.active && day.shifts.length > 0 && (
+          <div className="relative shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground"
+              onClick={() => setCopyOpen((o) => !o)}
+            >
+              <Copy className="h-4 w-4" />
+              <span className="hidden sm:inline">Copy</span>
+            </Button>
+            {copyOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setCopyOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 w-48 rounded-lg border border-border bg-card shadow-lg py-1">
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
                     onClick={() => {
-                      setAddingLeave(false);
-                      setLeaveStart("");
-                      setLeaveEnd("");
-                      setLeaveReason("");
+                      onCopy("weekdays");
+                      setCopyOpen(false);
                     }}
                   >
-                    Cancel
-                  </Button>
+                    Copy to weekdays
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                    onClick={() => {
+                      onCopy("all");
+                      setCopyOpen(false);
+                    }}
+                  >
+                    Copy to all days
+                  </button>
                 </div>
-              </div>
+              </>
             )}
-
-            {/* Upcoming leaves */}
-            {upcomingLeaves.length === 0 && pastLeaves.length === 0 && !addingLeave && (
-              <div className="flex gap-3 rounded-lg border border-dashed border-border p-4">
-                <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-                <p className="text-sm text-muted-foreground">
-                  No scheduled time off. Add leave dates to block your calendar.
-                </p>
-              </div>
-            )}
-
-            {upcomingLeaves.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upcoming</p>
-                {upcomingLeaves.map((leave) => (
-                  <LeaveItem key={leave.id} leave={leave} onDelete={handleDeleteLeave} />
-                ))}
-              </div>
-            )}
-
-            {pastLeaves.length > 0 && (
-              <div className="space-y-2 mt-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Past</p>
-                {pastLeaves.map((leave) => (
-                  <LeaveItem key={leave.id} leave={leave} onDelete={handleDeleteLeave} isPast />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* ────────────── INFO CARD ────────────── */}
-          <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
-            <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p className="text-foreground font-medium">Coming soon</p>
-              <p>
-                <span className="font-medium text-foreground">Notification preferences</span> and{" "}
-                <span className="font-medium text-foreground">staff management</span> will be available here
-                in a future update. Stay tuned!
-              </p>
-            </div>
           </div>
-
-        </div>
+        )}
       </div>
+
+      {day.active && (
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4 flex flex-col gap-3 border-t border-border pt-3">
+          {day.shifts.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">No shifts yet - add one below.</p>
+          )}
+
+          {day.shifts.map((shift, shiftIndex) => {
+            const error = shiftError(shift, day.shifts, shiftIndex);
+            const slots = countSlots(shift.start, shift.end, slotDuration);
+            return (
+              <div key={shift.id} className="flex flex-col gap-1.5">
+                <div className="flex items-end gap-2 sm:gap-3">
+                  <label className="flex-1 flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">Start</span>
+                    <input
+                      type="time"
+                      value={shift.start}
+                      onChange={(e) => onUpdateShift(shiftIndex, "start", e.target.value)}
+                      className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
+                        error ? "border-red-400" : "border-input"
+                      }`}
+                    />
+                  </label>
+                  <label className="flex-1 flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted-foreground">End</span>
+                    <input
+                      type="time"
+                      value={shift.end}
+                      onChange={(e) => onUpdateShift(shiftIndex, "end", e.target.value)}
+                      className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
+                        error ? "border-red-400" : "border-input"
+                      }`}
+                    />
+                  </label>
+                  <button
+                    onClick={() => onDeleteShift(shiftIndex)}
+                    aria-label="Remove shift"
+                    className="h-10 w-10 shrink-0 flex items-center justify-center text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {error ? (
+                  <p className="flex items-center gap-1 text-xs text-red-600">
+                    <AlertTriangle className="h-3 w-3 shrink-0" /> {error}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {formatTime12(shift.start)} - {formatTime12(shift.end)} ·{" "}
+                    <span className="font-medium text-foreground">{slots} slots</span>
+                    {slots > 0 && ` · up to ${slots * maxPatients} patients`}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            onClick={onAddShift}
+            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:underline w-fit"
+          >
+            <Plus className="h-4 w-4" /> Add shift
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -437,7 +345,7 @@ function LeaveItem({
   const startStr = formatDateReadable(leave.start_date);
   const endStr = formatDateReadable(leave.end_date);
   const isSingleDay = leave.start_date === leave.end_date;
-  const dateLabel = isSingleDay ? startStr : `${startStr} – ${endStr}`;
+  const dateLabel = isSingleDay ? startStr : `${startStr} - ${endStr}`;
 
   return (
     <div
@@ -465,6 +373,833 @@ function LeaveItem({
       >
         {isPast ? <X className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
       </button>
+    </div>
+  );
+}
+
+// ─── Main Settings Page ─────────────────────────────────────────────────────
+
+export function Settings() {
+  const [activeTab, setActiveTab] = useState<TabId>("general");
+
+  // ─── General Settings Queries ───
+  const { data: policies, isLoading: policiesLoading } = useGetBookingPoliciesQuery();
+  const { data: leaves = [], isLoading: leavesLoading } = useGetLeavesQuery();
+  const [updatePolicies] = useUpdateBookingPoliciesMutation();
+  const [createLeave] = useCreateLeaveMutation();
+  const [deleteLeave] = useDeleteLeaveMutation();
+
+  // ─── Availability Queries ───
+  const authUser = useAppSelector((state) => state.auth.user);
+  const doctorId = authUser?.id ?? "";
+  const { data: settings, isLoading: settingsLoading } = useGetAppointmentSettingsQuery(doctorId, { skip: !doctorId });
+  const [updateSettings, { isLoading: isSavingAvailability }] = useUpdateAppointmentSettingsMutation();
+  const { data: venues = [] } = useGetVenuesQuery();
+  const [createVenue] = useCreateVenueMutation();
+  const [updateVenue] = useUpdateVenueMutation();
+
+  // ─── General Settings State ───
+  const [local, setLocal] = useState<BookingPolicies>({
+    booking_min_notice_hours: 2,
+    booking_max_advance_days: 30,
+    auto_confirm_bookings: true,
+    cancellation_window_hours: 24,
+  });
+
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const hasLoadedRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Leave Form State ───
+  const [addingLeave, setAddingLeave] = useState(false);
+  const [leaveStart, setLeaveStart] = useState("");
+  const [leaveEnd, setLeaveEnd] = useState("");
+  const [leaveReason, setLeaveReason] = useState("");
+
+  // ─── Availability State ───
+  const [schedule, setSchedule] = useState<VenueSchedule[]>([]);
+  const [slotDuration, setSlotDuration] = useState(15);
+  const [maxPatients, setMaxPatients] = useState(10);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [addingVenue, setAddingVenue] = useState(false);
+  const [newVenueName, setNewVenueName] = useState("");
+  const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
+  const [editVenueName, setEditVenueName] = useState("");
+  const [menuOpenVenueId, setMenuOpenVenueId] = useState<string | null>(null);
+
+  // ─── Sync Policies from Server ───
+  useEffect(() => {
+    if (policies) {
+      setLocal(policies);
+      hasLoadedRef.current = true;
+    }
+  }, [policies]);
+
+  // ─── Auto-save Policies on Change (debounced) ───
+  const handleSavePolicies = async () => {
+    setSaveStatus("saving");
+    try {
+      await updatePolicies(local).unwrap();
+      setSaveStatus("success");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus("idle"), 4000);
+    }
+  };
+
+  const handleSaveRef = useRef(handleSavePolicies);
+  useEffect(() => { handleSaveRef.current = handleSavePolicies; });
+
+  useEffect(() => {
+    if (!hasLoadedRef.current) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => handleSaveRef.current(), 600);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [local]);
+
+  // ─── Leave Handlers ───
+  const handleAddLeave = async () => {
+    if (!leaveStart || !leaveEnd) return;
+    try {
+      await createLeave({
+        start_date: leaveStart,
+        end_date: leaveEnd,
+        reason: leaveReason || undefined,
+      }).unwrap();
+      setAddingLeave(false);
+      setLeaveStart("");
+      setLeaveEnd("");
+      setLeaveReason("");
+    } catch {}
+  };
+
+  const handleDeleteLeave = async (id: string) => {
+    try {
+      await deleteLeave(id).unwrap();
+    } catch {}
+  };
+
+  // ─── Sync Availability from Server ───
+  useEffect(() => {
+    if (!settings || !venues.length) return;
+    const periods = settings.periods;
+
+    const newSchedule: VenueSchedule[] = venues.map((venue) => {
+      const venuePeriods = periods.filter((p) => p.venue?.id === venue.id);
+      const days = DAY_NAMES.map((name, idx) => {
+        const dayOfWeek = idx + 1;
+        const dayPeriods = venuePeriods.filter((p) => p.day_of_week === dayOfWeek);
+        return {
+          dayOfWeek,
+          day: name.day,
+          short: name.short,
+          active: dayPeriods.length > 0,
+          shifts: dayPeriods.map((p, i) => ({
+            id: `${name.short}-${i}`,
+            start: normalizeTime(p.start_time),
+            end: normalizeTime(p.end_time),
+          })),
+        };
+      });
+      const isActive = (venue as any).is_active !== false;
+      return { venueId: venue.id, venueName: venue.name, expanded: isActive, isActive, days };
+    });
+
+    setSchedule(newSchedule);
+
+    if (periods.length > 0) {
+      setSlotDuration(periods[0]!.slot_duration_minutes);
+      setMaxPatients(periods[0]!.max_patients_per_slot);
+    }
+  }, [settings, venues]);
+
+  // ─── Availability Helpers ───
+  const hasErrors = useMemo(
+    () =>
+      schedule.some((v) =>
+        v.isActive && v.days.some((d) => d.active && d.shifts.some((sh, i) => shiftError(sh, d.shifts, i) !== null))
+      ),
+    [schedule]
+  );
+
+  const toggleVenueExpand = (venueIndex: number) => {
+    setSchedule((prev) => prev.map((v, i) => (i === venueIndex ? { ...v, expanded: !v.expanded } : v)));
+  };
+
+  const toggleActive = (venueIndex: number, dayIndex: number) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) => {
+                if (j !== dayIndex) return d;
+                const nextActive = !d.active;
+                const shifts =
+                  nextActive && d.shifts.length === 0
+                    ? [{ id: `${d.short}-0`, ...DEFAULT_SHIFT }]
+                    : d.shifts;
+                return { ...d, active: nextActive, shifts };
+              }),
+            }
+      )
+    );
+  };
+
+  const handleAddShift = (venueIndex: number, dayIndex: number) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) =>
+                j !== dayIndex
+                  ? d
+                  : { ...d, shifts: [...d.shifts, { id: `${d.short}-${Date.now()}`, ...DEFAULT_SHIFT }] }
+              ),
+            }
+      )
+    );
+  };
+
+  const handleDeleteShift = (venueIndex: number, dayIndex: number, shiftIndex: number) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) =>
+                j !== dayIndex ? d : { ...d, shifts: d.shifts.filter((_, k) => k !== shiftIndex) }
+              ),
+            }
+      )
+    );
+  };
+
+  const updateShiftTime = (
+    venueIndex: number,
+    dayIndex: number,
+    shiftIndex: number,
+    field: "start" | "end",
+    value: string
+  ) => {
+    setSchedule((prev) =>
+      prev.map((v, i) =>
+        i !== venueIndex
+          ? v
+          : {
+              ...v,
+              days: v.days.map((d, j) =>
+                j !== dayIndex
+                  ? d
+                  : {
+                      ...d,
+                      shifts: d.shifts.map((s, k) => (k !== shiftIndex ? s : { ...s, [field]: value })),
+                    }
+              ),
+            }
+      )
+    );
+  };
+
+  const copyDayTo = (venueIndex: number, dayIndex: number, target: CopyTarget) => {
+    setSchedule((prev) =>
+      prev.map((v, i) => {
+        if (i !== venueIndex) return v;
+        const source = v.days[dayIndex]!;
+        return {
+          ...v,
+          days: v.days.map((d, j) => {
+            if (j === dayIndex) return d;
+            const isWeekday = d.dayOfWeek >= 1 && d.dayOfWeek <= 5;
+            if (target === "weekdays" && !isWeekday) return d;
+            return {
+              ...d,
+              active: true,
+              shifts: source.shifts.map((s, k) => ({ id: `${d.short}-${k}`, start: s.start, end: s.end })),
+            };
+          }),
+        };
+      })
+    );
+  };
+
+  const handleAddVenue = async () => {
+    if (!newVenueName.trim()) return;
+    try {
+      await createVenue({ name: newVenueName }).unwrap();
+      setAddingVenue(false);
+      setNewVenueName("");
+    } catch {}
+  };
+
+  const handleRenameVenue = async (id: string) => {
+    if (!editVenueName.trim()) return;
+    try {
+      await updateVenue({ id, name: editVenueName }).unwrap();
+      setEditingVenueId(null);
+    } catch {}
+  };
+
+  const handleToggleVenueActive = async (id: string, currentStatus: boolean) => {
+    try {
+      await updateVenue({ id, is_active: !currentStatus }).unwrap();
+      setMenuOpenVenueId(null);
+    } catch {}
+  };
+
+  const handleSaveAvailability = async () => {
+    if (!doctorId || hasErrors) return;
+    const periods = schedule.flatMap((venue) => {
+      if (!venue.isActive) return [];
+      return venue.days.flatMap((day) => {
+        if (!day.active) return [];
+        return day.shifts.map((s) => ({
+          day_of_week: day.dayOfWeek,
+          start_time: s.start,
+          end_time: s.end,
+          venue_id: venue.venueId,
+          slot_duration_minutes: slotDuration,
+          max_patients_per_slot: maxPatients,
+        }));
+      });
+    });
+
+    try {
+      await updateSettings({ doctor_id: doctorId, periods, reminders: [] }).unwrap();
+      setSavedAt(Date.now());
+      setTimeout(() => setSavedAt(null), 2500);
+    } catch {}
+  };
+
+  // ─── Loading State ───
+  if (policiesLoading || leavesLoading || settingsLoading) {
+    return (
+      <div className="flex h-full items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const SaveIndicator = () => {
+    if (saveStatus === "idle") return null;
+    return (
+      <div className={`flex items-center gap-1.5 text-xs font-medium transition-opacity ${
+        saveStatus === "success" ? "text-green-600" : saveStatus === "error" ? "text-red-600" : "text-muted-foreground"
+      }`}>
+        {saveStatus === "saving" && <Loader2 className="h-3 w-3 animate-spin" />}
+        {saveStatus === "success" && <CheckCircle2 className="h-3 w-3" />}
+        {saveStatus === "error" && <AlertCircle className="h-3 w-3" />}
+        {saveStatus === "saving" ? "Saving..." : saveStatus === "success" ? "Saved" : "Save failed"}
+      </div>
+    );
+  };
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcomingLeaves = leaves.filter((l) => !isLeaveInPast(l.end_date));
+  const pastLeaves = leaves.filter((l) => isLeaveInPast(l.end_date));
+  const saveLabel = isSavingAvailability ? "Saving..." : savedAt ? "Saved" : "Save changes";
+
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: "general", label: "General", icon: <SettingsIcon className="h-4 w-4" /> },
+    { id: "availability", label: "Availability", icon: <CalendarClock className="h-4 w-4" /> },
+  ];
+
+  return (
+    <div className="flex flex-col h-full bg-background">
+      {/* Header */}
+      <header className="bg-card border-b border-border px-4 sm:px-6 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <SettingsIcon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-foreground">Settings</h2>
+              <p className="text-sm text-muted-foreground">Manage your scheduling and booking preferences</p>
+            </div>
+          </div>
+          <SaveIndicator />
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-1 mt-4 -mb-px">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="max-w-3xl mx-auto space-y-6">
+
+          {activeTab === "general" && (
+            <>
+              {/* ────────────── BOOKING POLICIES ────────────── */}
+              <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <Shield className="h-5 w-5 text-primary" />
+                  <h3 className="text-base font-semibold text-foreground">Booking Policies</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Control how and when patients can book with you.
+                </p>
+
+                <div className="space-y-6">
+                  {/* Minimum notice */}
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      Minimum notice before booking
+                    </label>
+                    <select
+                      value={local.booking_min_notice_hours}
+                      onChange={(e) => setLocal((p) => ({ ...p, booking_min_notice_hours: Number(e.target.value) }))}
+                      className="h-10 w-full sm:w-64 px-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {NOTICE_PRESETS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Patients must book at least this long before the appointment time.
+                    </p>
+                  </div>
+
+                  {/* Max advance */}
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                      Maximum advance booking
+                    </label>
+                    <select
+                      value={local.booking_max_advance_days}
+                      onChange={(e) => setLocal((p) => ({ ...p, booking_max_advance_days: Number(e.target.value) }))}
+                      className="h-10 w-full sm:w-64 px-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {ADVANCE_PRESETS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      How far in advance patients can book. Slots beyond this won't appear.
+                    </p>
+                  </div>
+
+                  {/* Auto-confirm */}
+                  <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium text-foreground">Auto-confirm bookings</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        When on, new appointments are instantly confirmed. When off, they go into a pending queue for you or your staff to approve.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={local.auto_confirm_bookings}
+                      onCheckedChange={(c) => setLocal((p) => ({ ...p, auto_confirm_bookings: c }))}
+                      aria-label="Auto-confirm bookings"
+                    />
+                  </div>
+
+                  {/* Cancellation window */}
+                  <div className="flex flex-col gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <Ban className="h-4 w-4 text-muted-foreground" />
+                      Patient cancellation window
+                    </label>
+                    <select
+                      value={local.cancellation_window_hours}
+                      onChange={(e) => setLocal((p) => ({ ...p, cancellation_window_hours: Number(e.target.value) }))}
+                      className="h-10 w-full sm:w-64 px-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      {CANCELLATION_PRESETS.map((p) => (
+                        <option key={p.value} value={p.value}>{p.label}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Patients can only cancel up to this time before the appointment. After this cutoff, they cannot self-cancel.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* ────────────── TIME OFF / VACATION ────────────── */}
+              <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <CalendarOff className="h-5 w-5 text-primary" />
+                    <h3 className="text-base font-semibold text-foreground">Time Off</h3>
+                  </div>
+                  {!addingLeave && (
+                    <Button variant="outline" size="sm" onClick={() => setAddingLeave(true)} className="gap-1.5 h-8">
+                      <Plus className="h-4 w-4" /> Add leave
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Block out dates when you're unavailable. Patients won't be able to book during these periods.
+                </p>
+
+                {/* Add leave form */}
+                {addingLeave && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-4 mb-4 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">Start date</span>
+                        <input
+                          type="date"
+                          value={leaveStart}
+                          min={todayStr}
+                          onChange={(e) => {
+                            setLeaveStart(e.target.value);
+                            if (leaveEnd && e.target.value > leaveEnd) setLeaveEnd(e.target.value);
+                          }}
+                          className="h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">End date</span>
+                        <input
+                          type="date"
+                          value={leaveEnd}
+                          min={leaveStart || todayStr}
+                          onChange={(e) => setLeaveEnd(e.target.value)}
+                          className="h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">Reason (optional)</span>
+                      <input
+                        type="text"
+                        value={leaveReason}
+                        onChange={(e) => setLeaveReason(e.target.value)}
+                        placeholder="e.g. Medical conference, Vacation"
+                        className="h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </label>
+                    <div className="flex gap-2 pt-1">
+                      <Button onClick={handleAddLeave} disabled={!leaveStart || !leaveEnd} className="gap-1.5">
+                        <Save className="h-4 w-4" /> Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setAddingLeave(false);
+                          setLeaveStart("");
+                          setLeaveEnd("");
+                          setLeaveReason("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Upcoming leaves */}
+                {upcomingLeaves.length === 0 && pastLeaves.length === 0 && !addingLeave && (
+                  <div className="flex gap-3 rounded-lg border border-dashed border-border p-4">
+                    <Info className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                    <p className="text-sm text-muted-foreground">
+                      No scheduled time off. Add leave dates to block your calendar.
+                    </p>
+                  </div>
+                )}
+
+                {upcomingLeaves.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Upcoming</p>
+                    {upcomingLeaves.map((leave) => (
+                      <LeaveItem key={leave.id} leave={leave} onDelete={handleDeleteLeave} />
+                    ))}
+                  </div>
+                )}
+
+                {pastLeaves.length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Past</p>
+                    {pastLeaves.map((leave) => (
+                      <LeaveItem key={leave.id} leave={leave} onDelete={handleDeleteLeave} isPast />
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* ────────────── INFO CARD ────────────── */}
+              <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
+                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="text-foreground font-medium">Coming soon</p>
+                  <p>
+                    <span className="font-medium text-foreground">Notification preferences</span> and{" "}
+                    <span className="font-medium text-foreground">staff management</span> will be available here
+                    in a future update. Stay tuned!
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {activeTab === "availability" && (
+            <>
+              {/* Onboarding hint */}
+              <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
+                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="text-foreground font-medium">How scheduling works</p>
+                  <p>
+                    Turn on the days you see patients and set your sitting hours (shifts). Each shift is
+                    split into appointment <span className="font-medium text-foreground">slots</span> of
+                    the duration below, and each slot can hold your{" "}
+                    <span className="font-medium text-foreground">max patients</span>. Use{" "}
+                    <span className="font-medium text-foreground">Copy</span> to reuse a day's hours
+                    across the week.
+                  </p>
+                </div>
+              </div>
+
+              {/* Slot settings */}
+              <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-1">Slot settings</h3>
+                <p className="text-xs text-muted-foreground mb-4">Applied to every venue and day.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-foreground">Slot duration</span>
+                    <div className="relative">
+                      <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                      <select
+                        value={slotDuration}
+                        onChange={(e) => setSlotDuration(Number(e.target.value))}
+                        className="h-10 w-full pl-9 pr-3 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {SLOT_PRESETS.map((m) => (
+                          <option key={m} value={m}>
+                            {m} minutes
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <span className="text-xs text-muted-foreground">How long each appointment lasts.</span>
+                  </label>
+
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-medium text-foreground">Max patients per slot</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={maxPatients}
+                      onChange={(e) => setMaxPatients(Math.max(1, Number(e.target.value)))}
+                      className="h-10 w-full px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <span className="text-xs text-muted-foreground">How many patients can book the same slot.</span>
+                  </label>
+                </div>
+              </section>
+
+              {/* Venues Header */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-foreground">Venues</h3>
+                {!addingVenue && (
+                  <Button variant="outline" size="sm" onClick={() => setAddingVenue(true)} className="gap-1.5 h-8">
+                    <Plus className="h-4 w-4" /> Add venue
+                  </Button>
+                )}
+              </div>
+
+              {addingVenue && (
+                <div className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+                  <label className="text-sm font-medium text-foreground">New Venue Name</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newVenueName}
+                      onChange={(e) => setNewVenueName(e.target.value)}
+                      placeholder="e.g. City Clinic"
+                      className="h-10 flex-1 px-3 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                      onKeyDown={(e) => e.key === "Enter" && handleAddVenue()}
+                    />
+                    <Button onClick={handleAddVenue} disabled={!newVenueName.trim()} className="gap-1.5 h-10">
+                      <Save className="h-4 w-4" /> Save
+                    </Button>
+                    <Button variant="ghost" onClick={() => setAddingVenue(false)} className="h-10 px-3">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Venue schedules */}
+              {schedule.map((venueData, venueIndex) => {
+                const activeCount = venueData.days.filter((d) => d.active).length;
+                const isEditing = editingVenueId === venueData.venueId;
+                return (
+                  <section
+                    key={venueData.venueId}
+                    className={`rounded-xl border border-border bg-card overflow-hidden transition-opacity ${!venueData.isActive ? "opacity-75" : ""}`}
+                  >
+                    <div className="w-full flex items-center justify-between gap-3 p-4 hover:bg-accent/40 transition-colors">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                        {isEditing ? (
+                          <div className="flex items-center gap-2 flex-1 max-w-sm" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editVenueName}
+                              onChange={(e) => setEditVenueName(e.target.value)}
+                              className="h-8 flex-1 px-2 rounded-md border border-input bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring"
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") handleRenameVenue(venueData.venueId);
+                                if (e.key === "Escape") setEditingVenueId(null);
+                              }}
+                            />
+                            <button onClick={() => handleRenameVenue(venueData.venueId)} className="text-green-600 hover:text-green-700 p-1 rounded-md hover:bg-green-50">
+                              <Check className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => setEditingVenueId(null)} className="text-red-600 hover:text-red-700 p-1 rounded-md hover:bg-red-50">
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-semibold text-foreground truncate cursor-pointer" onClick={() => toggleVenueExpand(venueIndex)}>
+                              {venueData.venueName}
+                            </span>
+                            {!venueData.isActive && (
+                              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0 uppercase tracking-wider">
+                                Inactive
+                              </span>
+                            )}
+                            {venueData.isActive && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditVenueName(venueData.venueName);
+                                  setEditingVenueId(venueData.venueId);
+                                }}
+                                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                                aria-label="Rename venue"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-muted-foreground hidden sm:inline-block">
+                          {activeCount} {activeCount === 1 ? "day" : "days"} open
+                        </span>
+                        <button className="p-1.5 rounded-md hover:bg-accent text-muted-foreground" onClick={(e) => {
+                          e.stopPropagation();
+                          toggleVenueExpand(venueIndex);
+                        }}>
+                          {venueData.expanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                        </button>
+                        <div className="relative">
+                          <button
+                            className="p-1.5 rounded-md hover:bg-accent text-muted-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpenVenueId((prev) => (prev === venueData.venueId ? null : venueData.venueId));
+                            }}
+                          >
+                            <MoreVertical className="h-5 w-5" />
+                          </button>
+                          {menuOpenVenueId === venueData.venueId && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpenVenueId(null); }} />
+                              <div className="absolute right-0 top-full mt-1 z-20 w-32 rounded-lg border border-border bg-card shadow-lg py-1">
+                                <button
+                                  className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleVenueActive(venueData.venueId, venueData.isActive);
+                                  }}
+                                >
+                                  {venueData.isActive ? "Deactivate" : "Restore"}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {venueData.expanded && venueData.isActive && (
+                      <div className="px-3 sm:px-4 pb-4 pt-0 flex flex-col gap-3 border-t border-border">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-3">
+                          Weekly hours
+                        </p>
+                        {venueData.days.map((dayData, dayIndex) => (
+                          <DayRow
+                            key={dayData.day}
+                            day={dayData}
+                            slotDuration={slotDuration}
+                            maxPatients={maxPatients}
+                            onToggleActive={() => toggleActive(venueIndex, dayIndex)}
+                            onAddShift={() => handleAddShift(venueIndex, dayIndex)}
+                            onDeleteShift={(si) => handleDeleteShift(venueIndex, dayIndex, si)}
+                            onUpdateShift={(si, field, value) =>
+                              updateShiftTime(venueIndex, dayIndex, si, field, value)
+                            }
+                            onCopy={(target) => copyDayTo(venueIndex, dayIndex, target)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+
+              {hasErrors && (
+                <p className="flex items-center gap-1.5 text-sm text-red-600">
+                  <AlertTriangle className="h-4 w-4 shrink-0" /> Fix the highlighted shifts before saving.
+                </p>
+              )}
+
+              {/* Desktop save button */}
+              <div className="hidden sm:block pt-2">
+                <Button onClick={handleSaveAvailability} disabled={isSavingAvailability || hasErrors} className="gap-2">
+                  {isSavingAvailability ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {saveLabel}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile sticky save bar - only show on availability tab */}
+      {activeTab === "availability" && (
+        <div className="sm:hidden border-t border-border bg-card p-3">
+          <Button onClick={handleSaveAvailability} disabled={isSavingAvailability || hasErrors} className="w-full h-11 gap-2">
+            {isSavingAvailability ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saveLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -453,7 +453,7 @@ export const Profile: React.FC = () => {
 
             {/* Availability Quick Link */}
             <Card className="p-6 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 bg-white cursor-pointer hover:bg-[#f7f9fb] transition-colors"
-              onClick={() => navigate('/doctor/availability')}
+              onClick={() => navigate('/doctor/settings')}
             >
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-[#9cf2e8]/30 flex items-center justify-center text-[#005c55]">
