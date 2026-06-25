@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,6 +12,10 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
+import { useGetMeQuery } from "@/features/users/usersApi";
+import { useGetTodayPatientsQuery } from "@/features/doctors/doctorDashboardApi";
+import { useBookOnBehalfMutation } from "@/features/appointments/appointmentsApi";
+import { usersApi, useCreatePatientMutation, useSearchPatientsQuery } from "@/features/users/usersApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,24 +52,6 @@ const APPT_CONFIG: Record<AppointmentType, {
   followup:     { label: "Follow-up",    pill: "bg-amber-100 text-amber-700",  bar: "border-amber-500",   card: "bg-amber-50",   text: "text-amber-800",  icon: Clock         },
   urgent:       { label: "Urgent",       pill: "bg-red-100 text-red-700",      bar: "border-red-500",     card: "bg-red-50",     text: "text-red-800",    icon: AlertTriangle },
   procedure:    { label: "Procedure",    pill: "bg-purple-100 text-purple-700", bar: "border-purple-500", card: "bg-purple-50",  text: "text-purple-800", icon: Stethoscope   },
-};
-
-const MOCK_APPOINTMENTS: Record<string, Appointment[]> = {
-  "2026-06-02": [{ id: "1",  time: "10:00", endTime: "10:30", patient: "Michael Chen",  type: "checkup"      }],
-  "2026-06-05": [{ id: "2",  time: "14:30", endTime: "15:00", patient: "Sarah Miller",  type: "followup"     }],
-  "2026-06-09": [
-    { id: "3",  time: "09:00", endTime: "09:45", patient: "James Wilson",  type: "consultation" },
-    { id: "4",  time: "11:00", endTime: "12:00", patient: "Anna Patel",    type: "procedure"    },
-  ],
-  "2026-06-15": [{ id: "5",  time: "13:00", endTime: "13:30", patient: "New Patient",   type: "checkup"      }],
-  "2026-06-18": [{ id: "6",  time: "09:30", endTime: "10:00", patient: "Emily Davis",   type: "urgent"       }],
-  "2026-06-20": [
-    { id: "7",  time: "09:00", endTime: "10:00", patient: "Michael Chen",  type: "consultation" },
-    { id: "8",  time: "10:30", endTime: "11:00", patient: "Robert Lee",    type: "checkup"      },
-    { id: "9",  time: "13:00", endTime: "13:30", patient: "James Wilson",  type: "followup"     },
-    { id: "10", time: "13:30", endTime: "14:00", patient: "Emily Davis",   type: "urgent"       },
-  ],
-  "2026-06-30": [{ id: "11", time: "16:00", endTime: "16:30", patient: "Lisa Brown",    type: "followup"     }],
 };
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -617,15 +603,66 @@ function AddAppointmentModal({
 
 export const CalendarPage = () => {
   const [view, setView] = useState<ViewType>("month");
-  const [currentDate, setCurrentDate] = useState<Date>(new Date(2026, 5, 20));
-  const [appointments, setAppointments] = useState<Record<string, Appointment[]>>(MOCK_APPOINTMENTS);
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const handleAddAppointment = (dateKey: string, appt: Appointment) => {
-    setAppointments(prev => {
-      const dayAppts = prev[dateKey] || [];
-      return { ...prev, [dateKey]: [...dayAppts, appt].sort((a, b) => a.time.localeCompare(b.time)) };
-    });
+  const { data: me } = useGetMeQuery();
+  const doctorId = me?.id;
+
+  const { data: todayPatients, isLoading: loadingPatients } = useGetTodayPatientsQuery(
+    { date: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()) },
+    { skip: !doctorId }
+  );
+
+  const [bookOnBehalf] = useBookOnBehalfMutation();
+  const [createPatient] = useCreatePatientMutation();
+  const { data: searchResults } = useSearchPatientsQuery(
+    { q: "" }, // This is tricky, we should search based on input
+    { skip: true }
+  );
+
+  const appointments = useMemo(() => {
+    if (!todayPatients) return {};
+    const key = toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    return {
+      [key]: todayPatients.map((p) => ({
+        id: p.id,
+        time: p.scheduled_start.split('T')[1].slice(0, 5),
+        endTime: "", // Not provided by API
+        patient: p.patient_name,
+        type: "checkup" as AppointmentType, // Default
+      })),
+    };
+  }, [todayPatients, currentDate]);
+
+  const handleAddAppointment = async (dateKey: string, appt: Appointment) => {
+    if (!doctorId) return;
+
+    try {
+      let patientId = "";
+      
+      // Search for existing patient
+      const searchResult = await usersApi.endpoints.searchPatients.initiate({ q: appt.patient }).unwrap();
+      
+      if (searchResult && searchResult.length > 0) {
+        patientId = searchResult[0].id;
+      } else {
+        // Create new patient if not found
+        const newPatient = await createPatient({ name: appt.patient }).unwrap();
+        patientId = newPatient.id;
+      }
+
+      const startDateTime = new Date(`${dateKey}T${appt.time}:00Z`).toISOString();
+
+      await bookOnBehalf({
+        doctor_id: doctorId,
+        patient_id: patientId,
+        scheduled_start: startDateTime,
+        idempotency_key: crypto.randomUUID(),
+      }).unwrap();
+    } catch (e) {
+      console.error("Booking failed", e);
+    }
   };
 
   const label = useMemo(() => {
@@ -682,16 +719,25 @@ export const CalendarPage = () => {
       <ColorLegend />
 
       <div className="flex-1 overflow-hidden flex flex-col bg-background">
-        {view === "month" && (
-          <MonthView
-            currentDate={currentDate}
-            setCurrentDate={setCurrentDate}
-            setView={setView}
-            appointments={appointments}
-          />
+        {loadingPatients && (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
         )}
-        {view === "week" && <WeekView currentDate={currentDate} appointments={appointments} />}
-        {view === "day" && <DayView currentDate={currentDate} appointments={appointments} onAddAppointment={() => setIsAddModalOpen(true)} />}
+        {!loadingPatients && (
+          <>
+            {view === "month" && (
+              <MonthView
+                currentDate={currentDate}
+                setCurrentDate={setCurrentDate}
+                setView={setView}
+                appointments={appointments}
+              />
+            )}
+            {view === "week" && <WeekView currentDate={currentDate} appointments={appointments} />}
+            {view === "day" && <DayView currentDate={currentDate} appointments={appointments} onAddAppointment={() => setIsAddModalOpen(true)} />}
+          </>
+        )}
       </div>
       <AddAppointmentModal 
         isOpen={isAddModalOpen} 
