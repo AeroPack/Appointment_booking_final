@@ -136,32 +136,32 @@ export const OtpForm: React.FC<OtpFormProps> = ({
             {/* Form */}
             <form onSubmit={handleSubmit}>
               {/* OTP Input Field Grid */}
-              <div className="flex justify-between gap-2 md:gap-4 mb-2" id="otp-container">
-                {otp.map((digit, index) => (
-                  <input
-                    key={index}
-                    ref={el => inputRefs.current[index] = el}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete={index === 0 ? "one-time-code" : "off"}
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(e, index)}
-                    onKeyDown={(e) => handleKeyDown(e, index)}
-                    onPaste={index === 0 ? handlePaste : undefined}
-                    className={`
-                      w-12 h-14 md:w-16 md:h-20 text-center text-[24px] md:text-[30px] font-bold 
-                      border rounded-lg bg-surface-container-low transition-all duration-200
-                      focus:outline-none focus:ring-2 focus:ring-primary/20
-                      ${error 
-                        ? 'border-status-error focus:border-status-error' 
-                        : 'border-outline-variant focus:border-primary'
-                      }
-                    `}
-                    aria-label={`Digit ${index + 1}`}
-                  />
-                ))}
-              </div>
+               <div className="flex justify-center gap-2 md:gap-2 mb-2" id="otp-container">
+                 {otp.map((digit, index) => (
+                   <input
+                     key={index}
+                     ref={el => inputRefs.current[index] = el}
+                     type="text"
+                     inputMode="numeric"
+                     autoComplete={index === 0 ? "one-time-code" : "off"}
+                     maxLength={1}
+                     value={digit}
+                     onChange={(e) => handleChange(e, index)}
+                     onKeyDown={(e) => handleKeyDown(e, index)}
+                     onPaste={index === 0 ? handlePaste : undefined}
+                     className={`
+                       w-10 h-14 md:w-12 md:h-20 text-center text-[24px] md:text-[30px] font-bold 
+                       border rounded-lg bg-surface-container-low transition-all duration-200
+                       focus:outline-none focus:ring-2 focus:ring-primary/20
+                       ${error 
+                         ? 'border-status-error focus:border-status-error' 
+                         : 'border-outline-variant focus:border-primary'
+                       }
+                     `}
+                     aria-label={`Digit ${index + 1}`}
+                   />
+                 ))}
+               </div>
 
               {/* Error Message */}
               <div className="min-h-[24px] mb-6 flex items-start justify-center">
