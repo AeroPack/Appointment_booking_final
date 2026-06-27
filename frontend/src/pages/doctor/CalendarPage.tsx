@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
@@ -590,7 +591,6 @@ function AddAppointmentModal({
   const [mobileNumber, setMobileNumber] = useState(editData?.patientPhone ?? "");
   const [showDropdown, setShowDropdown] = useState(false);
   const [type, setType] = useState<AppointmentType>("checkup");
-  const [error, setError] = useState<string | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -627,7 +627,6 @@ function AddAppointmentModal({
     if (!doctorId || !selectedSlotStart || !patientQuery.trim()) return;
 
     setIsBooking(true);
-    setError(null);
 
     try {
       let patientId = selectedPatient?.id;
@@ -664,7 +663,7 @@ function AddAppointmentModal({
 
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Booking failed. Please try again.");
+      toast.error(err instanceof Error ? err.message : "Booking failed. Please try again.");
     } finally {
       setIsBooking(false);
     }
@@ -859,7 +858,6 @@ function AddAppointmentModal({
 
           {/* Footer */}
           <div className="flex flex-col gap-2 px-6 py-4 border-t border-border shrink-0">
-            {error && <p className="text-sm text-red-600">{error}</p>}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose} disabled={isBooking}>
                 Cancel
@@ -946,6 +944,14 @@ export const CalendarPage = () => {
 
   const handleEditAppointment = (appt: Appointment) => {
     if (!appt.patientId || !appt.scheduledStart) return;
+
+    const appointmentDate = new Date(appt.scheduledStart);
+    const now = new Date();
+    if (appointmentDate < now) {
+      toast.error("Past bookings cannot be edited");
+      return;
+    }
+
     setEditData({
       appointmentId: appt.id,
       date: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
