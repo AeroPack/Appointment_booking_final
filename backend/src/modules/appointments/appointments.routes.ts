@@ -42,6 +42,7 @@ const bookOnBehalfSchema = z.object({
   scheduled_start: z.string().datetime({ offset: true }),
   idempotency_key: z.string().min(1).max(255),
   appointment_type: z.enum(APPOINTMENT_TYPES).optional(),
+  notes: z.string().optional(),
 });
 
 const rescheduleSchema = z.object({

@@ -21,7 +21,6 @@ import { Dashboard as DoctorDashboard } from '@/pages/doctor/Dashboard'
 import { PatientQueue as DoctorQueue } from '@/pages/doctor/PatientQueue'
 import { CalendarPage as DoctorCalendar } from '@/pages/doctor/CalendarPage'
 import { AppointmentDetail as DoctorAppointmentDetail } from '@/pages/doctor/AppointmentDetail'
-import { Templates } from '@/pages/doctor/Templates'
 import { Settings as DoctorSettings } from '@/pages/doctor/Settings'
 import { Profile as DoctorProfile } from '@/pages/doctor/Profile'
 
@@ -60,7 +59,6 @@ export function Router() {
             <Route path="/doctor/queue" element={<DoctorQueue />} />
             <Route path="/doctor/calendar" element={<DoctorCalendar />} />
             <Route path="/doctor/appointment/:id" element={<DoctorAppointmentDetail />} />
-            <Route path="/doctor/templates" element={<Templates />} />
             <Route path="/doctor/settings" element={<DoctorSettings />} />
             <Route path="/doctor/profile" element={<DoctorProfile />} />
           </Route>

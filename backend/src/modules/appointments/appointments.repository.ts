@@ -78,10 +78,11 @@ export class AppointmentsRepository {
     scheduled_end: Date;
     token_number: number;
     appointment_type: string;
+    notes?: string;
   }): Promise<{ id: string }> {
     const result = await pool.query(
-      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type, notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
         data.clinic_id,
         data.doctor_id,
@@ -92,6 +93,7 @@ export class AppointmentsRepository {
         data.scheduled_end,
         data.token_number,
         data.appointment_type,
+        data.notes || null,
       ]
     );
     return result.rows[0];

@@ -24,9 +24,14 @@ import {
   MoreVertical,
   Pencil,
   Check,
+  Bell,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
+import { Card, CardContent } from "@/core/components/ui/card";
+import { Input } from "@/core/components/ui/input";
 import {
   useGetBookingPoliciesQuery,
   useUpdateBookingPoliciesMutation,
@@ -39,9 +44,12 @@ import {
   useGetAppointmentSettingsQuery,
   useUpdateAppointmentSettingsMutation,
   useGetVenuesQuery,
+  useListTemplatesQuery,
+  useUpdateTemplateMutation,
 } from "@/features/settings/settingsApi";
 import { useCreateVenueMutation, useUpdateVenueMutation } from "@/features/doctors/venuesApi";
 import { useAppSelector } from "@/core/store/hooks";
+import type { MessageTemplateRow } from "@/core/types/generated/settings";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -152,6 +160,16 @@ function shiftError(shift: Shift, shifts: Shift[], index: number): string | null
   return null;
 }
 
+// ─── Template Helpers ──────────────────────────────────────────────────────
+
+function findTemplate(templates: MessageTemplateRow[] | undefined, type: string, offset?: number): MessageTemplateRow | undefined {
+  return templates?.find(t => {
+    if (t.template_type !== type) return false;
+    if (offset !== undefined) return t.offset_minutes === offset;
+    return true;
+  });
+}
+
 // ─── General Settings Helpers ────────────────────────────────────────────────
 
 function formatDateReadable(iso: string): string {
@@ -166,7 +184,7 @@ function isLeaveInPast(endDate: string): boolean {
 }
 
 type SaveStatus = "idle" | "saving" | "success" | "error";
-type TabId = "general" | "availability";
+type TabId = "general" | "availability" | "templates";
 
 // ─── Day Row Component ──────────────────────────────────────────────────────
 
@@ -398,6 +416,10 @@ export function Settings() {
   const [createVenue] = useCreateVenueMutation();
   const [updateVenue] = useUpdateVenueMutation();
 
+  // ─── Templates Queries ───
+  const { data: templates, isLoading: templatesLoading } = useListTemplatesQuery(doctorId);
+  const [updateTemplate, { isLoading: isSavingTemplates }] = useUpdateTemplateMutation();
+
   // ─── General Settings State ───
   const [local, setLocal] = useState<BookingPolicies>({
     booking_min_notice_hours: 2,
@@ -426,6 +448,9 @@ export function Settings() {
   const [editingVenueId, setEditingVenueId] = useState<string | null>(null);
   const [editVenueName, setEditVenueName] = useState("");
   const [menuOpenVenueId, setMenuOpenVenueId] = useState<string | null>(null);
+
+  // ─── Templates State ───
+  const [localTemplates, setLocalTemplates] = useState<Record<string, { subject: string; content: string; active: boolean }>>({});
 
   // ─── Sync Policies from Server ───
   useEffect(() => {
@@ -676,8 +701,69 @@ export function Settings() {
     } catch {}
   };
 
+  // ─── Sync Templates from Server ───
+  useEffect(() => {
+    if (!templates) return;
+    const map: Record<string, { subject: string; content: string; active: boolean }> = {};
+
+    const t24 = findTemplate(templates, "reminder", 1440);
+    if (t24) map["24h"] = { subject: t24.subject ?? "", content: t24.content, active: t24.is_active };
+
+    const t1 = findTemplate(templates, "reminder", 60);
+    if (t1) map["1h"] = { subject: t1.subject ?? "", content: t1.content, active: t1.is_active };
+
+    const t15 = findTemplate(templates, "reminder", 15);
+    if (t15) map["15m"] = { subject: t15.subject ?? "", content: t15.content, active: t15.is_active };
+
+    const cancel = findTemplate(templates, "appointment_cancelled");
+    if (cancel) map["cancellation"] = { subject: cancel.subject ?? "", content: cancel.content, active: cancel.is_active };
+
+    setLocalTemplates(map);
+  }, [templates]);
+
+  // ─── Template Handlers ───
+  const handleToggleTemplate = (key: string, checked: boolean) => {
+    setLocalTemplates((prev) => {
+      const existing = prev[key] ?? { subject: "", content: "", active: true };
+      return { ...prev, [key]: { ...existing, active: checked } };
+    });
+  };
+
+  const handleTemplateContentChange = (key: string, field: "subject" | "content", value: string) => {
+    setLocalTemplates((prev) => {
+      const existing = prev[key] ?? { subject: "", content: "", active: true };
+      return { ...prev, [key]: { ...existing, [field]: value } };
+    });
+  };
+
+  const handleSaveTemplates = async () => {
+    if (!templates) return;
+    for (const [key, data] of Object.entries(localTemplates)) {
+      let type: string;
+      let offset: number | undefined;
+      if (key === "24h") { type = "reminder"; offset = 1440; }
+      else if (key === "1h") { type = "reminder"; offset = 60; }
+      else if (key === "15m") { type = "reminder"; offset = 15; }
+      else { type = "appointment_cancelled"; offset = undefined; }
+
+      const existing = findTemplate(templates, type, offset);
+      if (existing) {
+        await updateTemplate({
+          id: existing.id,
+          data: {
+            content: data.content,
+            subject: data.subject || undefined,
+            is_active: data.active,
+            template_type: type,
+            offset_minutes: offset ?? null,
+          },
+        });
+      }
+    }
+  };
+
   // ─── Loading State ───
-  if (policiesLoading || leavesLoading || settingsLoading) {
+  if (policiesLoading || leavesLoading || settingsLoading || templatesLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -707,6 +793,7 @@ export function Settings() {
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: "general", label: "General", icon: <SettingsIcon className="h-4 w-4" /> },
     { id: "availability", label: "Availability", icon: <CalendarClock className="h-4 w-4" /> },
+    { id: "templates", label: "Templates", icon: <FileText className="h-4 w-4" /> },
   ];
 
   return (
@@ -1184,6 +1271,185 @@ export function Settings() {
                 <Button onClick={handleSaveAvailability} disabled={isSavingAvailability || hasErrors} className="gap-2">
                   {isSavingAvailability ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saveLabel}
+                </Button>
+              </div>
+            </>
+          )}
+
+          {activeTab === "templates" && (
+            <>
+              {/* Info hint */}
+              <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
+                <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="text-foreground font-medium">Message templates</p>
+                  <p>
+                    Configure automated notifications sent to your patients. Use{" "}
+                    <span className="font-medium text-foreground">{"{patient_name}"}</span>,{" "}
+                    <span className="font-medium text-foreground">{"{slot_time}"}</span>,{" "}
+                    <span className="font-medium text-foreground">{"{venue}"}</span>, and{" "}
+                    <span className="font-medium text-foreground">{"{doctor_name}"}</span> as dynamic placeholders.
+                  </p>
+                </div>
+              </div>
+
+              {/* Reminders section */}
+              <section>
+                <div className="flex items-center gap-2 mb-4">
+                  <Bell className="h-5 w-5 text-primary" />
+                  <h3 className="text-base font-semibold text-foreground">Reminders</h3>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* 24h Reminder */}
+                  <Card className="rounded-xl border border-border">
+                    <CardContent className="p-5 flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground mb-1">24h Appointment Reminder</h4>
+                          <p className="text-xs text-muted-foreground">Sent exactly 24 hours prior to the slot.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={localTemplates["24h"]?.active ?? true}
+                            onCheckedChange={(c) => handleToggleTemplate("24h", c)}
+                          />
+                          <span className="text-xs font-medium text-muted-foreground">Active</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Subject</label>
+                          <Input
+                            value={localTemplates["24h"]?.subject ?? ""}
+                            onChange={(e) => handleTemplateContentChange("24h", "subject", e.target.value)}
+                            className="h-10"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Message Body</label>
+                          <textarea
+                            value={localTemplates["24h"]?.content ?? ""}
+                            onChange={(e) => handleTemplateContentChange("24h", "content", e.target.value)}
+                            rows={3}
+                            className="w-full p-3 rounded-md border border-input bg-background text-sm text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{patient_name}"}</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{slot_time}"}</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{doctor_name}"}</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{clinic_name}"}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* 1h SMS Alert */}
+                  <Card className="rounded-xl border border-border">
+                    <CardContent className="p-5 flex flex-col gap-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground mb-1">1h SMS Alert</h4>
+                          <p className="text-xs text-muted-foreground">Short notice SMS push notification.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Switch
+                            checked={localTemplates["1h"]?.active ?? true}
+                            onCheckedChange={(c) => handleToggleTemplate("1h", c)}
+                          />
+                          <span className="text-xs font-medium text-muted-foreground">Active</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SMS Content</label>
+                          <textarea
+                            value={localTemplates["1h"]?.content ?? ""}
+                            onChange={(e) => handleTemplateContentChange("1h", "content", e.target.value)}
+                            rows={3}
+                            className="w-full p-3 rounded-md border border-input bg-background text-sm text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{slot_time}"}</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{map_link}"}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </section>
+
+              {/* Cancellation section */}
+              <section>
+                <div className="flex items-center gap-2 mb-4">
+                  <X className="h-5 w-5 text-red-500" />
+                  <h3 className="text-base font-semibold text-foreground">Cancellation Message</h3>
+                </div>
+
+                <Card className="rounded-xl border border-red-200">
+                  <CardContent className="p-5 flex flex-col gap-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground mb-1">Cancellation Confirmation</h4>
+                        <p className="text-xs text-muted-foreground">Triggered when a patient or admin cancels an appointment.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={localTemplates["cancellation"]?.active ?? true}
+                          onCheckedChange={(c) => handleToggleTemplate("cancellation", c)}
+                        />
+                        <span className="text-xs font-medium text-muted-foreground">Active</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Subject Line</label>
+                        <Input
+                          value={localTemplates["cancellation"]?.subject ?? ""}
+                          onChange={(e) => handleTemplateContentChange("cancellation", "subject", e.target.value)}
+                          className="h-10"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Message Content</label>
+                        <textarea
+                          value={localTemplates["cancellation"]?.content ?? ""}
+                          onChange={(e) => handleTemplateContentChange("cancellation", "content", e.target.value)}
+                          rows={3}
+                          className="w-full p-3 rounded-md border border-input bg-background text-sm text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </section>
+
+              {/* Placeholder tips */}
+              <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
+                <Sparkles className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p className="text-foreground font-medium">Available placeholders</p>
+                  <p>
+                    <span className="font-medium text-foreground">{"{patient_name}"}</span> - Patient's full name, {" "}
+                    <span className="font-medium text-foreground">{"{slot_time}"}</span> - Appointment time, {" "}
+                    <span className="font-medium text-foreground">{"{venue}"}</span> - Clinic location, {" "}
+                    <span className="font-medium text-foreground">{"{doctor_name}"}</span> - Your name, {" "}
+                    <span className="font-medium text-foreground">{"{clinic_name}"}</span> - Clinic name, {" "}
+                    <span className="font-medium text-foreground">{"{map_link}"}</span> - Google Maps link
+                  </p>
+                </div>
+              </div>
+
+              {/* Save button */}
+              <div className="sm:block pt-2">
+                <Button onClick={handleSaveTemplates} disabled={isSavingTemplates} className="gap-2">
+                  {isSavingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  {isSavingTemplates ? "Saving..." : "Save templates"}
                 </Button>
               </div>
             </>
