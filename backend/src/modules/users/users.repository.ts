@@ -72,4 +72,14 @@ export class UsersRepository {
       [id]
     );
   }
+
+  async findDoctorProfile(userId: string): Promise<{ speciality: string | null } | null> {
+    const result = await pool.query(
+      `SELECT dp.speciality
+       FROM doctor_profiles dp
+       WHERE dp.user_id = $1`,
+      [userId]
+    );
+    return result.rows[0] || null;
+  }
 }

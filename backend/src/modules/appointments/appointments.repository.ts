@@ -77,10 +77,11 @@ export class AppointmentsRepository {
     scheduled_start: Date;
     scheduled_end: Date;
     token_number: number;
+    appointment_type: string;
   }): Promise<{ id: string }> {
     const result = await pool.query(
-      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
       [
         data.clinic_id,
         data.doctor_id,
@@ -90,6 +91,7 @@ export class AppointmentsRepository {
         data.scheduled_start,
         data.scheduled_end,
         data.token_number,
+        data.appointment_type,
       ]
     );
     return result.rows[0];
@@ -114,7 +116,7 @@ export class AppointmentsRepository {
   private appointmentDetailColumns = `
     a.id, a.doctor_id, a.patient_id, a.clinic_id,
     a.scheduled_start, a.scheduled_end,
-    a.token_number, a.appointment_status, a.venue_id,
+    a.token_number, a.appointment_status, a.appointment_type, a.venue_id,
     v.name AS venue_name,
     doc.name AS doctor_name, doc.mobile_number AS doctor_mobile,
     pat.name AS patient_name
@@ -129,6 +131,7 @@ export class AppointmentsRepository {
     scheduled_end: Date;
     token_number: number | null;
     appointment_status: string;
+    appointment_type: string;
     venue_id: string | null;
     venue_name: string | null;
     doctor_name: string;
@@ -199,6 +202,26 @@ export class AppointmentsRepository {
     await pool.query(
       `UPDATE appointments SET appointment_status = $1 WHERE id = $2`,
       [newStatus, id]
+    );
+  }
+
+  async updateAppointment(
+    id: string,
+    data: {
+      patient_id?: string;
+      scheduled_start?: Date;
+      scheduled_end?: Date;
+      venue_id?: string | null;
+      appointment_type?: string;
+    }
+  ): Promise<void> {
+    const keys = Object.keys(data).filter((k) => data[k as keyof typeof data] !== undefined);
+    if (keys.length === 0) return;
+    const setClauses = keys.map((k, i) => `${k} = $${i + 2}`);
+    const values = keys.map((k) => data[k as keyof typeof data]);
+    await pool.query(
+      `UPDATE appointments SET ${setClauses.join(', ')} WHERE id = $1`,
+      [id, ...values]
     );
   }
 

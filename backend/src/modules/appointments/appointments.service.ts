@@ -69,6 +69,7 @@ export class AppointmentsService {
       scheduled_start: scheduledStart,
       scheduled_end: scheduledEnd,
       token_number: tokenNumber,
+      appointment_type: body.appointment_type ?? 'checkup',
     });
 
     await this.repo.saveIdempotency(body.idempotency_key, appointment.id);
@@ -183,6 +184,7 @@ export class AppointmentsService {
     scheduled_end: Date;
     token_number: number | null;
     appointment_status: string;
+    appointment_type: string;
     venue_id: string | null;
     venue_name: string | null;
   }): BookingResponse {
@@ -194,6 +196,7 @@ export class AppointmentsService {
       scheduled_end: row.scheduled_end.toISOString(),
       token_number: row.token_number,
       appointment_status: row.appointment_status,
+      appointment_type: row.appointment_type,
       venue: row.venue_id ? { id: row.venue_id, name: row.venue_name || 'Unknown' } : null,
     };
   }
@@ -203,6 +206,7 @@ export class AppointmentsService {
     patient_id: string;
     scheduled_start: string;
     idempotency_key: string;
+    appointment_type?: string;
   }): Promise<BookingResponse> {
     const idempotent = await this.repo.findIdempotency(body.idempotency_key);
     if (idempotent) {
@@ -259,12 +263,75 @@ export class AppointmentsService {
       scheduled_start: scheduledStart,
       scheduled_end: scheduledEnd,
       token_number: tokenNumber,
+      appointment_type: body.appointment_type ?? 'checkup',
     });
 
     await this.repo.saveIdempotency(body.idempotency_key, appointment.id);
 
     const created = await this.repo.findAppointmentById(appointment.id);
     return this.toBookingResponse(created!);
+  }
+
+  async rescheduleAppointment(clinicId: string, userId: string, appointmentId: string, body: {
+    patient_id: string;
+    scheduled_start: string;
+    idempotency_key: string;
+    appointment_type?: string;
+  }): Promise<BookingResponse> {
+    const existing = await this.repo.findAppointmentById(appointmentId);
+    if (!existing) throw new AppError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found');
+
+    if (existing.appointment_status !== 'booked') {
+      throw new AppError(400, 'INVALID_STATUS', 'Only booked appointments can be rescheduled');
+    }
+
+    const doctorBelongs = await this.checkDoctorClinic(existing.doctor_id, clinicId);
+    if (!doctorBelongs) throw new AppError(404, 'DOCTOR_NOT_FOUND', 'Doctor not found in this clinic');
+
+    const scheduledStart = new Date(body.scheduled_start);
+    if (isNaN(scheduledStart.getTime())) {
+      throw new AppError(400, 'INVALID_DATE', 'Invalid scheduled_start');
+    }
+
+    const ist = toIST(scheduledStart);
+    const slotMin = ist.hours * 60 + ist.minutes;
+
+    const periods = await this.repo.findSettingsByDoctorAndDay(existing.doctor_id, ist.dayOfWeek);
+    if (periods.length === 0) {
+      throw new AppError(400, 'NO_SETTING_FOR_DAY', 'Doctor has no active settings for this day');
+    }
+
+    const matching = periods.find((p) => {
+      const start = toMinutes(p.start_time);
+      const end = toMinutes(p.end_time);
+      return slotMin >= start && (slotMin + p.slot_duration_minutes) <= end;
+    });
+    if (!matching) {
+      throw new AppError(400, 'INVALID_SLOT', 'The requested time does not fall within an active period');
+    }
+
+    const periodStart = toMinutes(matching.start_time);
+    if ((slotMin - periodStart) % matching.slot_duration_minutes !== 0) {
+      throw new AppError(400, 'INVALID_SLOT_ALIGNMENT', 'Slot time must align with the slot grid');
+    }
+
+    const scheduledEnd = new Date(scheduledStart.getTime() + matching.slot_duration_minutes * 60 * 1000);
+
+    const bookedCount = await this.repo.findBookedCountForSlot(existing.doctor_id, scheduledStart, scheduledEnd);
+    if (bookedCount >= matching.max_patients_per_slot) {
+      throw new AppError(409, 'SLOT_FULL', 'This slot is fully booked');
+    }
+
+    await this.repo.updateAppointment(appointmentId, {
+      patient_id: body.patient_id,
+      scheduled_start: scheduledStart,
+      scheduled_end: scheduledEnd,
+      venue_id: matching.venue_id,
+      appointment_type: body.appointment_type,
+    });
+
+    const updated = await this.repo.findAppointmentById(appointmentId);
+    return this.toBookingResponse(updated!);
   }
 
   async listAppointments(userId: string, status?: string) {

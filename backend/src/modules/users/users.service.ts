@@ -26,6 +26,10 @@ export class UsersService {
   async getProfile(userId: string) {
     const user = await this.repo.findById(userId);
     if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+    if (user.role === 'doctor') {
+      const profile = await this.repo.findDoctorProfile(userId);
+      return { ...user, speciality: profile?.speciality ?? null };
+    }
     return user;
   }
 
@@ -116,10 +120,6 @@ export class UsersService {
     date_of_birth?: string;
     address?: string;
   }) {
-    const existing = await this.repo.searchPatients(clinicId, input.mobile_number || '');
-    if (input.mobile_number && existing.length > 0) {
-      throw new AppError(409, 'PATIENT_EXISTS', 'A patient with this mobile number already exists');
-    }
     return this.repo.create({
       clinic_id: clinicId,
       parent_user_id: null,

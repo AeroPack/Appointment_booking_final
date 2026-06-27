@@ -24,6 +24,7 @@ export interface BookSlotBody {
   scheduled_start: string;
   patient_id?: string;
   idempotency_key: string;
+  appointment_type?: string;
 }
 
 export interface BookingResponse {
@@ -34,6 +35,7 @@ export interface BookingResponse {
   scheduled_end: string;
   token_number: number | null;
   appointment_status: string;
+  appointment_type: string;
   venue: { id: string; name: string } | null;
 }
 
@@ -45,6 +47,7 @@ export interface AppointmentRow {
   scheduled_end: string;
   token_number: number | null;
   appointment_status: string;
+  appointment_type: string;
   venue_id: string | null;
   venue_name: string | null;
   doctor_name: string;

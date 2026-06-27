@@ -21,13 +21,15 @@ export class DashboardRepository {
   async findTodayPatients(doctorId: string, todayStr: string): Promise<TodayPatient[]> {
     const result = await pool.query(
       `SELECT a.id,
+              a.patient_id,
               pat.name AS patient_name,
               pat.mobile_number AS phone,
               pat.gender,
               EXTRACT(YEAR FROM age(pat.date_of_birth))::int AS age,
               a.token_number,
-              a.scheduled_start,
+              (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::text AS scheduled_start,
               a.appointment_status,
+              a.appointment_type,
               COALESCE(v.name, '') AS venue_name,
               COALESCE(a.notes, '') AS reason
        FROM appointments a

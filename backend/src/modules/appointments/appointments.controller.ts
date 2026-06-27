@@ -79,3 +79,17 @@ export async function bookOnBehalf(req: Request, res: Response, next: NextFuncti
     next(err);
   }
 }
+
+export async function rescheduleAppointment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.rescheduleAppointment(
+      req.auth!.clinicId,
+      req.auth!.userId,
+      req.params.id as string,
+      req.body
+    );
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}

@@ -10,12 +10,14 @@ import {
   Coffee,
   Info,
   CalendarDays,
+  Loader2,
+  Users,
+  X,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
-import { useGetMeQuery } from "@/features/users/usersApi";
+import { useGetMeQuery, useCreatePatientMutation, useSearchPatientsQuery } from "@/features/users/usersApi";
 import { useGetTodayPatientsQuery } from "@/features/doctors/doctorDashboardApi";
-import { useBookOnBehalfMutation } from "@/features/appointments/appointmentsApi";
-import { usersApi, useCreatePatientMutation, useSearchPatientsQuery } from "@/features/users/usersApi";
+import { useBookOnBehalfMutation, useFindSlotsQuery, useRescheduleAppointmentMutation } from "@/features/appointments/appointmentsApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,9 @@ interface Appointment {
   endTime: string;
   patient: string;
   type: AppointmentType;
+  patientId?: string;
+  scheduledStart?: string;
+  phone?: string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -77,6 +82,12 @@ function formatTime12(time: string) {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
+function formatISOTime(isoStart: string): string {
+  const d = new Date(isoStart);
+  const hhmm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return formatTime12(hhmm);
+}
+
 // ─── View Switcher ────────────────────────────────────────────────────────────
 
 function ViewSwitcher({ view, setView }: { view: ViewType; setView: (v: ViewType) => void }) {
@@ -109,15 +120,17 @@ interface CalendarHeaderProps {
   onNext: () => void;
   onToday: () => void;
   onAddAppointment: () => void;
+  doctorName: string;
+  speciality: string;
 }
 
-function CalendarHeader({ view, setView, label, onPrev, onNext, onToday, onAddAppointment }: CalendarHeaderProps) {
+function CalendarHeader({ view, setView, label, onPrev, onNext, onToday, onAddAppointment, doctorName, speciality }: CalendarHeaderProps) {
   return (
     <header className="bg-card border-b border-border px-4 sm:px-6 py-4">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex-1 min-w-0">
           <h2 className="text-lg font-semibold text-foreground">Doctor Schedule</h2>
-          <p className="text-sm text-muted-foreground">Dr. Sarah Jenkins · General Practice</p>
+          <p className="text-sm text-muted-foreground">{doctorName} · {speciality}</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -160,17 +173,38 @@ function CalendarHeader({ view, setView, label, onPrev, onNext, onToday, onAddAp
 
 // ─── Color Legend ─────────────────────────────────────────────────────────────
 
-function ColorLegend() {
+function ColorLegend({ selectedType, onSelectType }: { selectedType: AppointmentType | null; onSelectType: (t: AppointmentType | null) => void }) {
   return (
     <div className="flex items-center gap-x-3 gap-y-1.5 px-4 sm:px-6 py-2 bg-muted/40 border-b border-border flex-wrap">
       <span className="flex items-center gap-1 text-xs text-muted-foreground font-medium shrink-0">
-        <Info className="h-3 w-3" /> Appointment types:
+        <Info className="h-3 w-3" /> Filter:
       </span>
-      {Object.entries(APPT_CONFIG).map(([key, cfg]) => (
-        <span key={key} className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.pill}`}>
-          {cfg.label}
-        </span>
-      ))}
+      <button
+        onClick={() => onSelectType(null)}
+        className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+          selectedType === null
+            ? "bg-foreground text-background"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
+        }`}
+      >
+        All
+      </button>
+      {Object.entries(APPT_CONFIG).map(([key, cfg]) => {
+        const isSelected = selectedType === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onSelectType(isSelected ? null : key as AppointmentType)}
+            className={`text-xs px-2 py-0.5 rounded-full font-medium transition-colors ${
+              isSelected
+                ? "bg-foreground text-background"
+                : `${cfg.pill} hover:opacity-80`
+            }`}
+          >
+            {cfg.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -189,12 +223,13 @@ function ApptPill({ appt }: { appt: Appointment }) {
 
 // ─── Appointment Card (day / week views) ─────────────────────────────────────
 
-function ApptCard({ appt, compact = false }: { appt: Appointment; compact?: boolean }) {
+function ApptCard({ appt, compact = false, onClick }: { appt: Appointment; compact?: boolean; onClick?: () => void }) {
   const cfg = APPT_CONFIG[appt.type];
   const Icon = cfg.icon;
   return (
     <div
       className={`rounded-lg border-l-4 p-2 shadow-sm hover:shadow-md transition-shadow cursor-pointer w-full ${cfg.card} ${cfg.bar}`}
+      onClick={onClick}
     >
       <div className="flex items-start justify-between gap-1">
         <div className="min-w-0">
@@ -336,7 +371,7 @@ function MonthView({
 
 const WEEK_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
 
-function WeekView({ currentDate, appointments }: { currentDate: Date; appointments: Record<string, Appointment[]> }) {
+function WeekView({ currentDate, appointments, onEditAppointment, selectedType }: { currentDate: Date; appointments: Record<string, Appointment[]>; onEditAppointment: (appt: Appointment) => void; selectedType: AppointmentType | null }) {
   const today = new Date();
 
   const weekStart = useMemo(() => {
@@ -391,7 +426,8 @@ function WeekView({ currentDate, appointments }: { currentDate: Date; appointmen
               </div>
               {days.map(({ key, isToday }) => {
                 const appts = (appointments[key] ?? []).filter(
-                  (a) => parseInt(a.time.split(":")[0] ?? "0") === hour
+                  (a) => parseInt(a.time.split(":")[0] ?? "0") === hour &&
+                    (selectedType === null || a.type === selectedType)
                 );
                 return (
                   <div
@@ -409,7 +445,7 @@ function WeekView({ currentDate, appointments }: { currentDate: Date; appointmen
                     )}
                     <div className="flex flex-col gap-1">
                       {appts.map((appt) => (
-                        <ApptCard key={appt.id} appt={appt} compact />
+                        <ApptCard key={appt.id} appt={appt} compact onClick={() => onEditAppointment(appt)} />
                       ))}
                     </div>
                   </div>
@@ -427,10 +463,11 @@ function WeekView({ currentDate, appointments }: { currentDate: Date; appointmen
 
 const DAY_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
 
-function DayView({ currentDate, appointments, onAddAppointment }: { currentDate: Date; appointments: Record<string, Appointment[]>; onAddAppointment: () => void }) {
+function DayView({ currentDate, appointments, onAddAppointment, onEditAppointment, selectedType }: { currentDate: Date; appointments: Record<string, Appointment[]>; onAddAppointment: () => void; onEditAppointment: (appt: Appointment) => void; selectedType: AppointmentType | null }) {
   const today = new Date();
   const key = toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-  const appts = appointments[key] ?? [];
+  const allAppts = appointments[key] ?? [];
+  const appts = selectedType ? allAppts.filter((a) => a.type === selectedType) : allAppts;
   const isToday = isSameDay(currentDate, today);
   const urgentCount = appts.filter((a) => a.type === "urgent").length;
 
@@ -500,7 +537,7 @@ function DayView({ currentDate, appointments, onAddAppointment }: { currentDate:
                   )}
                   <div className="flex flex-col gap-2">
                     {hourAppts.map((appt) => (
-                      <ApptCard key={appt.id} appt={appt} />
+                      <ApptCard key={appt.id} appt={appt} onClick={() => onEditAppointment(appt)} />
                     ))}
                   </div>
                   {hourAppts.length === 0 && !isLunch && (
@@ -522,76 +559,318 @@ function DayView({ currentDate, appointments, onAddAppointment }: { currentDate:
 
 // ─── Add Appointment Modal ──────────────────────────────────────────────────
 
+interface EditAppointmentData {
+  appointmentId: string;
+  date: string;
+  scheduledStart: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+}
+
 function AddAppointmentModal({
-  isOpen,
   onClose,
-  onAdd,
   defaultDate,
+  doctorId,
+  editData,
 }: {
-  isOpen: boolean;
   onClose: () => void;
-  onAdd: (dateKey: string, appt: Appointment) => void;
   defaultDate: Date;
+  doctorId: string | undefined;
+  editData?: EditAppointmentData;
 }) {
-  const [patient, setPatient] = useState("");
-  const [time, setTime] = useState("09:00");
+  const [date, setDate] = useState(() =>
+    editData?.date ?? toDateKey(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate())
+  );
+  const [selectedSlotStart, setSelectedSlotStart] = useState<string | null>(editData?.scheduledStart ?? null);
+  const [patientQuery, setPatientQuery] = useState(editData?.patientName ?? "");
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(
+    editData ? { id: editData.patientId, name: editData.patientName } : null
+  );
+  const [mobileNumber, setMobileNumber] = useState(editData?.patientPhone ?? "");
+  const [showDropdown, setShowDropdown] = useState(false);
   const [type, setType] = useState<AppointmentType>("checkup");
-  const [date, setDate] = useState(toDateKey(defaultDate.getFullYear(), defaultDate.getMonth(), defaultDate.getDate()));
+  const [error, setError] = useState<string | null>(null);
+  const [isBooking, setIsBooking] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(patientQuery), 300);
+    return () => clearTimeout(t);
+  }, [patientQuery]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { data: slotsData, isLoading: slotsLoading } = useFindSlotsQuery(
+    { doctor_id: doctorId!, from: date, to: date },
+    { skip: !doctorId || !date }
+  );
+
+  const { data: patientResults } = useSearchPatientsQuery(
+    { q: debouncedQuery },
+    { skip: debouncedQuery.length < 2 || !!selectedPatient }
+  );
+
+  const [bookOnBehalf] = useBookOnBehalfMutation();
+  const [rescheduleAppointment] = useRescheduleAppointmentMutation();
+  const [createPatient] = useCreatePatientMutation();
+
+  const slots = slotsData?.days.find((d) => d.date === date)?.slots ?? [];
+
+  const handlePatientSelect = (p: { id: string; name: string; mobile_number?: string | null }) => {
+    setSelectedPatient(p);
+    setPatientQuery(p.name);
+    if (p.mobile_number) setMobileNumber(p.mobile_number);
+    setShowDropdown(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!patient || !time || !date) return;
-    
-    const [hours, minutes] = time.split(':').map(Number);
-    const endDate = new Date(0, 0, 0, hours ?? 0, (minutes ?? 0) + 30);
-    const endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+    if (!doctorId || !selectedSlotStart || !patientQuery.trim()) return;
 
-    onAdd(date, {
-      id: Math.random().toString(36).substr(2, 9),
-      time,
-      endTime,
-      patient,
-      type,
-    });
-    
-    setPatient("");
-    setTime("09:00");
-    setType("checkup");
-    onClose();
+    setIsBooking(true);
+    setError(null);
+
+    try {
+      let patientId = selectedPatient?.id;
+
+      if (!patientId) {
+        if (patientResults && patientResults.length > 0) {
+          patientId = patientResults[0]?.id;
+        } else {
+          const newPatient = await createPatient({
+            name: patientQuery.trim(),
+            mobile_number: mobileNumber.trim() || undefined,
+          }).unwrap();
+          patientId = newPatient.id;
+        }
+      }
+
+      if (editData) {
+        await rescheduleAppointment({
+          appointment_id: editData.appointmentId,
+          patient_id: patientId ?? "",
+          scheduled_start: selectedSlotStart,
+          idempotency_key: crypto.randomUUID(),
+          appointment_type: type,
+        }).unwrap();
+      } else {
+        await bookOnBehalf({
+          doctor_id: doctorId,
+          patient_id: patientId ?? "",
+          scheduled_start: selectedSlotStart,
+          idempotency_key: crypto.randomUUID(),
+          appointment_type: type,
+        }).unwrap();
+      }
+
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Booking failed. Please try again.");
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-card w-full max-w-md rounded-xl shadow-lg p-6 animate-in fade-in zoom-in duration-200">
-        <h2 className="text-xl font-semibold mb-4">Add New Appointment</h2>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
+      <div className="bg-card w-full max-w-2xl rounded-xl shadow-lg flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+          <h2 className="text-xl font-semibold">{editData ? "Edit Booking" : "New Booking"}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Date row */}
+          <div className="px-6 pt-4 pb-3 border-b border-border shrink-0">
             <label className="block text-sm font-medium mb-1">Date</label>
-            <input type="date" className="w-full px-3 py-2 border border-border rounded-md bg-background" value={date} onChange={e => setDate(e.target.value)} required />
+            <input
+              type="date"
+              className="px-3 py-2 border border-border rounded-md bg-background text-sm"
+              value={date}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setSelectedSlotStart(null);
+              }}
+            />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Time</label>
-            <input type="time" className="w-full px-3 py-2 border border-border rounded-md bg-background" value={time} onChange={e => setTime(e.target.value)} required />
+
+          {/* Body: two columns */}
+          <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
+            {/* Left: Slot list */}
+            <div className="flex-1 flex flex-col min-h-0 border-b md:border-b-0 md:border-r border-border">
+              <div className="px-4 pt-3 pb-2 shrink-0">
+                <h3 className="text-sm font-semibold text-foreground">Available Slots</h3>
+                <p className="text-xs text-muted-foreground">Select a time slot for this date</p>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 pb-4 max-h-48 md:max-h-none">
+                {slotsLoading ? (
+                  <div className="flex justify-center items-center py-10">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : slots.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-muted-foreground">
+                    No slots available for this date
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {slots.map((slot) => {
+                      const isSelected = selectedSlotStart === slot.start;
+                      const isFull = slot.is_full;
+                      const fillRatio = slot.capacity > 0 ? slot.booked_count / slot.capacity : 0;
+
+                      return (
+                        <button
+                          key={slot.start}
+                          type="button"
+                          disabled={isFull}
+                          onClick={() => setSelectedSlotStart(slot.start)}
+                          className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors text-left w-full ${
+                            isSelected
+                              ? "border-primary bg-primary/10"
+                              : isFull
+                              ? "border-border bg-muted/40 opacity-60 cursor-not-allowed"
+                              : "border-border hover:border-primary/50 hover:bg-accent/40 cursor-pointer"
+                          }`}
+                        >
+                          <span
+                            className={`font-medium ${
+                              isSelected ? "text-primary" : isFull ? "text-muted-foreground" : "text-foreground"
+                            }`}
+                          >
+                            {formatISOTime(slot.start)}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden hidden sm:block">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  isFull ? "bg-red-400" : fillRatio >= 0.7 ? "bg-amber-400" : "bg-green-400"
+                                }`}
+                                style={{ width: `${Math.min(100, fillRatio * 100)}%` }}
+                              />
+                            </div>
+                            <span
+                              className={`text-xs flex items-center gap-1 font-medium ${
+                                isSelected
+                                  ? "text-primary"
+                                  : isFull
+                                  ? "text-red-500"
+                                  : fillRatio >= 0.7
+                                  ? "text-amber-600"
+                                  : "text-green-600"
+                              }`}
+                            >
+                              <Users className="h-3 w-3" />
+                              {slot.booked_count}/{slot.capacity}
+                              {isFull && <span className="ml-1">Full</span>}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Patient details */}
+            <div className="flex-1 flex flex-col px-4 pt-4 pb-4 gap-4">
+              {/* Patient search */}
+              <div className="relative">
+                <label className="block text-sm font-medium mb-1">Patient</label>
+                <input
+                  type="text"
+                  placeholder="Search or enter patient name"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  value={patientQuery}
+                  onChange={(e) => {
+                    setPatientQuery(e.target.value);
+                    setSelectedPatient(null);
+                    setShowDropdown(true);
+                  }}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                  required
+                  autoComplete="off"
+                />
+                {showDropdown && patientResults && patientResults.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                    {patientResults.slice(0, 6).map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent/40 first:rounded-t-lg last:rounded-b-lg transition-colors"
+                        onMouseDown={() => handlePatientSelect({ id: p.id, name: p.name, mobile_number: p.mobile_number })}
+                      >
+                        {p.name}
+                        {p.mobile_number && (
+                          <span className="text-muted-foreground ml-2">({p.mobile_number})</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile number */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Mobile Number</label>
+                <input
+                  type="tel"
+                  placeholder="Enter mobile number"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  value={mobileNumber}
+                  onChange={(e) => setMobileNumber(e.target.value)}
+                  autoComplete="off"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Optional. Family members can share the same number.</p>
+              </div>
+
+              {/* Appointment type */}
+              <div>
+                <label className="block text-sm font-medium mb-1">Appointment Type</label>
+                <select
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as AppointmentType)}
+                >
+                  {Object.entries(APPT_CONFIG).map(([k, cfg]) => (
+                    <option key={k} value={k}>{cfg.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selected slot summary */}
+              {selectedSlotStart ? (
+                <div className="rounded-lg bg-primary/5 border border-primary/20 px-3 py-2.5 text-sm">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Selected slot</span>
+                  <p className="font-semibold text-primary mt-0.5">{formatISOTime(selectedSlotStart)}</p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">← Select a time slot from the left</p>
+              )}
+            </div>
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Patient Name</label>
-            <input type="text" placeholder="e.g. John Doe" className="w-full px-3 py-2 border border-border rounded-md bg-background" value={patient} onChange={e => setPatient(e.target.value)} required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Appointment Type</label>
-            <select className="w-full px-3 py-2 border border-border rounded-md bg-background" value={type} onChange={e => setType(e.target.value as AppointmentType)}>
-              <option value="checkup">Checkup</option>
-              <option value="consultation">Consultation</option>
-              <option value="followup">Follow-up</option>
-              <option value="urgent">Urgent</option>
-              <option value="procedure">Procedure</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-            <Button type="submit">Add Appointment</Button>
+
+          {/* Footer */}
+          <div className="flex flex-col gap-2 px-6 py-4 border-t border-border shrink-0">
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={onClose} disabled={isBooking}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isBooking || !selectedSlotStart || !patientQuery.trim()}
+              >
+                {isBooking ? (editData ? "Updating..." : "Booking...") : (editData ? "Update Appointment" : "Book Appointment")}
+              </Button>
+            </div>
           </div>
         </form>
       </div>
@@ -605,6 +884,8 @@ export const CalendarPage = () => {
   const [view, setView] = useState<ViewType>("month");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editData, setEditData] = useState<EditAppointmentData | undefined>(undefined);
+  const [selectedType, setSelectedType] = useState<AppointmentType | null>(null);
 
   const { data: me } = useGetMeQuery();
   const doctorId = me?.id;
@@ -614,56 +895,26 @@ export const CalendarPage = () => {
     { skip: !doctorId }
   );
 
-  const [bookOnBehalf] = useBookOnBehalfMutation();
-  const [createPatient] = useCreatePatientMutation();
-  const { data: searchResults } = useSearchPatientsQuery(
-    { q: "" }, // This is tricky, we should search based on input
-    { skip: true }
-  );
-
   const appointments = useMemo(() => {
     if (!todayPatients) return {};
     const key = toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
     return {
-      [key]: todayPatients.map((p) => ({
-        id: p.id,
-        time: p.scheduled_start.split('T')[1].slice(0, 5),
-        endTime: "", // Not provided by API
-        patient: p.patient_name,
-        type: "checkup" as AppointmentType, // Default
-      })),
+      [key]: todayPatients.map((p) => {
+        const raw = p.scheduled_start ?? '';
+        const timePart = raw.includes('T') ? raw.split('T')[1] : raw.split(' ')[1];
+        return {
+          id: p.id,
+          time: timePart?.slice(0, 5) ?? '',
+          endTime: "",
+          patient: p.patient_name,
+          type: (p.appointment_type || 'checkup') as AppointmentType,
+          patientId: p.patient_id,
+          scheduledStart: p.scheduled_start,
+          phone: p.phone ?? undefined,
+        };
+      }),
     };
   }, [todayPatients, currentDate]);
-
-  const handleAddAppointment = async (dateKey: string, appt: Appointment) => {
-    if (!doctorId) return;
-
-    try {
-      let patientId = "";
-      
-      // Search for existing patient
-      const searchResult = await usersApi.endpoints.searchPatients.initiate({ q: appt.patient }).unwrap();
-      
-      if (searchResult && searchResult.length > 0) {
-        patientId = searchResult[0].id;
-      } else {
-        // Create new patient if not found
-        const newPatient = await createPatient({ name: appt.patient }).unwrap();
-        patientId = newPatient.id;
-      }
-
-      const startDateTime = new Date(`${dateKey}T${appt.time}:00Z`).toISOString();
-
-      await bookOnBehalf({
-        doctor_id: doctorId,
-        patient_id: patientId,
-        scheduled_start: startDateTime,
-        idempotency_key: crypto.randomUUID(),
-      }).unwrap();
-    } catch (e) {
-      console.error("Booking failed", e);
-    }
-  };
 
   const label = useMemo(() => {
     if (view === "month") {
@@ -687,6 +938,24 @@ export const CalendarPage = () => {
       year: "numeric",
     });
   }, [view, currentDate]);
+
+  const handleAddAppointment = () => {
+    setEditData(undefined);
+    setIsAddModalOpen(true);
+  };
+
+  const handleEditAppointment = (appt: Appointment) => {
+    if (!appt.patientId || !appt.scheduledStart) return;
+    setEditData({
+      appointmentId: appt.id,
+      date: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
+      scheduledStart: appt.scheduledStart,
+      patientId: appt.patientId,
+      patientName: appt.patient,
+      patientPhone: appt.phone ?? "",
+    });
+    setIsAddModalOpen(true);
+  };
 
   const handlePrev = () => {
     const d = new Date(currentDate);
@@ -713,10 +982,12 @@ export const CalendarPage = () => {
         onPrev={handlePrev}
         onNext={handleNext}
         onToday={() => setCurrentDate(new Date())}
-        onAddAppointment={() => setIsAddModalOpen(true)}
+        onAddAppointment={handleAddAppointment}
+        doctorName={me?.name ?? "Doctor"}
+        speciality={me?.speciality ?? "General Practice"}
       />
 
-      <ColorLegend />
+      <ColorLegend selectedType={selectedType} onSelectType={setSelectedType} />
 
       <div className="flex-1 overflow-hidden flex flex-col bg-background">
         {loadingPatients && (
@@ -734,17 +1005,19 @@ export const CalendarPage = () => {
                 appointments={appointments}
               />
             )}
-            {view === "week" && <WeekView currentDate={currentDate} appointments={appointments} />}
-            {view === "day" && <DayView currentDate={currentDate} appointments={appointments} onAddAppointment={() => setIsAddModalOpen(true)} />}
+            {view === "week" && <WeekView currentDate={currentDate} appointments={appointments} onEditAppointment={handleEditAppointment} selectedType={selectedType} />}
+            {view === "day" && <DayView currentDate={currentDate} appointments={appointments} onAddAppointment={handleAddAppointment} onEditAppointment={handleEditAppointment} selectedType={selectedType} />}
           </>
         )}
       </div>
-      <AddAppointmentModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        onAdd={handleAddAppointment} 
-        defaultDate={currentDate} 
-      />
+      {isAddModalOpen && (
+        <AddAppointmentModal
+          onClose={() => setIsAddModalOpen(false)}
+          defaultDate={currentDate}
+          doctorId={doctorId}
+          editData={editData}
+        />
+      )}
     </div>
   );
 };

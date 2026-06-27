@@ -14,6 +14,7 @@ export interface UserProfile {
   relationship: string | null;
   role: 'doctor' | 'patient' | 'staff';
   is_verified: boolean;
+  speciality?: string | null;
 }
 
 export interface UpdateProfileInput {

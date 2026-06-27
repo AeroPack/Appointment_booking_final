@@ -9,6 +9,7 @@ interface DoctorStats {
 
 interface TodayPatient {
   id: string
+  patient_id: string
   patient_name: string
   phone: string | null
   gender: string | null
@@ -16,6 +17,7 @@ interface TodayPatient {
   token_number: number
   scheduled_start: string
   appointment_status: string
+  appointment_type: string
   venue_name: string | null
   reason: string
 }

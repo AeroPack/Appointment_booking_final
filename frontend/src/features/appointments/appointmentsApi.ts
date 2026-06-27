@@ -45,9 +45,24 @@ export const appointmentsApi = api.injectEndpoints({
       patient_id: string;
       scheduled_start: string;
       idempotency_key: string;
+      appointment_type?: string;
     }>({
       query: (body) => ({ url: '/api/appointments/book', method: 'POST', body }),
-      invalidatesTags: ['Appointment'],
+      invalidatesTags: ['Appointment', 'Doctor'],
+    }),
+    rescheduleAppointment: builder.mutation<BookingResponse, {
+      appointment_id: string;
+      patient_id: string;
+      scheduled_start: string;
+      idempotency_key: string;
+      appointment_type?: string;
+    }>({
+      query: ({ appointment_id, ...body }) => ({
+        url: `/api/appointments/${appointment_id}/reschedule`,
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['Appointment', 'Doctor'],
     }),
   }),
 })
@@ -60,4 +75,5 @@ export const {
   useCancelAppointmentMutation,
   useUpdateAppointmentStatusMutation,
   useBookOnBehalfMutation,
+  useRescheduleAppointmentMutation,
 } = appointmentsApi
