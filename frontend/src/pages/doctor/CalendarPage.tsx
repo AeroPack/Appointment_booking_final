@@ -116,7 +116,7 @@ function CalendarHeader({ view, setView, label, onPrev, onNext, onToday, onAddAp
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="font-medium text-sm min-w-[130px] text-center select-none px-1">
+            <span className="font-medium text-sm min-w-[100px] sm:min-w-[130px] text-center select-none px-1">
               {label}
             </span>
             <button
@@ -188,7 +188,7 @@ function ColorLegend({ selectedType, onSelectType }: { selectedType: Appointment
 function ApptPill({ appt }: { appt: Appointment }) {
   const cfg = APPT_CONFIG[appt.type];
   return (
-    <div className={`text-[11px] rounded-sm px-1.5 py-px truncate font-medium border-l-2 ${cfg.pill} ${cfg.bar}`}>
+    <div className={`text-[10px] sm:text-[11px] rounded-sm px-1 py-px sm:px-1.5 truncate font-medium border-l-2 ${cfg.pill} ${cfg.bar}`}>
       <span className="hidden sm:inline">{formatTime12(appt.time)} · </span>
       {appt.patient}
     </div>
@@ -299,34 +299,34 @@ function MonthView({
                   setView("day");
                 }
               }}
-              className={`p-1 flex flex-col gap-0.5 min-h-[70px] sm:min-h-[90px] transition-colors outline-none group ${
-                !cell.isCurrentMonth
-                  ? "bg-muted/20"
-                  : cell.isToday
-                  ? "bg-primary/5 ring-2 ring-inset ring-primary/20"
-                  : "hover:bg-accent/40 cursor-pointer focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
-              }`}
-            >
-              <span
-                className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full self-end ${
-                  cell.isToday
-                    ? "bg-primary text-primary-foreground font-bold"
-                    : !cell.isCurrentMonth
-                    ? "text-muted-foreground/40"
-                    : "text-foreground"
-                }`}
-              >
-                {cell.day}
-              </span>
+               className={`p-0.5 sm:p-1 flex flex-col gap-0 sm:gap-0.5 min-h-[60px] sm:min-h-[90px] transition-colors outline-none group ${
+                 !cell.isCurrentMonth
+                   ? "bg-muted/20"
+                   : cell.isToday
+                   ? "bg-primary/5 ring-2 ring-inset ring-primary/20"
+                   : "hover:bg-accent/40 cursor-pointer focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50"
+               }`}
+             >
+               <span
+                 className={`text-[10px] sm:text-xs font-medium w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded-full self-end ${
+                   cell.isToday
+                     ? "bg-primary text-primary-foreground font-bold"
+                     : !cell.isCurrentMonth
+                     ? "text-muted-foreground/40"
+                     : "text-foreground"
+                 }`}
+               >
+                 {cell.day}
+               </span>
 
-              <div className="flex flex-col gap-0.5">
-                {appts.slice(0, maxShow).map((appt) => (
-                  <ApptPill key={appt.id} appt={appt} />
-                ))}
-                {extra > 0 && (
-                  <span className="text-[11px] text-muted-foreground px-1.5">+{extra} more</span>
-                )}
-              </div>
+               <div className="flex flex-col gap-0 sm:gap-0.5">
+                 {appts.slice(0, maxShow).map((appt) => (
+                   <ApptPill key={appt.id} appt={appt} />
+                 ))}
+                 {extra > 0 && (
+                   <span className="text-[10px] sm:text-[11px] text-muted-foreground px-1.5">+{extra} more</span>
+                 )}
+               </div>
 
               {cell.isCurrentMonth && appts.length === 0 && (
                 <div className="flex-1 flex items-end justify-center pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -370,10 +370,10 @@ function WeekView({ currentDate, appointments, onEditAppointment, selectedType }
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="min-w-[600px]">
+      <div className="min-w-[800px]">
         {/* Day headers */}
         <div className="flex border-b border-border bg-card sticky top-0 z-10">
-          <div className="w-16 sm:w-20 shrink-0 border-r border-border" />
+          <div className="w-12 sm:w-20 shrink-0 border-r border-border" />
           {days.map(({ key, isToday, dayName, dayNum }) => (
             <div
               key={key}
@@ -395,7 +395,7 @@ function WeekView({ currentDate, appointments, onEditAppointment, selectedType }
           const timeLabel = hour < 12 ? `${hour}:00 AM` : hour === 12 ? "12:00 PM" : `${hour - 12}:00 PM`;
           return (
             <div key={hour} className={`flex border-b border-border ${isLunch ? "bg-muted/20" : ""}`}>
-              <div className="w-16 sm:w-20 shrink-0 border-r border-border py-3 pr-2 flex justify-end">
+              <div className="w-12 sm:w-20 shrink-0 border-r border-border py-3 pr-2 flex justify-end">
                 <span className="text-xs text-muted-foreground">{timeLabel}</span>
               </div>
               {days.map(({ key, isToday }) => {

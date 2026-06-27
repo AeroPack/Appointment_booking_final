@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   useReactTable,
@@ -27,6 +27,7 @@ import {
   Loader2,
   Calendar,
   Plus,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Input } from "@/core/components/ui/input";
@@ -41,7 +42,7 @@ import {
 } from "@/core/components/ui/table";
 import { useGetTodayPatientsQuery } from "@/features/doctors/doctorDashboardApi";
 import { useGetMeQuery } from "@/features/users/usersApi";
-import { AddAppointmentModal } from "@/features/appointments/AddAppointmentModal";
+import { AddAppointmentModal, APPT_CONFIG, type AppointmentType, type EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { DayPicker } from "react-day-picker";
 import { format, isToday } from "date-fns";
 import "react-day-picker/style.css";
@@ -52,15 +53,18 @@ type Status = "booked" | "finished" | "no_show" | "cancelled";
 
 interface PatientRow {
   id: string;
+  patientId: string;
   token: number;
   name: string;
   phone: string;
   age: number;
   gender: string;
   reason: string;
+  appointmentType: string;
   venue: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM (24h)
+  scheduledStart: string; // ISO timestamp
   status: Status;
 }
 
@@ -97,6 +101,11 @@ function formatTime12(time: string) {
 function formatDate(date: string) {
   const d = new Date(date + "T00:00:00");
   return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
+}
+
+// A booked appointment scheduled in the future can be rescheduled / edited.
+function isEditable(p: PatientRow): boolean {
+  return p.status === "booked" && new Date(p.scheduledStart).getTime() > Date.now();
 }
 
 // ─── Sort indicator ───────────────────────────────────────────────────────────
@@ -156,6 +165,7 @@ export function PatientQueue() {
   const doctorId = me?.id;
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editData, setEditData] = useState<EditAppointmentData | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [venueFilter, setVenueFilter] = useState<string>("all");
@@ -190,15 +200,18 @@ export function PatientQueue() {
       const min = String(istDate.getUTCMinutes()).padStart(2, "0");
       return {
         id: p.id,
+        patientId: p.patient_id,
         token: p.token_number,
         name: p.patient_name,
         phone: p.phone || "—",
         age: p.age ?? 0,
         gender: p.gender || "Other",
         reason: p.reason || "—",
+        appointmentType: p.appointment_type || "",
         venue: p.venue_name || "—",
         date: `${yyyy}-${mm}-${dd}`,
         time: `${hh}:${min}`,
+        scheduledStart: p.scheduled_start,
         status: p.appointment_status as Status,
       };
     });
@@ -229,6 +242,17 @@ export function PatientQueue() {
     setVenueFilter("all");
     setReasonFilter("all");
   };
+
+  const openEdit = useCallback((p: PatientRow) => {
+    setEditData({
+      appointmentId: p.id,
+      date: p.date,
+      scheduledStart: p.scheduledStart,
+      patientId: p.patientId,
+      patientName: p.name,
+      patientPhone: p.phone === "—" ? "" : p.phone,
+    });
+  }, []);
 
   const venueOptions = useMemo(() => {
     const unique = Array.from(new Set(patients.map((p) => p.venue).filter(Boolean)));
@@ -288,9 +312,19 @@ export function PatientQueue() {
         ),
       },
       {
-        accessorKey: "reason",
-        header: "Reason for Visit",
-        cell: ({ row }) => <span className="text-sm text-foreground">{row.original.reason}</span>,
+        accessorKey: "appointmentType",
+        header: "Appointment Type",
+        cell: ({ row }) => {
+          const cfg = APPT_CONFIG[row.original.appointmentType as AppointmentType];
+          if (!cfg) {
+            return <span className="text-sm text-muted-foreground">—</span>;
+          }
+          return (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.pill}`}>
+              {cfg.label}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "venue",
@@ -330,6 +364,18 @@ export function PatientQueue() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
+            {isEditable(row.original) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEdit(row.original);
+                }}
+                aria-label="Edit appointment"
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -353,7 +399,7 @@ export function PatientQueue() {
         ),
       },
     ],
-    [navigate]
+    [navigate, openEdit]
   );
 
   const table = useReactTable({
@@ -371,8 +417,8 @@ export function PatientQueue() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <header className="bg-card border-b border-border px-4 sm:px-6 py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      <header className="bg-card border-b border-border px-4 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-row items-center gap-3">
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-semibold text-foreground">
               Patient Queue{!isToday(selectedDate) && ` — ${format(selectedDate, "dd MMM yyyy")}`}
@@ -391,7 +437,7 @@ export function PatientQueue() {
 
       {/* Filter toolbar */}
       <div className="bg-muted/40 border-b border-border px-4 sm:px-6 py-3">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-2">
           {/* Search */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -404,9 +450,9 @@ export function PatientQueue() {
           </div>
 
           {/* Filters */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Date picker */}
-            <div className="relative" ref={calendarRef}>
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Date picker - kept outside the scroll area so its popup is not clipped */}
+            <div className="relative shrink-0" ref={calendarRef}>
               <button
                 onClick={() => setCalendarOpen((o) => !o)}
                 className="h-9 rounded-md border border-input bg-background text-sm text-foreground flex items-center gap-2 px-3 cursor-pointer hover:bg-accent transition-colors"
@@ -431,33 +477,44 @@ export function PatientQueue() {
               )}
             </div>
 
-            <span className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground font-medium">
-              <Filter className="h-3.5 w-3.5" /> Filter:
-            </span>
-            <FilterSelect value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
-            <FilterSelect
-              value={venueFilter}
-              onChange={setVenueFilter}
-              options={venueOptions}
-              icon={MapPin}
-            />
-            <FilterSelect
-              value={reasonFilter}
-              onChange={setReasonFilter}
-              options={reasonOptions}
-              icon={FileText}
-            />
-            {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-9 text-muted-foreground">
-                <X className="h-4 w-4" /> Clear
-              </Button>
-            )}
+            {/* Selects - single scrollable row on mobile to avoid multi-row wrap */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5 min-w-0 [&::-webkit-scrollbar]:hidden">
+              <span className="hidden lg:flex shrink-0 items-center gap-1 text-xs text-muted-foreground font-medium">
+                <Filter className="h-3.5 w-3.5" /> Filter:
+              </span>
+              <div className="shrink-0">
+                <FilterSelect value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+              </div>
+              <div className="shrink-0">
+                <FilterSelect
+                  value={venueFilter}
+                  onChange={setVenueFilter}
+                  options={venueOptions}
+                  icon={MapPin}
+                />
+              </div>
+              <div className="shrink-0">
+                <FilterSelect
+                  value={reasonFilter}
+                  onChange={setReasonFilter}
+                  options={reasonOptions}
+                  icon={FileText}
+                />
+              </div>
+              {hasActiveFilters && (
+                <div className="shrink-0">
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-9 text-muted-foreground">
+                    <X className="h-4 w-4" /> Clear
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -539,42 +596,62 @@ export function PatientQueue() {
             </div>
 
             {/* Mobile / tablet card list */}
-            <div className="lg:hidden flex flex-col gap-3">
+            <div className="lg:hidden flex flex-col gap-2">
               {table.getRowModel().rows.map((row) => {
                 const p = row.original;
                 const meta = STATUS_META[p.status];
                 return (
-                  <button
+                  <div
                     key={row.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => navigate(`/doctor/appointment/${p.id}`)}
-                    className="text-left rounded-xl border border-border bg-card p-4 hover:bg-accent/40 transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/doctor/appointment/${p.id}`);
+                      }
+                    }}
+                    className="text-left rounded-xl border border-border bg-card p-3 hover:bg-accent/40 transition-colors cursor-pointer"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-lg font-bold flex items-center justify-center text-sm shrink-0 bg-primary/10 text-primary">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg font-bold flex items-center justify-center text-sm shrink-0 bg-primary/10 text-primary">
                         {String(p.token).padStart(2, "0")}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-semibold text-sm text-foreground truncate">{p.name}</p>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${meta.pill}`}>
-                            {meta.label}
-                          </span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.pill}`}>
+                              {meta.label}
+                            </span>
+                            {isEditable(p) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEdit(p);
+                                }}
+                                aria-label="Edit appointment"
+                                className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {p.age} yrs · {p.gender} · {p.reason}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
+                          <span>{p.age} yrs · {p.gender}</span>
                           <span className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" /> {p.phone}
+                            <Phone className="h-3 w-3 shrink-0" /> {p.phone}
                           </span>
                           <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" /> {p.venue}
+                            <MapPin className="h-3 w-3 shrink-0" /> {p.venue}
                           </span>
                           <span>{formatDate(p.date)} · {formatTime12(p.time)}</span>
                         </div>
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -611,11 +688,15 @@ export function PatientQueue() {
         )}
       </div>
 
-      {isAddModalOpen && doctorId && (
+      {(isAddModalOpen || editData) && doctorId && (
         <AddAppointmentModal
-          onClose={() => setIsAddModalOpen(false)}
+          onClose={() => {
+            setIsAddModalOpen(false);
+            setEditData(null);
+          }}
           defaultDate={selectedDate}
           doctorId={doctorId}
+          editData={editData ?? undefined}
         />
       )}
     </div>

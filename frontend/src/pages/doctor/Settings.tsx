@@ -290,37 +290,37 @@ function DayRow({
             const slots = countSlots(shift.start, shift.end, slotDuration);
             return (
               <div key={shift.id} className="flex flex-col gap-1.5">
-                <div className="flex items-end gap-2 sm:gap-3">
-                  <label className="flex-1 flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted-foreground">Start</span>
-                    <input
-                      type="time"
-                      value={shift.start}
-                      onChange={(e) => onUpdateShift(shiftIndex, "start", e.target.value)}
-                      className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
-                        error ? "border-red-400" : "border-input"
-                      }`}
-                    />
-                  </label>
-                  <label className="flex-1 flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted-foreground">End</span>
-                    <input
-                      type="time"
-                      value={shift.end}
-                      onChange={(e) => onUpdateShift(shiftIndex, "end", e.target.value)}
-                      className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
-                        error ? "border-red-400" : "border-input"
-                      }`}
-                    />
-                  </label>
-                  <button
-                    onClick={() => onDeleteShift(shiftIndex)}
-                    aria-label="Remove shift"
-                    className="h-10 w-10 shrink-0 flex items-center justify-center text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                 <div className="flex flex-col sm:flex-row items-end gap-2 sm:gap-3">
+                   <label className="flex-1 flex flex-col gap-1 w-full sm:w-auto">
+                     <span className="text-xs font-medium text-muted-foreground">Start</span>
+                     <input
+                       type="time"
+                       value={shift.start}
+                       onChange={(e) => onUpdateShift(shiftIndex, "start", e.target.value)}
+                       className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
+                         error ? "border-red-400" : "border-input"
+                       }`}
+                     />
+                   </label>
+                   <label className="flex-1 flex flex-col gap-1 w-full sm:w-auto">
+                     <span className="text-xs font-medium text-muted-foreground">End</span>
+                     <input
+                       type="time"
+                       value={shift.end}
+                       onChange={(e) => onUpdateShift(shiftIndex, "end", e.target.value)}
+                       className={`h-10 px-3 rounded-md border bg-background text-sm text-foreground outline-none focus:ring-2 focus:ring-ring ${
+                         error ? "border-red-400" : "border-input"
+                       }`}
+                     />
+                   </label>
+                   <button
+                     onClick={() => onDeleteShift(shiftIndex)}
+                     aria-label="Remove shift"
+                     className="h-10 w-10 shrink-0 flex items-center justify-center text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                   >
+                     <Trash2 className="h-4 w-4" />
+                   </button>
+                 </div>
 
                 {error ? (
                   <p className="flex items-center gap-1 text-xs text-red-600">
@@ -813,23 +813,25 @@ export function Settings() {
           <SaveIndicator />
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-1 mt-4 -mb-px">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
+         {/* Tabs */}
+         <div className="flex gap-1 mt-4 -mb-px overflow-x-auto pb-px scrollbar-hide">
+           <div className="flex gap-1 whitespace-nowrap">
+             {tabs.map((tab) => (
+               <button
+                 key={tab.id}
+                 onClick={() => setActiveTab(tab.id)}
+                 className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                   activeTab === tab.id
+                     ? "border-primary text-primary"
+                     : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                 }`}
+               >
+                 {tab.icon}
+                 {tab.label}
+               </button>
+             ))}
+           </div>
+         </div>
       </header>
 
       {/* Scrollable content */}
