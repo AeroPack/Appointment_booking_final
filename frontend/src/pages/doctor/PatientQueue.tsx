@@ -26,6 +26,7 @@ import {
   Users,
   Loader2,
   Calendar,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Input } from "@/core/components/ui/input";
@@ -39,6 +40,8 @@ import {
   TableRow,
 } from "@/core/components/ui/table";
 import { useGetTodayPatientsQuery } from "@/features/doctors/doctorDashboardApi";
+import { useGetMeQuery } from "@/features/users/usersApi";
+import { AddAppointmentModal } from "@/features/appointments/AddAppointmentModal";
 import { DayPicker } from "react-day-picker";
 import { format, isToday } from "date-fns";
 import "react-day-picker/style.css";
@@ -46,7 +49,6 @@ import "react-day-picker/style.css";
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type Status = "booked" | "finished" | "no_show" | "cancelled";
-type Gender = "Male" | "Female" | "Other";
 
 interface PatientRow {
   id: string;
@@ -54,7 +56,7 @@ interface PatientRow {
   name: string;
   phone: string;
   age: number;
-  gender: Gender;
+  gender: string;
   reason: string;
   venue: string;
   date: string; // YYYY-MM-DD
@@ -75,13 +77,6 @@ const STATUS_OPTIONS: { value: Status | "all"; label: string }[] = [
   { value: "finished", label: "Finished" },
   { value: "no_show", label: "No-show" },
   { value: "cancelled", label: "Cancelled" },
-];
-
-const GENDER_OPTIONS: { value: Gender | "all"; label: string }[] = [
-  { value: "all", label: "All genders" },
-  { value: "Male", label: "Male" },
-  { value: "Female", label: "Female" },
-  { value: "Other", label: "Other" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -157,10 +152,14 @@ export function PatientQueue() {
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { data: apiPatients, isLoading, isError } = useGetTodayPatientsQuery({ date: dateStr });
 
+  const { data: me } = useGetMeQuery();
+  const doctorId = me?.id;
+
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [venueFilter, setVenueFilter] = useState<string>("all");
-  const [genderFilter, setGenderFilter] = useState<Gender | "all">("all");
+  const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "token", desc: false }]);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -177,7 +176,7 @@ export function PatientQueue() {
   }, [calendarOpen]);
 
   const hasActiveFilters =
-    search !== "" || statusFilter !== "all" || venueFilter !== "all" || genderFilter !== "all";
+    search !== "" || statusFilter !== "all" || venueFilter !== "all" || reasonFilter !== "all";
 
   const patients: PatientRow[] = useMemo(() => {
     if (!apiPatients) return [];
@@ -195,7 +194,7 @@ export function PatientQueue() {
         name: p.patient_name,
         phone: p.phone || "—",
         age: p.age ?? 0,
-        gender: (p.gender as Gender) || "Other",
+        gender: p.gender || "Other",
         reason: p.reason || "—",
         venue: p.venue_name || "—",
         date: `${yyyy}-${mm}-${dd}`,
@@ -209,7 +208,7 @@ export function PatientQueue() {
     return patients.filter((p) => {
       if (statusFilter !== "all" && p.status !== statusFilter) return false;
       if (venueFilter !== "all" && p.venue !== venueFilter) return false;
-      if (genderFilter !== "all" && p.gender !== genderFilter) return false;
+      if (reasonFilter !== "all" && p.reason !== reasonFilter) return false;
       if (search) {
         const q = search.toLowerCase();
         if (
@@ -222,18 +221,23 @@ export function PatientQueue() {
       }
       return true;
     });
-  }, [patients, search, statusFilter, venueFilter, genderFilter]);
+  }, [patients, search, statusFilter, venueFilter, reasonFilter]);
 
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("all");
     setVenueFilter("all");
-    setGenderFilter("all");
+    setReasonFilter("all");
   };
 
   const venueOptions = useMemo(() => {
     const unique = Array.from(new Set(patients.map((p) => p.venue).filter(Boolean)));
     return [{ value: "all", label: "All venues" }, ...unique.map((v) => ({ value: v, label: v }))];
+  }, [patients]);
+
+  const reasonOptions = useMemo(() => {
+    const unique = Array.from(new Set(patients.map((p) => p.reason).filter((r) => r && r !== "--")));
+    return [{ value: "all", label: "All reasons" }, ...unique.map((r) => ({ value: r, label: r }))];
   }, [patients]);
 
   const columns = useMemo<ColumnDef<PatientRow>[]>(
@@ -377,6 +381,11 @@ export function PatientQueue() {
               {filtered.length} of {patients.length} patient{patients.length !== 1 ? "s" : ""}
             </p>
           </div>
+          <Button size="sm" className="gap-1.5 shrink-0" onClick={() => setIsAddModalOpen(true)}>
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">New Booking</span>
+            <span className="sm:hidden">Add</span>
+          </Button>
         </div>
       </header>
 
@@ -432,7 +441,12 @@ export function PatientQueue() {
               options={venueOptions}
               icon={MapPin}
             />
-            <FilterSelect value={genderFilter} onChange={setGenderFilter} options={GENDER_OPTIONS} />
+            <FilterSelect
+              value={reasonFilter}
+              onChange={setReasonFilter}
+              options={reasonOptions}
+              icon={FileText}
+            />
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1 h-9 text-muted-foreground">
                 <X className="h-4 w-4" /> Clear
@@ -596,6 +610,14 @@ export function PatientQueue() {
           </>
         )}
       </div>
+
+      {isAddModalOpen && doctorId && (
+        <AddAppointmentModal
+          onClose={() => setIsAddModalOpen(false)}
+          defaultDate={selectedDate}
+          doctorId={doctorId}
+        />
+      )}
     </div>
   );
 }

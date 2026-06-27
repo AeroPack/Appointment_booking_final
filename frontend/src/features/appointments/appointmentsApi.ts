@@ -46,6 +46,7 @@ export const appointmentsApi = api.injectEndpoints({
       scheduled_start: string;
       idempotency_key: string;
       appointment_type?: string;
+      notes?: string;
     }>({
       query: (body) => ({ url: '/api/appointments/book', method: 'POST', body }),
       invalidatesTags: ['Appointment', 'Doctor'],

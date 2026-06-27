@@ -207,6 +207,7 @@ export class AppointmentsService {
     scheduled_start: string;
     idempotency_key: string;
     appointment_type?: string;
+    notes?: string;
   }): Promise<BookingResponse> {
     const idempotent = await this.repo.findIdempotency(body.idempotency_key);
     if (idempotent) {
@@ -264,6 +265,7 @@ export class AppointmentsService {
       scheduled_end: scheduledEnd,
       token_number: tokenNumber,
       appointment_type: body.appointment_type ?? 'checkup',
+      notes: body.notes,
     });
 
     await this.repo.saveIdempotency(body.idempotency_key, appointment.id);
