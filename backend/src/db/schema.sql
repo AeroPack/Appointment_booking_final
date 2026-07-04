@@ -314,19 +314,23 @@ CREATE INDEX IF NOT EXISTS idx_user_tags_tag ON user_tags (tag_id);
 
 
 -- =============================================================================
--- 11. OTPS  (mobile login)  — store a HASH, not the raw code; lock after N tries
+-- 11. OTPS  (login via mobile or email)  — store a HASH, not the raw code;
+--     lock after N tries.  Exactly one of mobile_number / email must be set.
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS otps (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  mobile_number VARCHAR(20) NOT NULL,
+  mobile_number VARCHAR(20),
+  email         TEXT,
   otp_hash      TEXT NOT NULL,
   expires_at    TIMESTAMPTZ NOT NULL,
   attempts      INT NOT NULL DEFAULT 0,
   used          BOOLEAN DEFAULT false,
-  created_at    TIMESTAMPTZ DEFAULT NOW()
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT otps_identifier_check CHECK (mobile_number IS NOT NULL OR email IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_otps_mobile ON otps (mobile_number, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_otps_email  ON otps (email, created_at DESC);
 
 
 -- =============================================================================

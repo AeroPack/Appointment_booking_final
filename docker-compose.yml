@@ -34,6 +34,11 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-appointment}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-appointment_booking}
       JWT_SECRET: ${JWT_SECRET:-appointment-booking-jwt-secret-dev-only-change-in-production}
+      EMAIL_HOST: ${EMAIL_HOST:-smtp.gmail.com}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_SECURE: ${EMAIL_SECURE:-false}
+      EMAIL_USERNAME: ${EMAIL_USERNAME:-wings.recr@gmail.com}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-gtkdnfuayxxevwnl}
     ports:
       - "5000:5000"
     networks:
@@ -43,7 +48,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: /api
+        VITE_API_URL: ""
     container_name: appointment_booking_frontend
     restart: unless-stopped
     depends_on:

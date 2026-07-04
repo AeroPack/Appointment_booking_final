@@ -19,3 +19,15 @@ export interface TodayPatient {
   venue_name: string | null;
   reason: string;
 }
+
+export interface TypeCount {
+  type: string;
+  count: number;
+}
+
+export interface VenueTypeStat {
+  venue_id: string;
+  venue_name: string;
+  types: TypeCount[];
+  total: number;
+}

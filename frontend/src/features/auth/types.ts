@@ -1,5 +1,6 @@
 export interface RequestOtpRequest {
-  mobile_number: string
+  mobile_number?: string
+  email?: string
 }
 
 export interface RequestOtpResponse {
@@ -8,7 +9,8 @@ export interface RequestOtpResponse {
 }
 
 export interface VerifyOtpRequest {
-  mobile_number: string
+  mobile_number?: string
+  email?: string
   otp: string
 }
 
@@ -17,6 +19,7 @@ export interface AuthUser {
   name: string
   role: 'doctor' | 'patient' | 'staff'
   mobile_number: string | null
+  email: string | null
 }
 
 export interface VerifyOtpResponse {
@@ -29,5 +32,5 @@ export interface AuthState {
   token: string | null
   refreshToken: string | null
   user: AuthUser | null
-  mobile: string | null
+  identifier: string | null
 }

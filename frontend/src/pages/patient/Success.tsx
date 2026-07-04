@@ -273,7 +273,7 @@ export const Success: React.FC = () => {
       {/* Desktop Footer */}
       <footer className="hidden md:block mt-auto py-8 px-10 border-t border-outline-variant/20 bg-surface/50">
         <div className="max-w-[1000px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-[12px] font-medium text-text-muted">
-          <p>© 2023 Rajat Mohan Hospital Clinic. All rights reserved.</p>
+          <p>© 2024 Aeropack Pvt Ltd. All rights reserved.</p>
           <div className="flex gap-8">
             <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>

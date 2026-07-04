@@ -170,8 +170,8 @@ export function Family() {
       <footer className="hidden md:block bg-[#f2f4f6] border-t border-[#eceef0] w-full mt-auto">
         <div className="max-w-[1200px] mx-auto px-10 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex flex-col items-start gap-1">
-            <span className="font-bold text-[14px] text-[#191c1e]">Rajat Mohan Hospital Clinic</span>
-            <p className="font-medium text-[12px] text-[#64748B]">© 2024 Rajat Mohan Hospital Clinic. All rights reserved.</p>
+            <span className="font-bold text-[14px] text-[#191c1e]">Aeropack Pvt Ltd</span>
+            <p className="font-medium text-[12px] text-[#64748B]">© 2024 Aeropack Pvt Ltd. All rights reserved.</p>
           </div>
           <div className="flex gap-8">
             <a href="#" className="text-[13px] font-medium text-[#3e4947] hover:text-[#005c55] transition-colors">Privacy Policy</a>

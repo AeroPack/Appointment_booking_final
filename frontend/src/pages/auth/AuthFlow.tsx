@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@/core/store/hooks'
 import { useRequestOtpMutation, useVerifyOtpMutation } from '@/features/auth/authApi'
-import { setCredentials, setMobile } from '@/features/auth/authSlice'
-import { selectAuthMobile } from '@/features/auth/auth.selectors'
+import { setCredentials, setIdentifier } from '@/features/auth/authSlice'
+import { selectAuthIdentifier } from '@/features/auth/auth.selectors'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { OtpForm } from '@/features/auth/components/OtpForm'
 
@@ -12,10 +12,10 @@ type Step = 'login' | 'otp'
 export function AuthFlow() {
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
-  const storedMobile = useAppSelector(selectAuthMobile)
+  const storedIdentifier = useAppSelector(selectAuthIdentifier)
 
   const [step, setStep] = useState<Step>('login')
-  const [mobile, setLocalMobile] = useState(storedMobile ?? '')
+  const [identifier, setLocalIdentifier] = useState(storedIdentifier ?? '')
   const [secondsLeft, setSecondsLeft] = useState(0)
   const [error, setError] = useState<string>()
 
@@ -33,12 +33,14 @@ export function AuthFlow() {
   }, [secondsLeft])
 
   const handleRequestOtp = useCallback(
-    async (mobileNumber: string) => {
+    async (identifierData: { mobile_number?: string; email?: string }) => {
       setError(undefined)
       try {
-        const result = await requestOtp({ mobile_number: mobileNumber }).unwrap()
-        dispatch(setMobile(mobileNumber))
-        setLocalMobile(mobileNumber)
+        const result = await requestOtp(identifierData).unwrap()
+        
+        const value = identifierData.email || identifierData.mobile_number || '';
+        dispatch(setIdentifier(value))
+        setLocalIdentifier(value)
         setSecondsLeft(result.expires_in)
         setStep('otp')
       } catch (err: unknown) {
@@ -58,10 +60,14 @@ export function AuthFlow() {
     async (otp: string) => {
       setError(undefined)
       try {
-        const result = await verifyOtp({
-          mobile_number: mobile,
-          otp,
-        }).unwrap()
+        const payload: any = { otp };
+        if (identifier.includes('@')) {
+          payload.email = identifier;
+        } else {
+          payload.mobile_number = identifier;
+        }
+
+        const result = await verifyOtp(payload).unwrap()
         console.debug('[verifyOtp] result:', result)
         dispatch(setCredentials(result))
         const role = result.user.role
@@ -82,30 +88,35 @@ export function AuthFlow() {
         setError(code ? `[${code}] ${msg}` : msg)
       }
     },
-    [verifyOtp, mobile, dispatch, navigate],
+    [verifyOtp, identifier, dispatch, navigate],
   )
 
   const handleResendOtp = useCallback(async () => {
-    await handleRequestOtp(mobile)
-  }, [handleRequestOtp, mobile])
+    const payload = identifier.includes('@') 
+      ? { email: identifier } 
+      : { mobile_number: identifier };
+    await handleRequestOtp(payload)
+  }, [handleRequestOtp, identifier])
 
-  const handleChangeNumber = useCallback(() => {
+  const handleChangeIdentifier = useCallback(() => {
     setStep('login')
     setError(undefined)
   }, [])
 
-  const maskedNumber = mobile
-    ? '+91 XXXXXX' + mobile.slice(-4)
+  const maskedIdentifier = identifier
+    ? identifier.includes('@')
+      ? `${identifier.slice(0, 2)}***${identifier.slice(identifier.lastIndexOf('@'))}`
+      : '+91 XXXXXX' + identifier.slice(-4)
     : ''
 
   if (step === 'otp') {
     return (
       <OtpForm
-        maskedNumber={maskedNumber}
+        maskedNumber={maskedIdentifier}
         secondsLeft={secondsLeft}
         onVerify={handleVerifyOtp}
         onResend={handleResendOtp}
-        onChangeNumber={handleChangeNumber}
+        onChangeNumber={handleChangeIdentifier}
         isLoading={isVerifyingOtp}
         isResending={isRequestingOtp}
         error={error}

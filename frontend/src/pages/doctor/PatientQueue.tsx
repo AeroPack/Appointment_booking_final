@@ -40,7 +40,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/components/ui/table";
-import { useGetTodayPatientsQuery } from "@/features/doctors/doctorDashboardApi";
+import { useGetDoctorPatientsQuery } from "@/features/doctors/doctorDashboardApi";
 import { useGetMeQuery } from "@/features/users/usersApi";
 import { AddAppointmentModal, APPT_CONFIG, type AppointmentType, type EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { DayPicker } from "react-day-picker";
@@ -159,7 +159,7 @@ export function PatientQueue() {
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = format(selectedDate, "yyyy-MM-dd");
-  const { data: apiPatients, isLoading, isError } = useGetTodayPatientsQuery({ date: dateStr });
+  const { data: apiPatients, isLoading, isError } = useGetDoctorPatientsQuery({ from: dateStr, to: dateStr });
 
   const { data: me } = useGetMeQuery();
   const doctorId = me?.id;

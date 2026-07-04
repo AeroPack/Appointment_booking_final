@@ -320,7 +320,7 @@ export const Home: React.FC = () => {
       {/* Footer (Desktop Only) */}
       <footer className="hidden md:block mt-12 py-10 border-t border-outline-variant/20 bg-surface-container-low text-center">
         <p className="text-[12px] font-medium text-text-secondary">
-          © 2024 Rajat Mohan Hospital Clinic. All rights reserved. Your privacy is our priority.
+          © 2024 Aeropack Pvt Ltd. All rights reserved. Your privacy is our priority.
         </p>
       </footer>
     </div>

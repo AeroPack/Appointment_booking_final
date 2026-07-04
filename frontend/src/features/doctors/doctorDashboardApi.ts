@@ -22,27 +22,51 @@ interface TodayPatient {
   reason: string
 }
 
-interface DateParam {
-  date?: string
+interface TypeCount {
+  type: string
+  count: number
+}
+
+interface VenueTypeStat {
+  venue_id: string
+  venue_name: string
+  types: TypeCount[]
+  total: number
+}
+
+interface DateRange {
+  from?: string
+  to?: string
 }
 
 export const doctorDashboardApi = api.injectEndpoints({
   endpoints: (builder) => ({
-    getDoctorStats: builder.query<DoctorStats, DateParam>({
+    getDoctorStats: builder.query<DoctorStats, DateRange>({
       query: (params) => ({
         url: '/api/doctor/stats',
-        params: params.date ? params : undefined,
+        params: params.from && params.to ? params : undefined,
       }),
       providesTags: ['Doctor'],
     }),
-    getTodayPatients: builder.query<TodayPatient[], DateParam>({
+    getDoctorPatients: builder.query<TodayPatient[], DateRange>({
       query: (params) => ({
-        url: '/api/doctor/today-patients',
-        params: params.date ? params : undefined,
+        url: '/api/doctor/patients',
+        params: params.from && params.to ? params : undefined,
+      }),
+      providesTags: ['Doctor'],
+    }),
+    getVenueTypeStats: builder.query<VenueTypeStat[], DateRange>({
+      query: (params) => ({
+        url: '/api/doctor/venue-type-stats',
+        params: params.from && params.to ? params : undefined,
       }),
       providesTags: ['Doctor'],
     }),
   }),
 })
 
-export const { useGetDoctorStatsQuery, useGetTodayPatientsQuery } = doctorDashboardApi
+export const {
+  useGetDoctorStatsQuery,
+  useGetDoctorPatientsQuery,
+  useGetVenueTypeStatsQuery,
+} = doctorDashboardApi

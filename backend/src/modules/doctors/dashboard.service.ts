@@ -1,21 +1,37 @@
 import { DashboardRepository } from './dashboard.repository.js';
+import type { VenueTypeStat } from './dashboard.types.js';
 
 export class DashboardService {
   constructor(private readonly repo: DashboardRepository) {}
 
-  async getStats(doctorId: string, date?: string) {
-    const dateStr = date || this.todayIST();
-    return this.repo.findStats(doctorId, dateStr);
+  async getStats(doctorId: string, from: string, to: string) {
+    return this.repo.findStats(doctorId, from, to);
   }
 
-  async getTodayPatients(doctorId: string, date?: string) {
-    const dateStr = date || this.todayIST();
-    return this.repo.findTodayPatients(doctorId, dateStr);
+  async getPatients(doctorId: string, from: string, to: string) {
+    return this.repo.findPatients(doctorId, from, to);
   }
 
-  private todayIST(): string {
-    const now = new Date();
-    const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-    return ist.toISOString().slice(0, 10);
+  async getVenueTypeStats(doctorId: string, from: string, to: string): Promise<VenueTypeStat[]> {
+    const rows = await this.repo.findVenueTypeStats(doctorId, from, to);
+
+    const venueMap = new Map<string, VenueTypeStat>();
+
+    for (const row of rows) {
+      let venue = venueMap.get(row.venue_id);
+      if (!venue) {
+        venue = {
+          venue_id: row.venue_id,
+          venue_name: row.venue_name,
+          types: [],
+          total: 0,
+        };
+        venueMap.set(row.venue_id, venue);
+      }
+      venue.types.push({ type: row.appointment_type, count: row.count });
+      venue.total += row.count;
+    }
+
+    return Array.from(venueMap.values());
   }
 }

@@ -4,6 +4,7 @@ import type { AuthState, AuthUser, VerifyOtpResponse } from './types'
 const TOKEN_KEY = 'auth_token'
 const REFRESH_KEY = 'auth_refresh_token'
 const USER_KEY = 'auth_user'
+const IDENTIFIER_KEY = 'auth_identifier'
 
 const initialState: AuthState = {
   token: localStorage.getItem(TOKEN_KEY),
@@ -16,7 +17,7 @@ const initialState: AuthState = {
       return null
     }
   })(),
-  mobile: null,
+  identifier: localStorage.getItem(IDENTIFIER_KEY),
 }
 
 const authSlice = createSlice({
@@ -27,13 +28,15 @@ const authSlice = createSlice({
       state.token = action.payload.accessToken
       state.refreshToken = action.payload.refreshToken
       state.user = action.payload.user
-      state.mobile = null
+      state.identifier = null
       localStorage.setItem(TOKEN_KEY, action.payload.accessToken)
       localStorage.setItem(REFRESH_KEY, action.payload.refreshToken)
       localStorage.setItem(USER_KEY, JSON.stringify(action.payload.user))
+      localStorage.removeItem(IDENTIFIER_KEY)
     },
-    setMobile(state, action: PayloadAction<string>) {
-      state.mobile = action.payload
+    setIdentifier(state, action: PayloadAction<string>) {
+      state.identifier = action.payload
+      localStorage.setItem(IDENTIFIER_KEY, action.payload)
     },
     setUser(state, action: PayloadAction<AuthUser>) {
       state.user = action.payload
@@ -43,13 +46,14 @@ const authSlice = createSlice({
       state.token = null
       state.refreshToken = null
       state.user = null
-      state.mobile = null
+      state.identifier = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem(REFRESH_KEY)
       localStorage.removeItem(USER_KEY)
+      localStorage.removeItem(IDENTIFIER_KEY)
     },
   },
 })
 
-export const { setCredentials, setMobile, setUser, logout } = authSlice.actions
+export const { setCredentials, setIdentifier, setUser, logout } = authSlice.actions
 export default authSlice.reducer

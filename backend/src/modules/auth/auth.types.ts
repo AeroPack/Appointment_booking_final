@@ -24,12 +24,15 @@ export interface UserRow {
 
 export interface OtpRow {
   id: string;
-  mobile_number: string;
+  mobile_number: string | null;
+  email: string | null;
   otp_hash: string;
   expires_at: Date;
   attempts: number;
   used: boolean;
 }
+
+export type AuthIdentifier = { mobile_number: string } | { email: string };
 
 export interface RefreshTokenRow {
   id: string;

@@ -176,7 +176,7 @@ async function seed() {
 
   // Clinic
   const clinic = await pool.query(
-    `INSERT INTO clinics (name) VALUES ('Rajat Mohan Hospital Clinic') RETURNING id`
+    `INSERT INTO clinics (name) VALUES ('Aeropack Pvt Ltd') RETURNING id`
   );
   const clinicId = clinic.rows[0].id;
   console.log('Clinic created:', clinicId);

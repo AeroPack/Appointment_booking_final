@@ -191,14 +191,14 @@ export function MyAppointments() {
       {/* Desktop Footer */}
       <footer className="hidden md:flex bg-slate-50 border-t border-slate-200 mt-12 w-full">
         <div className="flex justify-between items-center w-full px-10 py-8 max-w-7xl mx-auto">
-          <span className="font-bold text-slate-600">Rajat Mohan Hospital Clinic</span>
+          <span className="font-bold text-slate-600">Aeropack Pvt Ltd</span>
           <div className="flex gap-6">
             <a href="#" className="text-sm font-medium text-slate-500 hover:text-[#005c55] transition-colors">Privacy Policy</a>
             <a href="#" className="text-sm font-medium text-slate-500 hover:text-[#005c55] transition-colors">Terms of Service</a>
             <a href="#" className="text-sm font-medium text-slate-500 hover:text-[#005c55] transition-colors">Contact Support</a>
             <a href="#" className="text-sm font-medium text-slate-500 hover:text-[#005c55] transition-colors">Accessibility</a>
           </div>
-          <p className="text-sm font-medium text-slate-400">© 2024 Rajat Mohan Hospital Clinic. All rights reserved.</p>
+          <p className="text-sm font-medium text-slate-400">© 2024 Aeropack Pvt Ltd. All rights reserved.</p>
         </div>
       </footer>
     </div>

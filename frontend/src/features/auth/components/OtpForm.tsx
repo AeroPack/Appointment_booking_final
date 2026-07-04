@@ -108,7 +108,7 @@ export const OtpForm: React.FC<OtpFormProps> = ({
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-[20px] font-semibold leading-[28px] text-primary">Rajat Mohan Hospital Clinic</h1>
+          <h1 className="text-[20px] font-semibold leading-[28px] text-primary">Aeropack Pvt Ltd</h1>
           <div className="w-10"></div> {/* Spacer for center alignment */}
         </div>
       </header>
@@ -223,7 +223,7 @@ export const OtpForm: React.FC<OtpFormProps> = ({
       {/* Footer Space */}
       <footer className="py-6 text-center mt-auto md:mt-0 border-t border-outline-variant/20 md:border-t-0">
         <p className="text-[12px] font-medium leading-[16px] text-outline">
-          © 2024 Rajat Mohan Hospital Clinic. All rights reserved.
+          © 2024 Aeropack Pvt Ltd. All rights reserved.
         </p>
       </footer>
     </main>

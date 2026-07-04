@@ -5,24 +5,35 @@ import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
 
 export interface LoginFormProps {
-  onSubmit(mobile: string): void;
+  onSubmit(identifier: { mobile_number?: string; email?: string }): void;
   isLoading: boolean;
   error?: string;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading, error }) => {
-  const [mobile, setMobile] = useState('');
+  const [mode, setMode] = useState<'phone' | 'email'>('phone');
+  const [value, setValue] = useState('');
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Only allow numeric input, max 10 digits
-    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
-    setMobile(value);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value;
+    if (mode === 'phone') {
+      val = val.replace(/[^0-9]/g, '').slice(0, 10);
+    }
+    setValue(val);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (mobile.length === 10 && !isLoading) {
-      onSubmit(mobile);
+    if (isLoading) return;
+
+    if (mode === 'phone') {
+      if (value.length === 10) {
+        onSubmit({ mobile_number: value });
+      }
+    } else {
+      if (value.includes('@') && value.includes('.')) {
+        onSubmit({ email: value });
+      }
     }
   };
 
@@ -54,30 +65,49 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading, error
           <CardContent className="p-0 md:p-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               
-              {/* Phone Input Group */}
+              {/* Mode Toggle */}
+              <div className="flex p-1 bg-surface-container-low rounded-lg mb-6">
+                <button
+                  type="button"
+                  onClick={() => { setMode('phone'); setValue(''); }}
+                  className={`flex-1 py-2 text-[14px] font-medium rounded-md transition-all ${mode === 'phone' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:text-text-primary'}`}
+                >
+                  Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('email'); setValue(''); }}
+                  className={`flex-1 py-2 text-[14px] font-medium rounded-md transition-all ${mode === 'email' ? 'bg-white text-primary shadow-sm' : 'text-on-surface-variant hover:text-text-primary'}`}
+                >
+                  Email
+                </button>
+              </div>
+
+              {/* Input Group */}
               <div className="space-y-2">
                 <label 
-                  htmlFor="phone" 
+                  htmlFor="identifier" 
                   className="block text-[14px] font-semibold leading-[20px] text-on-surface-variant md:text-text-primary tracking-[0.01em]"
                 >
-                  Phone Number
+                  {mode === 'phone' ? 'Phone Number' : 'Email Address'}
                 </label>
                 
                 <div className="relative group">
                   <div className={`flex items-center border rounded-lg overflow-hidden transition-all duration-200 h-[48px] bg-white
                     ${error ? 'border-status-error focus-within:ring-status-error' : 'border-outline-variant focus-within:border-primary focus-within:ring-1 focus-within:ring-primary'}
                   `}>
-                    <div className="bg-surface-container-low px-4 flex items-center border-r border-outline-variant h-full">
-                      <span className="text-[16px] font-semibold text-on-surface-variant">+91</span>
-                    </div>
+                    {mode === 'phone' && (
+                      <div className="bg-surface-container-low px-4 flex items-center border-r border-outline-variant h-full">
+                        <span className="text-[16px] font-semibold text-on-surface-variant">+91</span>
+                      </div>
+                    )}
                     <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      maxLength={10}
-                      placeholder={window?.innerWidth < 768 ? "00000 00000" : "Enter 10-digit number"}
-                      value={mobile}
-                      onChange={handlePhoneChange}
+                      id="identifier"
+                      name="identifier"
+                      type={mode === 'phone' ? 'tel' : 'email'}
+                      placeholder={mode === 'phone' ? (window?.innerWidth < 768 ? "00000 00000" : "Enter 10-digit number") : "example@email.com"}
+                      value={value}
+                      onChange={handleInputChange}
                       required
                       className="w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-4 text-[16px] text-text-primary placeholder:text-on-surface-variant/50 h-full rounded-none bg-transparent"
                     />
@@ -91,7 +121,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading, error
                   ) : (
                     <>
                       <p className="md:hidden text-[12px] font-medium leading-[16px] text-on-surface-variant mt-2">
-                        Enter your registered mobile number
+                        Enter your registered {mode === 'phone' ? 'mobile number' : 'email address'}
                       </p>
                       <p className="hidden md:block text-[12px] font-medium leading-[16px] text-on-surface-variant mt-2">
                         We'll use this to securely verify your identity.
@@ -104,7 +134,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading, error
               {/* Action Button */}
               <Button 
                 type="submit" 
-                disabled={mobile.length !== 10 || isLoading}
+                disabled={(mode === 'phone' ? value.length !== 10 : !value.includes('@')) || isLoading}
                 className="w-full h-[48px] bg-primary hover:bg-primary-container text-white rounded-full text-[14px] font-semibold tracking-[0.01em] transition-all duration-150 shadow-[0px_4px_12px_rgba(15,23,42,0.05)] active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 {isLoading ? (
@@ -121,7 +151,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading, error
             {/* Sub-Footer Text inside card context for desktop, below form for mobile */}
             <div className="mt-8 text-center">
               <p className="text-[12px] font-medium leading-[16px] text-text-secondary md:text-on-surface-variant">
-                We'll text you a 6-digit code.
+                We'll {mode === 'phone' ? 'text' : 'email'} you a 6-digit code.
               </p>
               
               {/* Mobile Stepper Dots */}
@@ -145,7 +175,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, isLoading, error
       {/* Simple Accessibility Footer (Desktop) */}
       <footer className="hidden md:block absolute bottom-6 w-full text-center">
         <p className="text-[12px] font-medium text-on-surface-variant opacity-60">
-          © 2024 Rajat Mohan Hospital Clinic. All rights reserved.
+          © 2024 Aeropack Pvt Ltd. All rights reserved.
         </p>
       </footer>
     </main>

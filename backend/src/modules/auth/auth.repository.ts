@@ -3,20 +3,28 @@ import type { UserRow, OtpRow, RefreshTokenRow } from './auth.types.js';
 
 export class AuthRepository {
   async findUserByMobile(mobile: string): Promise<UserRow | null> {
-    console.log(`[REPO] findUserByMobile query for: ${mobile}`);
     const result = await pool.query(
-      `SELECT id, clinic_id, parent_user_id, name, mobile_number, role, is_verified
+      `SELECT id, clinic_id, parent_user_id, name, mobile_number, email, role, is_verified
        FROM users
        WHERE mobile_number = $1 AND deleted_at IS NULL`,
       [mobile]
     );
-    console.log(`[REPO] findUserByMobile result rows: ${result.rows.length}`);
+    return result.rows[0] || null;
+  }
+
+  async findUserByEmail(email: string): Promise<UserRow | null> {
+    const result = await pool.query(
+      `SELECT id, clinic_id, parent_user_id, name, mobile_number, email, role, is_verified
+       FROM users
+       WHERE email = $1 AND deleted_at IS NULL`,
+      [email]
+    );
     return result.rows[0] || null;
   }
 
   async findUserById(id: string): Promise<UserRow | null> {
     const result = await pool.query(
-      `SELECT id, clinic_id, parent_user_id, name, mobile_number, role, is_verified
+      `SELECT id, clinic_id, parent_user_id, name, mobile_number, email, role, is_verified
        FROM users
        WHERE id = $1 AND deleted_at IS NULL`,
       [id]
@@ -24,24 +32,34 @@ export class AuthRepository {
     return result.rows[0] || null;
   }
 
-  async storeOtp(mobile: string, otpHash: string, expiresAt: Date): Promise<void> {
-    console.log(`[REPO] storeOtp for mobile: ${mobile}`);
+  async storeOtp(mobileNumber: string | null, email: string | null, otpHash: string, expiresAt: Date): Promise<void> {
     await pool.query(
-      'INSERT INTO otps (mobile_number, otp_hash, expires_at) VALUES ($1, $2, $3)',
-      [mobile, otpHash, expiresAt]
+      'INSERT INTO otps (mobile_number, email, otp_hash, expires_at) VALUES ($1, $2, $3, $4)',
+      [mobileNumber, email, otpHash, expiresAt]
     );
-    console.log(`[REPO] storeOtp done`);
   }
 
-  async findLatestOtpByMobile(mobile: string): Promise<OtpRow | null> {
-    const result = await pool.query(
-      `SELECT id, mobile_number, otp_hash, expires_at, attempts, used
-       FROM otps
-       WHERE mobile_number = $1
-       ORDER BY created_at DESC
-       LIMIT 1`,
-      [mobile]
-    );
+  async findLatestOtp(mobileNumber: string | null, email: string | null): Promise<OtpRow | null> {
+    let query: string;
+    let params: string[];
+
+    if (mobileNumber) {
+      query = `SELECT id, mobile_number, email, otp_hash, expires_at, attempts, used
+               FROM otps
+               WHERE mobile_number = $1
+               ORDER BY created_at DESC
+               LIMIT 1`;
+      params = [mobileNumber];
+    } else {
+      query = `SELECT id, mobile_number, email, otp_hash, expires_at, attempts, used
+               FROM otps
+               WHERE email = $1
+               ORDER BY created_at DESC
+               LIMIT 1`;
+      params = [email!];
+    }
+
+    const result = await pool.query(query, params);
     return result.rows[0] || null;
   }
 
@@ -53,13 +71,18 @@ export class AuthRepository {
     await pool.query('UPDATE otps SET used = true WHERE id = $1', [id]);
   }
 
-  async invalidatePriorOtps(mobile: string): Promise<void> {
-    console.log(`[REPO] invalidatePriorOtps for mobile: ${mobile}`);
-    const result = await pool.query(
-      'UPDATE otps SET used = true WHERE mobile_number = $1 AND used = false',
-      [mobile]
-    );
-    console.log(`[REPO] invalidated ${result.rowCount} prior OTPs`);
+  async invalidatePriorOtps(mobileNumber: string | null, email: string | null): Promise<void> {
+    if (mobileNumber) {
+      await pool.query(
+        'UPDATE otps SET used = true WHERE mobile_number = $1 AND used = false',
+        [mobileNumber]
+      );
+    } else {
+      await pool.query(
+        'UPDATE otps SET used = true WHERE email = $1 AND used = false',
+        [email!]
+      );
+    }
   }
 
   async storeRefreshToken(userId: string, tokenHash: string, expiresAt: Date): Promise<void> {

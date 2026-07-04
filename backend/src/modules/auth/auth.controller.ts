@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { AuthService } from './auth.service.js';
 import { AuthRepository } from './auth.repository.js';
 import { success } from '../../utils/response.js';
+import type { AuthIdentifier } from './auth.types.js';
 
 const repo = new AuthRepository();
 const service = new AuthService(repo);
@@ -9,10 +10,20 @@ const service = new AuthService(repo);
 export async function sendOtp(req: Request, res: Response, next: NextFunction) {
   console.log(`[CONTROLLER] sendOtp called with body:`, JSON.stringify(req.body));
   try {
-    const { mobile_number } = req.body;
-    const otp = await service.sendOtp(mobile_number);
+    const { mobile_number, email } = req.body;
+    const identifier: AuthIdentifier = email 
+      ? { email } 
+      : { mobile_number };
+
+    const otp = await service.sendOtp(identifier);
     console.log(`[CONTROLLER] sendOtp succeeded`);
-    const data: Record<string, unknown> = { message: 'OTP sent to mobile', expires_in: 300 };
+    
+    const channel = email ? 'email' : 'mobile';
+    const data: Record<string, unknown> = { 
+      message: `OTP sent to ${channel}`, 
+      expires_in: 300 
+    };
+    
     if (process.env.NODE_ENV !== 'production') {
       data.__dev_otp = otp;
     }
@@ -25,8 +36,12 @@ export async function sendOtp(req: Request, res: Response, next: NextFunction) {
 
 export async function verifyOtp(req: Request, res: Response, next: NextFunction) {
   try {
-    const { mobile_number, otp } = req.body;
-    const result = await service.verifyOtpAndLogin(mobile_number, otp);
+    const { mobile_number, email, otp } = req.body;
+    const identifier: AuthIdentifier = email 
+      ? { email } 
+      : { mobile_number };
+      
+    const result = await service.verifyOtpAndLogin(identifier, otp);
     res.status(200).json(success(result));
   } catch (err) {
     next(err);

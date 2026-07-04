@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { useGetMeQuery } from "@/features/users/usersApi";
-import { useGetTodayPatientsQuery } from "@/features/doctors/doctorDashboardApi";
+import { useGetDoctorPatientsQuery } from "@/features/doctors/doctorDashboardApi";
 import { AddAppointmentModal } from "@/features/appointments/AddAppointmentModal";
 import type { AppointmentType, EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { APPT_CONFIG } from "@/features/appointments/AddAppointmentModal";
@@ -543,8 +543,8 @@ export const CalendarPage = () => {
   const { data: me } = useGetMeQuery();
   const doctorId = me?.id;
 
-  const { data: todayPatients, isLoading: loadingPatients } = useGetTodayPatientsQuery(
-    { date: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()) },
+  const { data: todayPatients, isLoading: loadingPatients } = useGetDoctorPatientsQuery(
+    { from: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()), to: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()) },
     { skip: !doctorId }
   );
 

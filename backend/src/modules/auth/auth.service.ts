@@ -1,8 +1,9 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { hashToken, verifyToken, generateOtp } from '../../utils/hash.js';
+import { sendOtpEmail } from '../../utils/email.js';
 import { AppError } from '../../utils/response.js';
-import type { AuthPayload } from './auth.types.js';
+import type { AuthPayload, AuthIdentifier } from './auth.types.js';
 import { AuthRepository } from './auth.repository.js';
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
@@ -20,43 +21,68 @@ function signAccessToken(payload: AuthPayload): string {
   return jwt.sign(payload as object, getJwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
 }
 
+function isEmail(id: AuthIdentifier): id is { email: string } {
+  return 'email' in id;
+}
+
+function identifierLabel(id: AuthIdentifier): string {
+  return isEmail(id) ? id.email : id.mobile_number;
+}
+
 export class AuthService {
   constructor(private readonly repo: AuthRepository) {}
 
-  async sendOtp(mobile: string): Promise<string> {
-    console.log(`[SERVICE] sendOtp called for mobile: ${mobile}`);
-    const user = await this.repo.findUserByMobile(mobile);
-    if (!user) {
-      console.log(`[SERVICE] User not found for mobile: ${mobile}`);
-      throw new AppError(404, 'USER_NOT_FOUND', 'No account found with this mobile number');
-    }
-    console.log(`[SERVICE] User found: ${user.id} (${user.name})`);
+  async sendOtp(identifier: AuthIdentifier): Promise<string> {
+    const label = identifierLabel(identifier);
+    console.log(`[SERVICE] sendOtp called for ${isEmail(identifier) ? 'email' : 'mobile'}: ${label}`);
 
-    await this.repo.invalidatePriorOtps(mobile);
-    console.log(`[SERVICE] Prior OTPs invalidated`);
+    const user = isEmail(identifier)
+      ? await this.repo.findUserByEmail(identifier.email)
+      : await this.repo.findUserByMobile(identifier.mobile_number);
+
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', `No account found with this ${isEmail(identifier) ? 'email' : 'mobile number'}`);
+    }
+
+    const mobileNumber = isEmail(identifier) ? null : identifier.mobile_number;
+    const email = isEmail(identifier) ? identifier.email : null;
+
+    await this.repo.invalidatePriorOtps(mobileNumber, email);
 
     const otp = generateOtp();
-    console.log(`[SERVICE] OTP generated: ${otp}`);
     const otpHash = hashToken(otp);
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
 
-    console.log(`[SERVICE] Storing OTP hash in DB...`);
-    await this.repo.storeOtp(mobile, otpHash, expiresAt);
-    console.log(`[SERVICE] OTP stored successfully`);
-    console.log(`[OTP] OTP for ${mobile}: ${otp}`);
+    await this.repo.storeOtp(mobileNumber, email, otpHash, expiresAt);
+    console.log(`[OTP] OTP for ${label}: ${otp}`);
+
+    if (isEmail(identifier)) {
+      try {
+        await sendOtpEmail(identifier.email, otp);
+        console.log(`[SERVICE] OTP email sent to ${identifier.email}`);
+      } catch (err) {
+        console.error(`[SERVICE] Failed to send OTP email to ${identifier.email}:`, err);
+      }
+    }
 
     return otp;
   }
 
-  async verifyOtpAndLogin(mobile: string, otp: string) {
-    const user = await this.repo.findUserByMobile(mobile);
+  async verifyOtpAndLogin(identifier: AuthIdentifier, otp: string) {
+    const mobileNumber = isEmail(identifier) ? null : identifier.mobile_number;
+    const email = isEmail(identifier) ? identifier.email : null;
+
+    const user = isEmail(identifier)
+      ? await this.repo.findUserByEmail(identifier.email)
+      : await this.repo.findUserByMobile(identifier.mobile_number);
+
     if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'No account found with this mobile number');
+      throw new AppError(404, 'USER_NOT_FOUND', `No account found with this ${isEmail(identifier) ? 'email' : 'mobile number'}`);
     }
 
-    const otpRow = await this.repo.findLatestOtpByMobile(mobile);
+    const otpRow = await this.repo.findLatestOtp(mobileNumber, email);
     if (!otpRow) {
-      throw new AppError(401, 'OTP_NOT_FOUND', 'No OTP requested for this number');
+      throw new AppError(401, 'OTP_NOT_FOUND', `No OTP requested for this ${isEmail(identifier) ? 'email' : 'number'}`);
     }
 
     if (otpRow.used) {
@@ -100,6 +126,7 @@ export class AuthService {
         name: user.name,
         role: user.role,
         mobile_number: user.mobile_number,
+        email: user.email,
       },
     };
   }

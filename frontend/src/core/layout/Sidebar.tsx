@@ -21,7 +21,7 @@ export function Sidebar({ items, onLogout, onNavigate }: SidebarProps) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex items-center gap-2 h-16 px-6 border-b border-border">
-        <Logo /> <span className="font-semibold">Rajat Mohan Hospital Clinic</span>
+        <Logo /> <span className="font-semibold">Aeropack Pvt Ltd</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

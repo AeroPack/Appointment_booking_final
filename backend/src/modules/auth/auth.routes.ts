@@ -6,14 +6,20 @@ import { rateLimit } from '../../middleware/rateLimit.js';
 import { sendOtp, verifyOtp, refresh, logout, me } from './auth.controller.js';
 
 const router = Router();
+console.log("!!! ROUTES LOADED !!!");
 
-const requestOtpSchema = z.object({
-  mobile_number: z.string().min(10).max(20),
-});
+
+const requestOtpSchema = z.union([
+  z.object({ mobile_number: z.string().min(10).max(20), email: z.string().email().optional() }),
+  z.object({ mobile_number: z.string().optional(), email: z.string().email() }),
+]);
 
 const verifyOtpSchema = z.object({
-  mobile_number: z.string().min(10).max(20),
+  mobile_number: z.string().min(10).max(20).optional(),
+  email: z.string().email().optional(),
   otp: z.string().length(6),
+}).refine(data => data.mobile_number || data.email, {
+  message: 'THIS IS A TEST MESSAGE',
 });
 
 const refreshSchema = z.object({
