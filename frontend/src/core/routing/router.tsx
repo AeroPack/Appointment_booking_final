@@ -23,6 +23,7 @@ import { CalendarPage as DoctorCalendar } from '@/pages/doctor/CalendarPage'
 import { AppointmentDetail as DoctorAppointmentDetail } from '@/pages/doctor/AppointmentDetail'
 import { Settings as DoctorSettings } from '@/pages/doctor/Settings'
 import { Profile as DoctorProfile } from '@/pages/doctor/Profile'
+import ChatbotSettings from '@/pages/doctor/ChatbotSettings'
 
 // Staff
 import { Dashboard as StaffDashboard } from '@/pages/staff/Dashboard'
@@ -60,6 +61,7 @@ export function Router() {
             <Route path="/doctor/calendar" element={<DoctorCalendar />} />
             <Route path="/doctor/appointment/:id" element={<DoctorAppointmentDetail />} />
             <Route path="/doctor/settings" element={<DoctorSettings />} />
+            <Route path="/doctor/chatbot" element={<ChatbotSettings />} />
             <Route path="/doctor/profile" element={<DoctorProfile />} />
           </Route>
 
