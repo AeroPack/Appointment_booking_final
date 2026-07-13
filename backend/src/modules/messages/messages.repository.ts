@@ -101,13 +101,16 @@ export class MessagesRepository {
 
   async lockAndFetchPending(limit: number = 10): Promise<MessageRow[]> {
     const result = await pool.query(
-      `SELECT id, appointment_id, template_id, sender_id, receiver_id,
-              message_name, content, channel, schedule_for,
-              status, retry_count, sent_at
-       FROM messages
-       WHERE status = 'pending'
-         AND (schedule_for IS NULL OR schedule_for <= NOW())
-       ORDER BY schedule_for NULLS FIRST
+      `SELECT m.id, m.appointment_id, m.template_id, m.sender_id, m.receiver_id,
+              m.message_name, m.content, m.channel, m.schedule_for,
+              m.status, m.retry_count, m.sent_at,
+              COALESCE(a.clinic_id, t.clinic_id) AS clinic_id
+       FROM messages m
+       LEFT JOIN appointments a ON a.id = m.appointment_id
+       LEFT JOIN message_templates t ON t.id = m.template_id
+       WHERE m.status = 'pending'
+         AND (m.schedule_for IS NULL OR m.schedule_for <= NOW())
+       ORDER BY m.schedule_for NULLS FIRST
        LIMIT $1
        FOR UPDATE SKIP LOCKED`,
       [limit]
@@ -145,5 +148,64 @@ export class MessagesRepository {
        WHERE appointment_id = $1 AND status = 'pending'`,
       [appointmentId]
     );
+  }
+
+  /**
+   * Get user contact information for messaging
+   * @param userId - User ID
+   * @returns User contact details or null if not found
+   */
+  async getUserContact(userId: string): Promise<{
+    whatsapp_number: string | null;
+    mobile_number: string | null;
+    email: string | null;
+  } | null> {
+    const result = await pool.query(
+      `SELECT whatsapp_number, mobile_number, email
+       FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [userId]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Get WhatsApp configuration for a clinic
+   * @param clinicId - Clinic ID
+   * @returns WhatsApp configuration or null if not found
+   */
+  async getWhatsAppConfig(clinicId: string): Promise<{
+    instance_id: string;
+    token: string;
+    whatsapp_number: string;
+    whatsapp_enabled: boolean;
+  } | null> {
+    const result = await pool.query(
+      `SELECT ultramsg_instance_id AS instance_id, 
+              ultramsg_token AS token,
+              whatsapp_number,
+              whatsapp_enabled
+       FROM clinics WHERE id = $1`,
+      [clinicId]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
+   * Find OTP template for a clinic
+   * @param clinicId - Clinic ID
+   * @returns OTP template or null if not found
+   */
+  async findOtpTemplateForClinic(clinicId: string): Promise<MessageTemplateRow | null> {
+    const result = await pool.query(
+      `SELECT id, clinic_id, doctor_id, template_type, subject, content,
+              offset_minutes, channel, is_active
+       FROM message_templates
+       WHERE clinic_id = $1
+         AND template_type = 'otp_verification'
+         AND is_active = true
+       LIMIT 1`,
+      [clinicId]
+    );
+    return result.rows[0] || null;
   }
 }

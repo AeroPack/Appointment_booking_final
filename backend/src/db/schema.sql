@@ -178,6 +178,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   appointment_status VARCHAR(12) NOT NULL DEFAULT 'booked'
                        CHECK (appointment_status IN ('booked', 'cancelled', 'finished', 'no_show')),
   notes              TEXT,
+  clinical_notes     TEXT,
   deleted_at         TIMESTAMPTZ,
   created_at         TIMESTAMPTZ DEFAULT NOW(),
   updated_at         TIMESTAMPTZ DEFAULT NOW()
@@ -227,7 +228,8 @@ CREATE TABLE IF NOT EXISTS message_templates (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   clinic_id      UUID NOT NULL REFERENCES clinics(id),
   doctor_id      UUID REFERENCES users(id),
-  template_type  VARCHAR(40) NOT NULL,   -- 'reminder', 'booking_confirmation', 'appointment_cancelled', ...
+  template_type  VARCHAR(40) NOT NULL,   -- 'reminder', 'booking_confirmation', 'appointment_cancelled',
+                                          -- 'appointment_delayed', 'appointment_rescheduled', 'doctor_on_leave', 'otp_verification'
   subject        TEXT,
   content        TEXT NOT NULL,
   offset_minutes INT,                      -- minutes BEFORE appointment for reminders; NULL = event-triggered

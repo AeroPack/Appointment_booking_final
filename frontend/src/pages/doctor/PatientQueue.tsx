@@ -51,7 +51,7 @@ import "react-day-picker/style.css";
 
 type Status = "booked" | "finished" | "no_show" | "cancelled";
 
-interface PatientRow {
+interface PatientRow {  
   id: string;
   patientId: string;
   token: number;

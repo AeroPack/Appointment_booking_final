@@ -34,6 +34,7 @@ const bookSlotSchema = z.object({
 
 const statusSchema = z.object({
   status: z.enum(['finished', 'no_show']),
+  notes: z.string().optional(),
 });
 
 const bookOnBehalfSchema = z.object({

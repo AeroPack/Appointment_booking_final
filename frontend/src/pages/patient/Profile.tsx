@@ -51,7 +51,7 @@ export const Profile: React.FC = () => {
         name:     me.name          ?? '',
         phone:    me.mobile_number ?? '',
         email:    me.email         ?? '',
-        dob:      me.date_of_birth ?? '',
+        dob:      me.date_of_birth ? me.date_of_birth.slice(0, 10) : '',
         address:  me.address       ?? '',
         city:     me.city          ?? '',
         state:    me.state         ?? '',
@@ -79,7 +79,7 @@ export const Profile: React.FC = () => {
         city:          formData.city    || undefined,
         state:         formData.state   || undefined,
         zip_code:      formData.zipCode || undefined,
-        date_of_birth: formData.dob     || undefined,
+        date_of_birth: formData.dob ? formData.dob.slice(0, 10) : undefined,
       }).unwrap()
       setSaveStatus('success')
       setSaveMessage('Saved')

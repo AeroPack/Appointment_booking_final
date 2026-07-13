@@ -46,7 +46,7 @@ export const OtpForm: React.FC<OtpFormProps> = ({
     if (e.key === 'Backspace') {
       e.preventDefault();
       const newOtp = [...otp];
-      
+
       if (otp[index]) {
         // Clear current
         newOtp[index] = '';
@@ -99,23 +99,23 @@ export const OtpForm: React.FC<OtpFormProps> = ({
   return (
     <main className="min-h-screen flex flex-col bg-background">
       {/* Top Navigation Anchor */}
-      <header className="w-full top-0 sticky bg-surface-container-lowest border-b border-outline-variant/50 z-50">
+      <header className="w-full top-0 sticky bg-white border-b border-border/50 z-50">
         <div className="flex items-center justify-between px-5 h-[48px] max-w-7xl mx-auto w-full">
-          <button 
+          <button
             onClick={onChangeNumber}
-            aria-label="Go back" 
-            className="flex items-center text-primary active:opacity-80 transition-opacity p-2 -ml-2"
+            aria-label="Go back"
+            className="flex items-center text-[#0f766e] active:opacity-80 transition-opacity p-2 -ml-2"
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-[20px] font-semibold leading-[28px] text-primary">Aeropack Pvt Ltd</h1>
+          <h1 className="text-[20px] font-semibold leading-[28px] text-[#0f766e]">Aeropack Pvt Ltd</h1>
           <div className="w-10"></div> {/* Spacer for center alignment */}
         </div>
       </header>
 
       <div className="flex-grow flex items-center justify-center p-5">
         {/* Verification Card Container */}
-        <Card className="w-full max-w-[480px] bg-white border-0 shadow-none md:border md:border-outline-variant/30 md:shadow-[0px_4px_12px_rgba(15,23,42,0.05)] md:rounded-xl md:p-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <Card className="w-full max-w-[480px] bg-white border-0 shadow-none md:border md:border-border md:shadow-[0px_4px_12px_rgba(15,23,42,0.05)] md:rounded-xl md:p-12 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           <CardContent className="p-0">
             {/* Branding Icon / Subtle Visual */}
             <div className="mb-6 flex justify-center mt-4 md:mt-0">
@@ -125,12 +125,12 @@ export const OtpForm: React.FC<OtpFormProps> = ({
             </div>
 
             {/* Content */}
-            <h2 className="text-[24px] font-bold leading-[32px] tracking-[-0.01em] text-text-primary mb-2">
+            <h2 className="text-[24px] font-bold leading-[32px] tracking-[-0.01em] text-foreground mb-2">
               Enter the code
             </h2>
-            <p className="text-[16px] leading-[24px] text-on-surface-variant mb-6 md:mb-8">
+            <p className="text-[16px] leading-[24px] text-muted-foreground mb-6 md:mb-8">
               We've sent a 6-digit verification code to <br />
-              <span className="font-bold text-text-primary">{maskedNumber}</span>
+              <span className="font-bold text-foreground">{maskedNumber}</span>
             </p>
 
             {/* Form */}
@@ -150,12 +150,12 @@ export const OtpForm: React.FC<OtpFormProps> = ({
                      onKeyDown={(e) => handleKeyDown(e, index)}
                      onPaste={index === 0 ? handlePaste : undefined}
                      className={`
-                       w-10 h-14 md:w-12 md:h-20 text-center text-[24px] md:text-[30px] font-bold 
-                       border rounded-lg bg-surface-container-low transition-all duration-200
-                       focus:outline-none focus:ring-2 focus:ring-primary/20
-                       ${error 
-                         ? 'border-status-error focus:border-status-error' 
-                         : 'border-outline-variant focus:border-primary'
+                       w-10 h-14 md:w-12 md:h-20 text-center text-[24px] md:text-[30px] font-bold
+                       border rounded-lg bg-muted transition-all duration-200
+                       focus:outline-none focus:ring-2 focus:ring-[#0f766e]/20
+                       ${error
+                         ? 'border-destructive focus:border-destructive'
+                         : 'border-border focus:border-[#0f766e]'
                        }
                      `}
                      aria-label={`Digit ${index + 1}`}
@@ -166,14 +166,14 @@ export const OtpForm: React.FC<OtpFormProps> = ({
               {/* Error Message */}
               <div className="min-h-[24px] mb-6 flex items-start justify-center">
                 {error && (
-                  <p className="text-[12px] font-medium text-status-error animate-in fade-in">
+                  <p className="text-[12px] font-medium text-destructive animate-in fade-in">
                     {error}
                   </p>
                 )}
               </div>
 
               {/* Action Button */}
-              <Button 
+              <Button
                 type="submit"
                 disabled={!isComplete || isLoading}
                 className="w-full h-[48px] bg-[#005c55] hover:bg-[#0f766e] text-white rounded-full text-[14px] font-semibold tracking-[0.01em] transition-all duration-150 shadow-sm active:scale-[0.98] flex items-center justify-center gap-2 mb-4"
@@ -192,7 +192,7 @@ export const OtpForm: React.FC<OtpFormProps> = ({
             {/* Footer Links & Countdown */}
             <div className="flex flex-col gap-2 items-center mt-2">
               {secondsLeft > 0 ? (
-                <div className="text-[14px] font-semibold leading-[20px] text-on-surface-variant flex items-center gap-2">
+                <div className="text-[14px] font-semibold leading-[20px] text-muted-foreground flex items-center gap-2">
                   <span>Resend in</span>
                   <span className="text-[#005c55]">{formatTime(secondsLeft)}</span>
                 </div>
@@ -206,11 +206,11 @@ export const OtpForm: React.FC<OtpFormProps> = ({
                   {isResending ? 'Sending…' : 'Resend code'}
                 </button>
               )}
-              
-              <button 
+
+              <button
                 onClick={onChangeNumber}
                 type="button"
-                className="text-[14px] font-semibold leading-[20px] text-on-surface-variant hover:text-[#005c55] transition-colors flex items-center gap-1 mt-3"
+                className="text-[14px] font-semibold leading-[20px] text-muted-foreground hover:text-[#005c55] transition-colors flex items-center gap-1 mt-3"
               >
                 <Edit2 className="w-4 h-4" />
                 Change number
@@ -221,8 +221,8 @@ export const OtpForm: React.FC<OtpFormProps> = ({
       </div>
 
       {/* Footer Space */}
-      <footer className="py-6 text-center mt-auto md:mt-0 border-t border-outline-variant/20 md:border-t-0">
-        <p className="text-[12px] font-medium leading-[16px] text-outline">
+      <footer className="py-6 text-center mt-auto md:mt-0 border-t border-border/20 md:border-t-0">
+        <p className="text-[12px] font-medium leading-[16px] text-muted-foreground">
           © 2024 Aeropack Pvt Ltd. All rights reserved.
         </p>
       </footer>

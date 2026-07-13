@@ -1,5 +1,5 @@
 import pool from '../../config/db.js';
-import type { DoctorOwnProfileRow, DoctorProfileRow, VenueRow, VenueWithAddress, BookingPoliciesRow, DoctorLeaveRow } from './doctors.types.js';
+import type { DoctorOwnProfileRow, DoctorProfileRow, VenueRow, VenueWithAddress, BookingPoliciesRow, DoctorLeaveRow, WhatsAppConfigRow } from './doctors.types.js';
 
 export interface DoctorListItem {
   id: string;
@@ -183,5 +183,31 @@ export class DoctorsRepository {
       [leaveId, doctorId]
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  // ─── WhatsApp Configuration ──────────────────────────────────────────────────
+
+  async getWhatsAppConfig(clinicId: string): Promise<WhatsAppConfigRow | null> {
+    const result = await pool.query(
+      `SELECT ultramsg_instance_id, ultramsg_token, whatsapp_number, whatsapp_enabled
+       FROM clinics WHERE id = $1`,
+      [clinicId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async updateWhatsAppConfig(clinicId: string, data: Record<string, unknown>): Promise<WhatsAppConfigRow | null> {
+    const keys = Object.keys(data);
+    if (keys.length === 0) return this.getWhatsAppConfig(clinicId);
+    
+    const setClauses = keys.map((k, i) => `${k} = $${i + 2}`);
+    const values = keys.map((k) => data[k]);
+    
+    const result = await pool.query(
+      `UPDATE clinics SET ${setClauses.join(', ')} WHERE id = $1
+       RETURNING ultramsg_instance_id, ultramsg_token, whatsapp_number, whatsapp_enabled`,
+      [clinicId, ...values]
+    );
+    return result.rows[0] || null;
   }
 }

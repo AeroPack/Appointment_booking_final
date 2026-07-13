@@ -101,3 +101,17 @@ export interface CreateLeaveInput {
   end_date: string;
   reason?: string;
 }
+
+export interface WhatsAppConfigRow {
+  ultramsg_instance_id: string | null;
+  ultramsg_token: string | null;
+  whatsapp_number: string | null;
+  whatsapp_enabled: boolean;
+}
+
+export interface UpdateWhatsAppConfigInput {
+  ultramsg_instance_id?: string;
+  ultramsg_token?: string;
+  whatsapp_number?: string;
+  whatsapp_enabled?: boolean;
+}

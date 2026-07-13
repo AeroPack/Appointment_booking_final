@@ -121,7 +121,8 @@ export class AppointmentsRepository {
     a.token_number, a.appointment_status, a.appointment_type, a.venue_id,
     v.name AS venue_name,
     doc.name AS doctor_name, doc.mobile_number AS doctor_mobile,
-    pat.name AS patient_name
+    pat.name AS patient_name,
+    a.clinical_notes AS notes
   `;
 
   async findAppointmentById(id: string): Promise<{
@@ -139,6 +140,7 @@ export class AppointmentsRepository {
     doctor_name: string;
     doctor_mobile: string | null;
     patient_name: string;
+    notes: string | null;
   } | null> {
     const result = await pool.query(
       `SELECT ${this.appointmentDetailColumns}
@@ -204,6 +206,16 @@ export class AppointmentsRepository {
     await pool.query(
       `UPDATE appointments SET appointment_status = $1 WHERE id = $2`,
       [newStatus, id]
+    );
+  }
+
+  async updateAppointmentNotes(
+    id: string,
+    notes: string
+  ): Promise<void> {
+    await pool.query(
+      `UPDATE appointments SET clinical_notes = $1 WHERE id = $2`,
+      [notes, id]
     );
   }
 

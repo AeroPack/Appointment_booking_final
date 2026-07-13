@@ -1,5 +1,7 @@
 import { AppError } from '../../utils/response.js';
 import { MessagesRepository } from './messages.repository.js';
+import { channelRegistry } from '../../utils/channels/index.js';
+import type { ChannelType } from '../../utils/channels/types.js';
 
 const MAX_RETRIES = 3;
 
@@ -112,8 +114,57 @@ export class MessagesService {
     return sentCount;
   }
 
-  async deliver(msg: { id: string; content: string; channel: string; receiver_id: string }): Promise<void> {
-    console.log(`[MESSAGE] To ${msg.receiver_id} via ${msg.channel}: ${msg.content.slice(0, 100)}`);
+  async deliver(msg: { id: string; content: string; channel: string; receiver_id: string; clinic_id: string }): Promise<void> {
+    const channelType = msg.channel as ChannelType;
+    
+    // Get the channel implementation
+    const channel = channelRegistry.get(channelType);
+    if (!channel) {
+      throw new Error(`Unsupported channel: ${channelType}`);
+    }
+    
+    // Get recipient's contact information based on channel type
+    const recipient = await this.getRecipient(msg.receiver_id, channelType);
+    if (!recipient) {
+      throw new Error(`No contact information found for recipient: ${msg.receiver_id}`);
+    }
+    
+    // Send the message through the channel
+    const result = await channel.sendMessage({
+      to: recipient,
+      content: msg.content,
+      clinicId: msg.clinic_id,
+    });
+    
+    if (!result.success) {
+      throw new Error(result.error || 'Message delivery failed');
+    }
+    
+    console.log(`[MESSAGE] Sent to ${recipient} via ${channelType}: ${msg.content.slice(0, 100)}`);
+  }
+
+  /**
+   * Get recipient's contact information based on channel type
+   * @param userId - User ID of the recipient
+   * @param channelType - Channel type (whatsapp, email, sms)
+   * @returns Contact information or null if not found
+   */
+  private async getRecipient(userId: string, channelType: ChannelType): Promise<string | null> {
+    const contact = await this.repo.getUserContact(userId);
+    if (!contact) {
+      return null;
+    }
+    
+    switch (channelType) {
+      case 'whatsapp':
+        return contact.whatsapp_number || contact.mobile_number;
+      case 'email':
+        return contact.email;
+      case 'sms':
+        return contact.mobile_number;
+      default:
+        return null;
+    }
   }
 }
 

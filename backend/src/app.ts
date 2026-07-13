@@ -14,12 +14,16 @@ import messagesRoutes from './modules/messages/messages.routes.js';
 import tagsRoutes from './modules/tags/tags.routes.js';
 import botRoutes from './modules/bot/bot.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { initializeChannels } from './utils/channels/index.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize message channels (WhatsApp, Email, SMS)
+initializeChannels();
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3001', 'https://appointment.aeropackpos.in'], credentials: true }));
 app.use(express.json());

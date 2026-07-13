@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -41,6 +41,50 @@ export const AppointmentDetail: React.FC = () => {
 
   const [notes, setNotes] = useState('');
   const [isFinished, setIsFinished] = useState(false);
+  const [notesSaveStatus, setNotesSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedRef = useRef(false);
+
+  useEffect(() => {
+    if (appointment && !hasLoadedRef.current) {
+      setNotes(appointment.notes || '');
+      hasLoadedRef.current = true;
+    }
+  }, [appointment]);
+
+  const saveNotes = useCallback(async (notesToSave: string) => {
+    if (!id || !appointment) return;
+    setNotesSaveStatus('saving');
+    try {
+      await updateStatus({
+        id,
+        status: appointment.appointment_status,
+        notes: notesToSave,
+      }).unwrap();
+      setNotesSaveStatus('saved');
+      setTimeout(() => setNotesSaveStatus('idle'), 2000);
+    } catch {
+      setNotesSaveStatus('idle');
+    }
+  }, [id, appointment, updateStatus]);
+
+  const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setNotes(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      saveNotes(value);
+    }, 800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        saveNotes(notes);
+      }
+    };
+  }, [saveNotes, notes]);
 
   const handleMarkFinished = async () => {
     if (!id) return;
@@ -225,19 +269,21 @@ export const AppointmentDetail: React.FC = () => {
                     <Edit className="w-4 h-4 lg:hidden text-[#005c55]" />
                     Clinical Notes
                   </label>
-                  <span className="text-[12px] text-[#64748B] italic hidden lg:inline">Auto-saved</span>
+                  <span className="text-[12px] text-[#64748B] italic hidden lg:inline">
+                    {notesSaveStatus === 'saving' ? 'Saving...' : notesSaveStatus === 'saved' ? 'Saved' : null}
+                  </span>
                 </div>
 
                 <div className="relative flex-grow flex flex-col">
                   <Textarea
                     id="clinical-notes"
                     value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+                    onChange={handleNotesChange}
                     placeholder="Enter observations, prescribed medications, or follow-up instructions here..."
                     className="w-full flex-grow min-h-[200px] lg:min-h-[320px] rounded-xl border border-[#bdc9c6] lg:border-[#e0e3e5] bg-white lg:bg-[#f7f9fb] p-4 lg:p-6 text-[16px] text-[#191c1e] focus-visible:ring-1 focus-visible:ring-[#005c55] focus-visible:border-[#005c55] resize-none transition-all placeholder:text-[#64748B]"
                   />
                   <div className="absolute right-3 bottom-3 text-[#6e7977] text-[10px] uppercase font-bold tracking-widest lg:hidden pointer-events-none">
-                    Auto-saving
+                    {notesSaveStatus === 'saving' ? 'Saving...' : notesSaveStatus === 'saved' ? 'Saved' : null}
                   </div>
                   <div className="absolute bottom-4 right-4 hidden lg:flex gap-2">
                     <Button variant="secondary" className="bg-[#eceef0] hover:bg-[#e0e3e5] text-[#3e4947] font-semibold">

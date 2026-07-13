@@ -6,7 +6,8 @@ import {
   Plus, 
   Sparkles, 
   Tag as TagIcon,
-  Save
+  Save,
+  Info
 } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Input } from '@/core/components/ui/input';
@@ -68,6 +69,15 @@ export function Tags() {
               Manage organizational tags and automation rules for clinical efficiency.
             </p>
           </header>
+
+          {/* Notice: Not wired up yet */}
+          <div className="flex gap-3 rounded-xl border border-[#e0e3e5] bg-[#f7f9fb] p-3 sm:p-4 mb-6 shrink-0">
+            <Info className="h-5 w-5 text-[#64748B] shrink-0 mt-0.5" />
+            <div className="text-[13px] text-[#64748B]">
+              <p className="font-medium text-[#3e4947]">Coming soon</p>
+              <p>Tag management is not yet connected to the backend. Changes made here will not be saved.</p>
+            </div>
+          </div>
 
           {/* Desktop Search & Title Bar */}
           <div className="hidden lg:flex items-center justify-between mb-6 shrink-0">
@@ -280,7 +290,7 @@ export function Tags() {
 
           {/* Desktop Footer Actions */}
           <div className="hidden lg:flex items-center gap-4 p-6 bg-white border-t border-[#e0e3e5] shrink-0">
-            <Button className="flex-1 h-12 bg-[#005c55] hover:bg-[#0f766e] text-white rounded-full font-semibold text-[14px] shadow-sm active:scale-[0.98] transition-all">
+            <Button disabled className="flex-1 h-12 bg-[#bdc9c6] hover:bg-[#bdc9c6] text-white/70 rounded-full font-semibold text-[14px] shadow-sm cursor-not-allowed">
               Save Tag Configuration
             </Button>
             <Button variant="outline" className="px-8 h-12 border-[#bdc9c6] text-[#3e4947] hover:bg-[#f2f4f6] rounded-full font-semibold text-[14px] transition-colors">
@@ -295,7 +305,7 @@ export function Tags() {
       {/* MOBILE FIXED BOTTOM BAR                    */}
       {/* ========================================== */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-md border-t border-[#e0e3e5] p-4 z-50">
-        <Button className="w-full h-[52px] bg-[#005c55] hover:bg-[#0f766e] text-white rounded-xl font-semibold text-[16px] shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+        <Button disabled className="w-full h-[52px] bg-[#bdc9c6] hover:bg-[#bdc9c6] text-white/70 rounded-xl font-semibold text-[16px] shadow-lg cursor-not-allowed flex items-center justify-center gap-2">
           <Save className="w-5 h-5" />
           Save Changes
         </Button>

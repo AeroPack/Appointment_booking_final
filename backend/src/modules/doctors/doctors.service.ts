@@ -1,5 +1,5 @@
 import { AppError } from '../../utils/response.js';
-import type { CreateVenueInput, UpdateVenueInput, UpdateDoctorProfileInput, UpdateBookingPoliciesInput, CreateLeaveInput } from './doctors.types.js';
+import type { CreateVenueInput, UpdateVenueInput, UpdateDoctorProfileInput, UpdateBookingPoliciesInput, CreateLeaveInput, UpdateWhatsAppConfigInput } from './doctors.types.js';
 import { DoctorsRepository } from './doctors.repository.js';
 
 export class DoctorsService {
@@ -114,5 +114,35 @@ export class DoctorsService {
   async deleteLeave(leaveId: string, doctorId: string) {
     const deleted = await this.repo.deleteLeave(leaveId, doctorId);
     if (!deleted) throw new AppError(404, 'LEAVE_NOT_FOUND', 'Leave entry not found');
+  }
+
+  // ─── WhatsApp Configuration ──────────────────────────────────────────────────
+
+  async getWhatsAppConfig(clinicId: string) {
+    const config = await this.repo.getWhatsAppConfig(clinicId);
+    if (!config) {
+      // Return defaults if clinic doesn't have configuration
+      return {
+        ultramsg_instance_id: null,
+        ultramsg_token: null,
+        whatsapp_number: null,
+        whatsapp_enabled: false,
+      };
+    }
+    return config;
+  }
+
+  async updateWhatsAppConfig(clinicId: string, input: UpdateWhatsAppConfigInput) {
+    const data: Record<string, unknown> = {};
+    if (input.ultramsg_instance_id !== undefined) data.ultramsg_instance_id = input.ultramsg_instance_id;
+    if (input.ultramsg_token !== undefined) data.ultramsg_token = input.ultramsg_token;
+    if (input.whatsapp_number !== undefined) data.whatsapp_number = input.whatsapp_number;
+    if (input.whatsapp_enabled !== undefined) data.whatsapp_enabled = input.whatsapp_enabled;
+
+    if (Object.keys(data).length === 0) {
+      throw new AppError(400, 'NO_FIELDS', 'No valid fields to update');
+    }
+
+    return this.repo.updateWhatsAppConfig(clinicId, data);
   }
 }

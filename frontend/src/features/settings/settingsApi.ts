@@ -1,5 +1,5 @@
 import { api } from '@/core/store/baseApi'
-import type { MessageTemplateRow, UpdateTemplateInput } from '@/core/types/generated/settings'
+import type { MessageTemplateRow, UpdateTemplateInput, CreateTemplateInput } from '@/core/types/generated/settings'
 import type { VenueRow } from '@/core/types/generated/doctors'
 
 interface AppointmentSettingsResponse {
@@ -55,8 +55,16 @@ export const settingsApi = api.injectEndpoints({
       query: (doctorId) => ({ url: '/api/message-templates', params: doctorId ? { doctor_id: doctorId } : undefined }),
       providesTags: ['Doctor'],
     }),
+    createTemplate: builder.mutation<MessageTemplateRow, CreateTemplateInput>({
+      query: (body) => ({ url: '/api/message-templates', method: 'POST', body }),
+      invalidatesTags: ['Doctor'],
+    }),
     updateTemplate: builder.mutation<MessageTemplateRow, { id: string; data: UpdateTemplateInput }>({
       query: ({ id, data }) => ({ url: `/api/message-templates/${id}`, method: 'PATCH', body: data }),
+      invalidatesTags: ['Doctor'],
+    }),
+    deleteTemplate: builder.mutation<void, string>({
+      query: (id) => ({ url: `/api/message-templates/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Doctor'],
     }),
     getVenues: builder.query<VenueRow[], void>({
@@ -70,6 +78,8 @@ export const {
   useGetAppointmentSettingsQuery,
   useUpdateAppointmentSettingsMutation,
   useListTemplatesQuery,
+  useCreateTemplateMutation,
   useUpdateTemplateMutation,
+  useDeleteTemplateMutation,
   useGetVenuesQuery,
 } = settingsApi

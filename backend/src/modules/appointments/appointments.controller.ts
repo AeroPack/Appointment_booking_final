@@ -62,7 +62,7 @@ export async function cancelAppointment(req: Request, res: Response, next: NextF
 
 export async function updateAppointmentStatus(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await service.updateStatus(req.params.id as string, req.auth!.userId, req.body.status);
+    const result = await service.updateStatus(req.params.id as string, req.auth!.userId, req.body.status, req.body.notes);
     res.json(success(result));
   } catch (err) {
     next(err);

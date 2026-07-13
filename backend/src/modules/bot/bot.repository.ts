@@ -159,7 +159,7 @@ export class BotRepository {
   }): Promise<void> {
     const keys = Object.keys(data).filter((k) => data[k as keyof typeof data] !== undefined);
     if (keys.length === 0) return;
-    const setClauses = keys.map((k, i) => `${k} = $${i + 3}`);
+    const setClauses = keys.map((k, i) => `${k} = $${i + 2}`);
     const values = keys.map((k) => data[k as keyof typeof data]);
     await pool.query(
       `INSERT INTO doctor_chatbot_config (doctor_id, ${keys.join(', ')})

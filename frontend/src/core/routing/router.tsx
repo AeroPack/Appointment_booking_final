@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { RoleGuard } from '@/core/routing/guard/RoleGuard'
 
 import { AuthFlow } from '@/pages/auth/AuthFlow'
+import { SignupFlow } from '@/pages/auth/SignupFlow'
 import { AppLayout } from '@/core/layout/AppLayout'
 
 // Patient
@@ -38,6 +39,7 @@ export function Router() {
       <Routes>
         <Route path="/" element={<AuthFlow />} />
         <Route path="/login" element={<AuthFlow />} />
+        <Route path="/signup" element={<SignupFlow />} />
 
         <Route element={<AppLayout />}>
           {/* Patient */}
@@ -63,6 +65,7 @@ export function Router() {
             <Route path="/doctor/settings" element={<DoctorSettings />} />
             <Route path="/doctor/chatbot" element={<ChatbotSettings />} />
             <Route path="/doctor/profile" element={<DoctorProfile />} />
+            <Route path="/doctor/tags" element={<Tags />} />
           </Route>
 
           {/* Staff */}

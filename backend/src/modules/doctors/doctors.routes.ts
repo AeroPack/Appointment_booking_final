@@ -8,6 +8,7 @@ import {
   createVenue, getVenues, patchVenue,
   getBookingPolicies, updateBookingPolicies,
   getLeaves, createLeave, deleteLeave,
+  getWhatsAppConfig, updateWhatsAppConfig,
 } from './doctors.controller.js';
 
 const router = Router();
@@ -48,6 +49,13 @@ const createLeaveSchema = z.object({
   reason: z.string().optional(),
 });
 
+const updateWhatsAppConfigSchema = z.object({
+  ultramsg_instance_id: z.string().optional(),
+  ultramsg_token: z.string().optional(),
+  whatsapp_number: z.string().optional(),
+  whatsapp_enabled: z.boolean().optional(),
+});
+
 router.get('/doctors', authGuard, listDoctors);
 router.get('/doctors/:doctorId/profile', authGuard, getDoctorProfile);
 router.get('/doctor/profile', authGuard, requireRole('doctor'), getOwnDoctorProfile);
@@ -64,5 +72,9 @@ router.patch('/doctor/booking-policies', authGuard, requireRole('doctor'), valid
 router.get('/doctor/leaves', authGuard, requireRole('doctor'), getLeaves);
 router.post('/doctor/leaves', authGuard, requireRole('doctor'), validate(createLeaveSchema), createLeave);
 router.delete('/doctor/leaves/:id', authGuard, requireRole('doctor'), deleteLeave);
+
+// WhatsApp configuration
+router.get('/clinic/whatsapp-config', authGuard, requireRole('doctor', 'staff'), getWhatsAppConfig);
+router.patch('/clinic/whatsapp-config', authGuard, requireRole('doctor', 'staff'), validate(updateWhatsAppConfigSchema), updateWhatsAppConfig);
 
 export default router;

@@ -383,7 +383,7 @@ export class AppointmentsService {
     return { message: 'Appointment cancelled' };
   }
 
-  async updateStatus(appointmentId: string, userId: string, newStatus: string) {
+  async updateStatus(appointmentId: string, userId: string, newStatus: string, notes?: string) {
     const validTransitions: Record<string, string[]> = {
       booked: ['finished', 'no_show'],
     };
@@ -398,6 +398,9 @@ export class AppointmentsService {
 
     const oldStatus = appointment.appointment_status;
     await this.repo.updateAppointmentStatus(appointmentId, newStatus);
+    if (notes !== undefined) {
+      await this.repo.updateAppointmentNotes(appointmentId, notes);
+    }
     await this.repo.insertStatusHistory({
       appointment_id: appointmentId,
       old_status: oldStatus,

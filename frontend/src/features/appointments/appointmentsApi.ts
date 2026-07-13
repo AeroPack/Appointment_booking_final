@@ -36,8 +36,8 @@ export const appointmentsApi = api.injectEndpoints({
       query: (id) => ({ url: `/api/patient/appointments/${id}/cancel`, method: 'PATCH' }),
       invalidatesTags: ['Appointment'],
     }),
-    updateAppointmentStatus: builder.mutation<{ message: string }, { id: string; status: string }>({
-      query: ({ id, status }) => ({ url: `/api/appointments/${id}/status`, method: 'PATCH', body: { status } }),
+    updateAppointmentStatus: builder.mutation<{ message: string }, { id: string; status: string; notes?: string }>({
+      query: ({ id, status, notes }) => ({ url: `/api/appointments/${id}/status`, method: 'PATCH', body: { status, notes } }),
       invalidatesTags: ['Appointment'],
     }),
     bookOnBehalf: builder.mutation<BookingResponse, {

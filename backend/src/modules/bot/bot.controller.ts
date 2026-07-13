@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { success } from '../../utils/response.js';
+import { success, AppError } from '../../utils/response.js';
 import { BotService } from './bot.service.js';
 import { BotRepository } from './bot.repository.js';
 
@@ -67,7 +67,11 @@ export async function lookupPatient(req: Request, res: Response, next: NextFunct
 
 export async function getConfig(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await service.getConfig(str(req.query.doctor_id));
+    const doctorId = req.auth?.userId ?? (req.query.doctor_id as string | undefined);
+    if (!doctorId) {
+      throw new AppError(400, 'MISSING_DOCTOR_ID', 'doctor_id is required');
+    }
+    const result = await service.getConfig(doctorId);
     res.json(success(result));
   } catch (err) {
     next(err);

@@ -9,6 +9,8 @@ import {
   Copy,
   Bot,
   MessageCircle,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
@@ -19,6 +21,7 @@ import {
   useUpdateChatbotConfigMutation,
   useListFaqQuery,
   useCreateFaqMutation,
+  useUpdateFaqMutation,
   useDeleteFaqMutation,
 } from "@/features/doctors/chatbotApi";
 import { useAppSelector } from "@/core/store/hooks";
@@ -32,6 +35,7 @@ export default function ChatbotSettings() {
 
   const { data: faqList = [], isLoading: faqLoading } = useListFaqQuery();
   const [createFaq, { isLoading: creatingFaq }] = useCreateFaqMutation();
+  const [updateFaq, { isLoading: updatingFaq }] = useUpdateFaqMutation();
   const [deleteFaq] = useDeleteFaqMutation();
 
   const [isEnabled, setIsEnabled] = useState(false);
@@ -42,6 +46,10 @@ export default function ChatbotSettings() {
   const [newQuestion, setNewQuestion] = useState("");
   const [newAnswer, setNewAnswer] = useState("");
   const [showFaqForm, setShowFaqForm] = useState(false);
+
+  const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
+  const [editQuestion, setEditQuestion] = useState("");
+  const [editAnswer, setEditAnswer] = useState("");
 
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
   const [copied, setCopied] = useState(false);
@@ -87,6 +95,34 @@ export default function ChatbotSettings() {
   const handleDeleteFaq = async (id: string) => {
     try {
       await deleteFaq(id).unwrap();
+    } catch {
+      // error handled by RTK Query
+    }
+  };
+
+  const handleStartEdit = (faq: { id: string; question: string; answer: string }) => {
+    setEditingFaqId(faq.id);
+    setEditQuestion(faq.question);
+    setEditAnswer(faq.answer);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingFaqId(null);
+    setEditQuestion("");
+    setEditAnswer("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingFaqId || !editQuestion.trim() || !editAnswer.trim()) return;
+    try {
+      await updateFaq({
+        id: editingFaqId,
+        question: editQuestion.trim(),
+        answer: editAnswer.trim(),
+      }).unwrap();
+      setEditingFaqId(null);
+      setEditQuestion("");
+      setEditAnswer("");
     } catch {
       // error handled by RTK Query
     }
@@ -285,19 +321,59 @@ export default function ChatbotSettings() {
           ) : (
             <div className="space-y-2">
               {faqList.map((faq) => (
-                <div key={faq.id} className="flex items-start justify-between p-3 border rounded-lg bg-white">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm">{faq.question}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{faq.answer}</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
-                    onClick={() => handleDeleteFaq(faq.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div key={faq.id} className="p-3 border rounded-lg bg-white">
+                  {editingFaqId === faq.id ? (
+                    <div className="space-y-3">
+                      <Input
+                        value={editQuestion}
+                        onChange={(e) => setEditQuestion(e.target.value)}
+                        placeholder="Question"
+                      />
+                      <Input
+                        value={editAnswer}
+                        onChange={(e) => setEditAnswer(e.target.value)}
+                        placeholder="Answer"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveEdit}
+                          disabled={updatingFaq || !editQuestion.trim() || !editAnswer.trim()}
+                        >
+                          {updatingFaq ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+                          Save
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{faq.question}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{faq.answer}</p>
+                      </div>
+                      <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[#64748B] hover:text-[#191c1e]"
+                          onClick={() => handleStartEdit(faq)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => handleDeleteFaq(faq.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

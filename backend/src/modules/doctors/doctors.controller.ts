@@ -116,3 +116,21 @@ export async function deleteLeave(req: Request, res: Response, next: NextFunctio
     next(err);
   }
 }
+
+export async function getWhatsAppConfig(req: Request, res: Response, next: NextFunction) {
+  try {
+    const config = await service.getWhatsAppConfig(req.auth!.clinicId);
+    res.json(success(config));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateWhatsAppConfig(req: Request, res: Response, next: NextFunction) {
+  try {
+    const config = await service.updateWhatsAppConfig(req.auth!.clinicId, req.body);
+    res.json(success(config));
+  } catch (err) {
+    next(err);
+  }
+}

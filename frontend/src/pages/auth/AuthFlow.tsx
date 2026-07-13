@@ -1,13 +1,30 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useAppDispatch, useAppSelector } from '@/core/store/hooks'
-import { useRequestOtpMutation, useVerifyOtpMutation } from '@/features/auth/authApi'
+import { useRequestOtpMutation, useVerifyOtpMutation, useLoginPasswordMutation } from '@/features/auth/authApi'
 import { setCredentials, setIdentifier } from '@/features/auth/authSlice'
 import { selectAuthIdentifier } from '@/features/auth/auth.selectors'
 import { LoginForm } from '@/features/auth/components/LoginForm'
 import { OtpForm } from '@/features/auth/components/OtpForm'
+import { ForgotPassword } from '@/features/auth/components/ForgotPassword'
+import type { AuthUser } from '@/features/auth/types'
 
-type Step = 'login' | 'otp'
+type Step = 'login' | 'otp' | 'forgot-password'
+
+function redirectPathForRole(role: AuthUser['role']): string {
+  if (role === 'patient') return '/patient/home'
+  if (role === 'doctor') return '/doctor/dashboard'
+  return '/staff/dashboard'
+}
+
+function extractErrorMessage(err: unknown, fallback: string): string {
+  const errPayload =
+    err && typeof err === 'object' && 'data' in err
+      ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
+      : null
+  return errPayload?.message ?? fallback
+}
 
 export function AuthFlow() {
   const navigate = useNavigate()
@@ -21,6 +38,7 @@ export function AuthFlow() {
 
   const [requestOtp, { isLoading: isRequestingOtp }] = useRequestOtpMutation()
   const [verifyOtp, { isLoading: isVerifyingOtp }] = useVerifyOtpMutation()
+  const [loginPassword, { isLoading: isLoggingIn }] = useLoginPasswordMutation()
 
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>
@@ -37,20 +55,16 @@ export function AuthFlow() {
       setError(undefined)
       try {
         const result = await requestOtp(identifierData).unwrap()
-        
-        const value = identifierData.email || identifierData.mobile_number || '';
+
+        const value = identifierData.email || identifierData.mobile_number || ''
         dispatch(setIdentifier(value))
         setLocalIdentifier(value)
         setSecondsLeft(result.expires_in)
         setStep('otp')
       } catch (err: unknown) {
-        const errPayload =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-            : null
-        const code = errPayload?.code ?? ''
-        const msg = errPayload?.message ?? 'Failed to send OTP'
-        setError(code ? `[${code}] ${msg}` : msg)
+        const msg = extractErrorMessage(err, 'Failed to send OTP')
+        toast.error(msg)
+        setError(msg)
       }
     },
     [requestOtp, dispatch],
@@ -60,41 +74,26 @@ export function AuthFlow() {
     async (otp: string) => {
       setError(undefined)
       try {
-        const payload: any = { otp };
-        if (identifier.includes('@')) {
-          payload.email = identifier;
-        } else {
-          payload.mobile_number = identifier;
-        }
+        const payload = identifier.includes('@')
+          ? { email: identifier, otp }
+          : { mobile_number: identifier, otp }
 
         const result = await verifyOtp(payload).unwrap()
-        console.debug('[verifyOtp] result:', result)
         dispatch(setCredentials(result))
-        const role = result.user.role
-        const path =
-          role === 'patient'
-            ? '/patient/home'
-            : role === 'doctor'
-              ? '/doctor/dashboard'
-              : '/staff/dashboard'
-        navigate(path, { replace: true })
+        navigate(redirectPathForRole(result.user.role), { replace: true })
       } catch (err: unknown) {
-        const errPayload =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-            : null
-        const code = errPayload?.code ?? ''
-        const msg = errPayload?.message ?? 'Invalid OTP'
-        setError(code ? `[${code}] ${msg}` : msg)
+        const msg = extractErrorMessage(err, 'Invalid OTP')
+        toast.error(msg)
+        setError(msg)
       }
     },
     [verifyOtp, identifier, dispatch, navigate],
   )
 
   const handleResendOtp = useCallback(async () => {
-    const payload = identifier.includes('@') 
-      ? { email: identifier } 
-      : { mobile_number: identifier };
+    const payload = identifier.includes('@')
+      ? { email: identifier }
+      : { mobile_number: identifier }
     await handleRequestOtp(payload)
   }, [handleRequestOtp, identifier])
 
@@ -102,6 +101,31 @@ export function AuthFlow() {
     setStep('login')
     setError(undefined)
   }, [])
+
+  const handleForgotPassword = useCallback(() => {
+    setError(undefined)
+    setStep('forgot-password')
+  }, [])
+
+  const handlePasswordLogin = useCallback(
+    async (data: { email_or_mobile: string; password: string }) => {
+      setError(undefined)
+      try {
+        const result = await loginPassword(data).unwrap()
+        dispatch(setCredentials({
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          user: result.user,
+        }))
+        navigate(redirectPathForRole(result.user.role), { replace: true })
+      } catch (err: unknown) {
+        const msg = extractErrorMessage(err, 'Login failed')
+        toast.error(msg)
+        setError(msg)
+      }
+    },
+    [loginPassword, dispatch, navigate],
+  )
 
   const maskedIdentifier = identifier
     ? identifier.includes('@')
@@ -124,10 +148,16 @@ export function AuthFlow() {
     )
   }
 
+  if (step === 'forgot-password') {
+    return <ForgotPassword onBack={handleChangeIdentifier} />
+  }
+
   return (
     <LoginForm
-      onSubmit={handleRequestOtp}
-      isLoading={isRequestingOtp}
+      onRequestOtp={handleRequestOtp}
+      onPasswordLogin={handlePasswordLogin}
+      onForgotPassword={handleForgotPassword}
+      isLoading={isRequestingOtp || isLoggingIn}
       error={error}
     />
   )

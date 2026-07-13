@@ -76,3 +76,87 @@ export async function me(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+// ─── Registration Handlers ─────────────────────────────────────────────────────
+
+export async function register(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.register(req.body);
+    res.status(201).json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function verifyRegistrationOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { user_id, otp } = req.body;
+    const result = await service.verifyRegistrationOtp(user_id, otp);
+    res.status(200).json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function loginWithPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.loginWithPassword(req.body);
+    res.status(200).json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateProfile(req: Request, res: Response, next: NextFunction) {
+  try {
+    await service.updateProfile(req.auth!.userId, req.body);
+    res.status(200).json(success({ message: 'Profile updated successfully' }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setupWhatsApp(req: Request, res: Response, next: NextFunction) {
+  try {
+    await service.setupWhatsApp(req.auth!.userId, req.body);
+    res.status(200).json(success({ message: 'WhatsApp configured successfully' }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function forgotPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.forgotPassword(req.body);
+    const data: Record<string, unknown> = {
+      message: `OTP sent to ${req.body.email ? 'email' : 'mobile'}`,
+      user_id: result.user_id,
+      expires_in: result.expires_in,
+    };
+    if (process.env.NODE_ENV !== 'production') {
+      data.__dev_otp = result.otp;
+    }
+    res.status(200).json(success(data));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function verifyPasswordResetOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { user_id, otp } = req.body;
+    const result = await service.verifyPasswordResetOtp(user_id, otp);
+    res.status(200).json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.resetPassword(req.body);
+    res.status(200).json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}

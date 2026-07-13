@@ -11,6 +11,7 @@ export interface MessageRow {
   status: 'pending' | 'sent' | 'failed';
   retry_count: number;
   sent_at: Date | null;
+  clinic_id: string;
 }
 
 export interface SendMessageBody {

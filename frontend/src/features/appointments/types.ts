@@ -53,4 +53,5 @@ export interface AppointmentRow {
   doctor_name: string;
   patient_name: string;
   doctor_mobile: string | null;
+  notes: string | null;
 }

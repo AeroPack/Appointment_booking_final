@@ -28,7 +28,7 @@ const periodSchema = z.object({
 });
 
 const reminderSchema = z.object({
-  template_type: z.enum(['reminder', 'booking_confirmation', 'appointment_cancelled']),
+  template_type: z.enum(['reminder', 'booking_confirmation', 'appointment_cancelled', 'otp_verification', 'appointment_delayed', 'appointment_rescheduled', 'doctor_on_leave']),
   offset_minutes: z.number().int().positive().optional(),
   subject: z.string().optional(),
   content: z.string().min(1),
@@ -43,7 +43,7 @@ const putSettingsSchema = z.object({
 
 const createTemplateSchema = z.object({
   doctor_id: z.string().uuid().optional(),
-  template_type: z.enum(['reminder', 'booking_confirmation', 'appointment_cancelled']),
+  template_type: z.enum(['reminder', 'booking_confirmation', 'appointment_cancelled', 'otp_verification', 'appointment_delayed', 'appointment_rescheduled', 'doctor_on_leave']),
   subject: z.string().optional(),
   content: z.string().min(1),
   offset_minutes: z.number().int().positive().optional(),
@@ -51,7 +51,7 @@ const createTemplateSchema = z.object({
 });
 
 const updateTemplateSchema = z.object({
-  template_type: z.enum(['reminder', 'booking_confirmation', 'appointment_cancelled']).optional(),
+  template_type: z.enum(['reminder', 'booking_confirmation', 'appointment_cancelled', 'otp_verification', 'appointment_delayed', 'appointment_rescheduled', 'doctor_on_leave']).optional(),
   subject: z.string().optional(),
   content: z.string().min(1).optional(),
   offset_minutes: z.number().int().positive().nullable().optional(),

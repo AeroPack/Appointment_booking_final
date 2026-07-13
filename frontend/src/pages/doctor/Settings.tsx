@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
   Clock,
@@ -27,10 +29,13 @@ import {
   Bell,
   FileText,
   Sparkles,
+  MessageCircle,
+  Key,
+  Phone,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
-import { Card, CardContent } from "@/core/components/ui/card";
 import { Input } from "@/core/components/ui/input";
 import {
   useGetBookingPoliciesQuery,
@@ -38,18 +43,23 @@ import {
   useGetLeavesQuery,
   useCreateLeaveMutation,
   useDeleteLeaveMutation,
+  useGetWhatsAppConfigQuery,
+  useUpdateWhatsAppConfigMutation,
 } from "@/features/doctors/doctorSettingsApi";
-import type { BookingPolicies, DoctorLeave } from "@/features/doctors/doctorSettingsApi";
+import type { BookingPolicies, DoctorLeave, WhatsAppConfig } from "@/features/doctors/doctorSettingsApi";
 import {
   useGetAppointmentSettingsQuery,
   useUpdateAppointmentSettingsMutation,
   useGetVenuesQuery,
   useListTemplatesQuery,
+  useCreateTemplateMutation,
   useUpdateTemplateMutation,
 } from "@/features/settings/settingsApi";
 import { useCreateVenueMutation, useUpdateVenueMutation } from "@/features/doctors/venuesApi";
 import { useAppSelector } from "@/core/store/hooks";
 import type { MessageTemplateRow } from "@/core/types/generated/settings";
+import { TemplateCard, type TemplateCategory } from "@/features/settings/TemplateCard";
+import { BrowseTemplatesModal } from "@/features/settings/BrowseTemplatesModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -81,6 +91,88 @@ const CANCELLATION_PRESETS = [
   { value: 24, label: "24 hours before" },
   { value: 48, label: "48 hours before" },
 ];
+
+const TEMPLATE_CATEGORIES: TemplateCategory[] = [
+  {
+    key: "reminder_24h",
+    label: "24h Reminder",
+    description: "Sent exactly 24 hours prior to the appointment slot.",
+    template_type: "reminder",
+    offset_minutes: 1440,
+    icon: Bell,
+    color: "text-blue-500",
+    placeholders: ["patient_name", "slot_time", "doctor_name", "clinic_name"],
+  },
+  {
+    key: "reminder_6h",
+    label: "6h Reminder",
+    description: "Sent 6 hours before the appointment.",
+    template_type: "reminder",
+    offset_minutes: 360,
+    icon: Bell,
+    color: "text-blue-400",
+    placeholders: ["patient_name", "slot_time", "doctor_name", "clinic_name"],
+  },
+  {
+    key: "reminder_1h",
+    label: "1h Reminder",
+    description: "Short notice reminder before the appointment.",
+    template_type: "reminder",
+    offset_minutes: 60,
+    icon: Zap,
+    color: "text-amber-500",
+    placeholders: ["patient_name", "slot_time", "doctor_name"],
+  },
+  {
+    key: "cancel",
+    label: "Cancellation",
+    description: "Triggered when a patient or admin cancels an appointment.",
+    template_type: "appointment_cancelled",
+    offset_minutes: null,
+    icon: XCircle,
+    color: "text-red-500",
+    placeholders: ["patient_name", "slot_time", "doctor_name", "clinic_name"],
+  },
+  {
+    key: "delay",
+    label: "Delay",
+    description: "Sent when an appointment is delayed.",
+    template_type: "appointment_delayed",
+    offset_minutes: null,
+    icon: Clock,
+    color: "text-orange-500",
+    placeholders: ["patient_name", "slot_time", "doctor_name", "clinic_name"],
+  },
+  {
+    key: "reschedule",
+    label: "Reschedule",
+    description: "Sent when an appointment is rescheduled to a new time.",
+    template_type: "appointment_rescheduled",
+    offset_minutes: null,
+    icon: CalendarClock,
+    color: "text-purple-500",
+    placeholders: ["patient_name", "slot_time", "doctor_name"],
+  },
+  {
+    key: "on_leave",
+    label: "On Leave",
+    description: "Sent when the doctor is on leave and appointments are affected.",
+    template_type: "doctor_on_leave",
+    offset_minutes: null,
+    icon: Ban,
+    color: "text-gray-500",
+    placeholders: ["patient_name", "doctor_name", "clinic_name"],
+  },
+];
+
+const KNOWN_REMINDER_OFFSETS = new Set(
+  TEMPLATE_CATEGORIES.filter((c) => c.template_type === "reminder").map((c) => c.offset_minutes)
+);
+
+function formatOffsetMinutes(minutes: number): string {
+  if (minutes % 60 === 0) return `${minutes / 60}h before`;
+  return `${minutes}m before`;
+}
 
 // ─── Availability Types ──────────────────────────────────────────────────────
 
@@ -409,6 +501,7 @@ export function Settings() {
 
   // ─── Availability Queries ───
   const authUser = useAppSelector((state) => state.auth.user);
+  const navigate = useNavigate();
   const doctorId = authUser?.id ?? "";
   const { data: settings, isLoading: settingsLoading } = useGetAppointmentSettingsQuery(doctorId, { skip: !doctorId });
   const [updateSettings, { isLoading: isSavingAvailability }] = useUpdateAppointmentSettingsMutation();
@@ -418,6 +511,7 @@ export function Settings() {
 
   // ─── Templates Queries ───
   const { data: templates, isLoading: templatesLoading } = useListTemplatesQuery(doctorId);
+  const [createTemplate] = useCreateTemplateMutation();
   const [updateTemplate, { isLoading: isSavingTemplates }] = useUpdateTemplateMutation();
 
   // ─── General Settings State ───
@@ -451,6 +545,38 @@ export function Settings() {
 
   // ─── Templates State ───
   const [localTemplates, setLocalTemplates] = useState<Record<string, { subject: string; content: string; active: boolean }>>({});
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [browseCategory, setBrowseCategory] = useState<string | null>(null);
+
+  // Reminder rows with an offset that doesn't match any current category (e.g. a
+  // legacy 15-minute reminder) — kept visible so they can still be turned off
+  // instead of silently continuing to fire with no way to manage them.
+  const otherReminders = useMemo(
+    () =>
+      (templates ?? []).filter(
+        (t) => t.template_type === "reminder" && !KNOWN_REMINDER_OFFSETS.has(t.offset_minutes)
+      ),
+    [templates]
+  );
+
+  const handleToggleOtherReminder = async (id: string, checked: boolean) => {
+    try {
+      await updateTemplate({ id, data: { is_active: checked } }).unwrap();
+    } catch {
+      toast.error("Failed to update reminder");
+    }
+  };
+
+  // ─── WhatsApp Configuration State ───
+  const { data: whatsappConfig } = useGetWhatsAppConfigQuery();
+  const [updateWhatsAppConfig, { isLoading: isSavingWhatsApp }] = useUpdateWhatsAppConfigMutation();
+  const [whatsappLocal, setWhatsappLocal] = useState<WhatsAppConfig>({
+    ultramsg_instance_id: '',
+    ultramsg_token: '',
+    whatsapp_number: '',
+    whatsapp_enabled: false,
+  });
+  const [sendFromOwnNumber, setSendFromOwnNumber] = useState(false);
 
   // ─── Sync Policies from Server ───
   useEffect(() => {
@@ -503,6 +629,37 @@ export function Settings() {
     try {
       await deleteLeave(id).unwrap();
     } catch {}
+  };
+
+  // ─── WhatsApp Configuration Handlers ───
+  const whatsappLoadedRef = useRef(false);
+  useEffect(() => {
+    // Only hydrate from the server once - the 'Doctor' tag is shared with booking
+    // policies/leaves, so unrelated saves elsewhere refetch this query and would
+    // otherwise stomp on in-progress, unsaved edits here.
+    if (whatsappConfig && !whatsappLoadedRef.current) {
+      setWhatsappLocal(whatsappConfig);
+      setSendFromOwnNumber(!!(whatsappConfig.ultramsg_instance_id || whatsappConfig.ultramsg_token));
+      whatsappLoadedRef.current = true;
+    }
+  }, [whatsappConfig]);
+
+  const handleWhatsAppConfigChange = (field: keyof WhatsAppConfig, value: string | boolean) => {
+    setWhatsappLocal((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveWhatsAppConfig = async () => {
+    try {
+      await updateWhatsAppConfig({
+        whatsapp_enabled: whatsappLocal.whatsapp_enabled,
+        ultramsg_instance_id: sendFromOwnNumber ? (whatsappLocal.ultramsg_instance_id ?? '') : '',
+        ultramsg_token: sendFromOwnNumber ? (whatsappLocal.ultramsg_token ?? '') : '',
+        whatsapp_number: sendFromOwnNumber ? (whatsappLocal.whatsapp_number ?? '') : '',
+      }).unwrap();
+      toast.success("WhatsApp settings saved");
+    } catch {
+      toast.error("Failed to save WhatsApp settings");
+    }
   };
 
   // ─── Sync Availability from Server ───
@@ -706,17 +863,12 @@ export function Settings() {
     if (!templates) return;
     const map: Record<string, { subject: string; content: string; active: boolean }> = {};
 
-    const t24 = findTemplate(templates, "reminder", 1440);
-    if (t24) map["24h"] = { subject: t24.subject ?? "", content: t24.content, active: t24.is_active };
-
-    const t1 = findTemplate(templates, "reminder", 60);
-    if (t1) map["1h"] = { subject: t1.subject ?? "", content: t1.content, active: t1.is_active };
-
-    const t15 = findTemplate(templates, "reminder", 15);
-    if (t15) map["15m"] = { subject: t15.subject ?? "", content: t15.content, active: t15.is_active };
-
-    const cancel = findTemplate(templates, "appointment_cancelled");
-    if (cancel) map["cancellation"] = { subject: cancel.subject ?? "", content: cancel.content, active: cancel.is_active };
+    for (const cat of TEMPLATE_CATEGORIES) {
+      const t = findTemplate(templates, cat.template_type, cat.offset_minutes ?? undefined);
+      if (t) {
+        map[cat.key] = { subject: t.subject ?? "", content: t.content, active: t.is_active };
+      }
+    }
 
     setLocalTemplates(map);
   }, [templates]);
@@ -737,28 +889,49 @@ export function Settings() {
   };
 
   const handleSaveTemplates = async () => {
-    if (!templates) return;
-    for (const [key, data] of Object.entries(localTemplates)) {
-      let type: string;
-      let offset: number | undefined;
-      if (key === "24h") { type = "reminder"; offset = 1440; }
-      else if (key === "1h") { type = "reminder"; offset = 60; }
-      else if (key === "15m") { type = "reminder"; offset = 15; }
-      else { type = "appointment_cancelled"; offset = undefined; }
+    try {
+      let savedCount = 0;
+      let skippedEmpty = false;
 
-      const existing = findTemplate(templates, type, offset);
-      if (existing) {
-        await updateTemplate({
-          id: existing.id,
-          data: {
-            content: data.content,
+      for (const cat of TEMPLATE_CATEGORIES) {
+        const data = localTemplates[cat.key];
+        if (!data) continue;
+
+        const existing = findTemplate(templates, cat.template_type, cat.offset_minutes ?? undefined);
+
+        if (existing) {
+          await updateTemplate({
+            id: existing.id,
+            data: {
+              content: data.content,
+              subject: data.subject || undefined,
+              is_active: data.active,
+              template_type: cat.template_type,
+              offset_minutes: cat.offset_minutes,
+            },
+          }).unwrap();
+          savedCount++;
+        } else if (data.content.trim()) {
+          await createTemplate({
+            doctor_id: doctorId,
+            template_type: cat.template_type,
             subject: data.subject || undefined,
-            is_active: data.active,
-            template_type: type,
-            offset_minutes: offset ?? null,
-          },
-        });
+            content: data.content,
+            offset_minutes: cat.offset_minutes ?? undefined,
+          }).unwrap();
+          savedCount++;
+        } else {
+          skippedEmpty = true;
+        }
       }
+
+      if (savedCount > 0) {
+        toast.success("Templates saved");
+      } else if (skippedEmpty) {
+        toast.error("Add message content before saving a new template");
+      }
+    } catch {
+      toast.error("Failed to save templates");
     }
   };
 
@@ -931,6 +1104,134 @@ export function Settings() {
                 </div>
               </section>
 
+              {/* ────────────── WHATSAPP CONFIGURATION ────────────── */}
+              <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <MessageCircle className="h-5 w-5 text-primary" />
+                  <h3 className="text-base font-semibold text-foreground">WhatsApp Configuration</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-5">
+                  Configure WhatsApp messaging for your clinic. This allows you to send appointment reminders, OTP verification, and other notifications via WhatsApp.
+                </p>
+
+                <div className="space-y-4">
+                  {/* Enable/Disable WhatsApp */}
+                  <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Zap className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium text-foreground">Enable WhatsApp Messaging</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, your clinic can send messages via WhatsApp using UltraMsg API.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={whatsappLocal.whatsapp_enabled}
+                      onCheckedChange={(c) => handleWhatsAppConfigChange('whatsapp_enabled', c)}
+                      aria-label="Enable WhatsApp messaging"
+                    />
+                  </div>
+
+                  {/* Send from own number toggle */}
+                  <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Phone className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-medium text-foreground">Send messages from your own number</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        By default, messages are sent from our shared WhatsApp number. Turn this on to use your own
+                        UltraMsg account and number instead.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={sendFromOwnNumber}
+                      onCheckedChange={(c) => {
+                        setSendFromOwnNumber(c);
+                        if (!c) {
+                          setWhatsappLocal((prev) => ({
+                            ...prev,
+                            ultramsg_instance_id: '',
+                            ultramsg_token: '',
+                            whatsapp_number: '',
+                          }));
+                        }
+                      }}
+                      aria-label="Send WhatsApp messages from your own number"
+                    />
+                  </div>
+
+                  {sendFromOwnNumber && (
+                    <>
+                      {/* UltraMsg Instance ID */}
+                      <div className="flex flex-col gap-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Key className="h-4 w-4 text-muted-foreground" />
+                          UltraMsg Instance ID
+                        </label>
+                        <Input
+                          value={whatsappLocal.ultramsg_instance_id ?? ''}
+                          onChange={(e) => handleWhatsAppConfigChange('ultramsg_instance_id', e.target.value)}
+                          placeholder="e.g., instance123456"
+                          className="h-10"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Your UltraMsg instance ID from <a href="https://ultramsg.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">ultramsg.com</a>
+                        </p>
+                      </div>
+
+                      {/* UltraMsg Token */}
+                      <div className="flex flex-col gap-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Key className="h-4 w-4 text-muted-foreground" />
+                          UltraMsg Token
+                        </label>
+                        <Input
+                          type="password"
+                          value={whatsappLocal.ultramsg_token ?? ''}
+                          onChange={(e) => handleWhatsAppConfigChange('ultramsg_token', e.target.value)}
+                          placeholder="Your UltraMsg API token"
+                          className="h-10"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Your UltraMsg API token for authentication
+                        </p>
+                      </div>
+
+                      {/* WhatsApp Number */}
+                      <div className="flex flex-col gap-2">
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          Clinic WhatsApp Number
+                        </label>
+                        <Input
+                          value={whatsappLocal.whatsapp_number ?? ''}
+                          onChange={(e) => handleWhatsAppConfigChange('whatsapp_number', e.target.value)}
+                          placeholder="e.g., +1234567890"
+                          className="h-10"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          The WhatsApp number associated with your clinic (with country code)
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Save button */}
+                  <div className="flex justify-end pt-2">
+                    <Button 
+                      onClick={handleSaveWhatsAppConfig} 
+                      disabled={isSavingWhatsApp} 
+                      className="gap-2"
+                    >
+                      {isSavingWhatsApp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      {isSavingWhatsApp ? "Saving..." : "Save WhatsApp Config"}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
               {/* ────────────── TIME OFF / VACATION ────────────── */}
               <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
                 <div className="flex items-center justify-between mb-1">
@@ -1032,6 +1333,26 @@ export function Settings() {
                     ))}
                   </div>
                 )}
+              </section>
+
+              {/* ────────────── TAG MANAGEMENT ────────────── */}
+              <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">Tags</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Organize patients with tags and automation rules.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate('/doctor/tags')}
+                    className="shrink-0"
+                  >
+                    Manage Tags
+                  </Button>
+                </div>
               </section>
 
               {/* ────────────── INFO CARD ────────────── */}
@@ -1287,149 +1608,65 @@ export function Settings() {
                   <p className="text-foreground font-medium">Message templates</p>
                   <p>
                     Configure automated notifications sent to your patients. Use{" "}
-                    <span className="font-medium text-foreground">{"{patient_name}"}</span>,{" "}
-                    <span className="font-medium text-foreground">{"{slot_time}"}</span>,{" "}
-                    <span className="font-medium text-foreground">{"{venue}"}</span>, and{" "}
-                    <span className="font-medium text-foreground">{"{doctor_name}"}</span> as dynamic placeholders.
+                    <span className="font-medium text-foreground">{"{{patient_name}}"}</span>,{" "}
+                    <span className="font-medium text-foreground">{"{{slot_time}}"}</span>,{" "}
+                    <span className="font-medium text-foreground">{"{{venue}}"}</span>, and{" "}
+                    <span className="font-medium text-foreground">{"{{doctor_name}}"}</span> as dynamic placeholders.
                   </p>
                 </div>
               </div>
 
-              {/* Reminders section */}
-              <section>
-                <div className="flex items-center gap-2 mb-4">
-                  <Bell className="h-5 w-5 text-primary" />
-                  <h3 className="text-base font-semibold text-foreground">Reminders</h3>
-                </div>
+              {/* Template cards */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {TEMPLATE_CATEGORIES.map((cat) => (
+                  <TemplateCard
+                    key={cat.key}
+                    category={cat}
+                    subject={localTemplates[cat.key]?.subject ?? ""}
+                    content={localTemplates[cat.key]?.content ?? ""}
+                    active={localTemplates[cat.key]?.active ?? true}
+                    onToggle={(c) => handleToggleTemplate(cat.key, c)}
+                    onSubjectChange={(v) => handleTemplateContentChange(cat.key, "subject", v)}
+                    onContentChange={(v) => handleTemplateContentChange(cat.key, "content", v)}
+                    onBrowse={() => {
+                      setBrowseCategory(cat.key);
+                      setBrowseOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* 24h Reminder */}
-                  <Card className="rounded-xl border border-border">
-                    <CardContent className="p-5 flex flex-col gap-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-1">24h Appointment Reminder</h4>
-                          <p className="text-xs text-muted-foreground">Sent exactly 24 hours prior to the slot.</p>
-                        </div>
+              {/* Other reminders (legacy offsets not covered by the categories above) */}
+              {otherReminders.length > 0 && (
+                <section className="rounded-xl border border-border bg-card p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Bell className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-foreground">Other reminders</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Reminders with a custom timing not shown above. You can only turn these on or off here.
+                  </p>
+                  <div className="space-y-2">
+                    {otherReminders.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+                      >
+                        <span className="text-sm text-foreground">
+                          Reminder ({formatOffsetMinutes(t.offset_minutes ?? 0)})
+                        </span>
                         <div className="flex items-center gap-3">
                           <Switch
-                            checked={localTemplates["24h"]?.active ?? true}
-                            onCheckedChange={(c) => handleToggleTemplate("24h", c)}
+                            checked={t.is_active}
+                            onCheckedChange={(c) => handleToggleOtherReminder(t.id, c)}
                           />
                           <span className="text-xs font-medium text-muted-foreground">Active</span>
                         </div>
                       </div>
-
-                      <div className="space-y-3">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Subject</label>
-                          <Input
-                            value={localTemplates["24h"]?.subject ?? ""}
-                            onChange={(e) => handleTemplateContentChange("24h", "subject", e.target.value)}
-                            className="h-10"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Message Body</label>
-                          <textarea
-                            value={localTemplates["24h"]?.content ?? ""}
-                            onChange={(e) => handleTemplateContentChange("24h", "content", e.target.value)}
-                            rows={3}
-                            className="w-full p-3 rounded-md border border-input bg-background text-sm text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{patient_name}"}</span>
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{slot_time}"}</span>
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{doctor_name}"}</span>
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{clinic_name}"}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* 1h SMS Alert */}
-                  <Card className="rounded-xl border border-border">
-                    <CardContent className="p-5 flex flex-col gap-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-1">1h SMS Alert</h4>
-                          <p className="text-xs text-muted-foreground">Short notice SMS push notification.</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Switch
-                            checked={localTemplates["1h"]?.active ?? true}
-                            onCheckedChange={(c) => handleToggleTemplate("1h", c)}
-                          />
-                          <span className="text-xs font-medium text-muted-foreground">Active</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">SMS Content</label>
-                          <textarea
-                            value={localTemplates["1h"]?.content ?? ""}
-                            onChange={(e) => handleTemplateContentChange("1h", "content", e.target.value)}
-                            rows={3}
-                            className="w-full p-3 rounded-md border border-input bg-background text-sm text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{slot_time}"}</span>
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">{"{map_link}"}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </section>
-
-              {/* Cancellation section */}
-              <section>
-                <div className="flex items-center gap-2 mb-4">
-                  <X className="h-5 w-5 text-red-500" />
-                  <h3 className="text-base font-semibold text-foreground">Cancellation Message</h3>
-                </div>
-
-                <Card className="rounded-xl border border-red-200">
-                  <CardContent className="p-5 flex flex-col gap-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="text-sm font-semibold text-foreground mb-1">Cancellation Confirmation</h4>
-                        <p className="text-xs text-muted-foreground">Triggered when a patient or admin cancels an appointment.</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Switch
-                          checked={localTemplates["cancellation"]?.active ?? true}
-                          onCheckedChange={(c) => handleToggleTemplate("cancellation", c)}
-                        />
-                        <span className="text-xs font-medium text-muted-foreground">Active</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Subject Line</label>
-                        <Input
-                          value={localTemplates["cancellation"]?.subject ?? ""}
-                          onChange={(e) => handleTemplateContentChange("cancellation", "subject", e.target.value)}
-                          className="h-10"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Message Content</label>
-                        <textarea
-                          value={localTemplates["cancellation"]?.content ?? ""}
-                          onChange={(e) => handleTemplateContentChange("cancellation", "content", e.target.value)}
-                          rows={3}
-                          className="w-full p-3 rounded-md border border-input bg-background text-sm text-foreground resize-none outline-none focus:ring-2 focus:ring-ring"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </section>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* Placeholder tips */}
               <div className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3 sm:p-4">
@@ -1437,12 +1674,10 @@ export function Settings() {
                 <div className="text-sm text-muted-foreground space-y-1">
                   <p className="text-foreground font-medium">Available placeholders</p>
                   <p>
-                    <span className="font-medium text-foreground">{"{patient_name}"}</span> - Patient's full name, {" "}
-                    <span className="font-medium text-foreground">{"{slot_time}"}</span> - Appointment time, {" "}
-                    <span className="font-medium text-foreground">{"{venue}"}</span> - Clinic location, {" "}
-                    <span className="font-medium text-foreground">{"{doctor_name}"}</span> - Your name, {" "}
-                    <span className="font-medium text-foreground">{"{clinic_name}"}</span> - Clinic name, {" "}
-                    <span className="font-medium text-foreground">{"{map_link}"}</span> - Google Maps link
+                    <span className="font-medium text-foreground">{"{{patient_name}}"}</span> - Patient's full name,{" "}
+                    <span className="font-medium text-foreground">{"{{slot_time}}"}</span> - Appointment time (reflects the new time after a reschedule),{" "}
+                    <span className="font-medium text-foreground">{"{{doctor_name}}"}</span> - Your name,{" "}
+                    <span className="font-medium text-foreground">{"{{clinic_name}}"}</span> - Clinic name
                   </p>
                 </div>
               </div>
@@ -1454,6 +1689,19 @@ export function Settings() {
                   {isSavingTemplates ? "Saving..." : "Save templates"}
                 </Button>
               </div>
+
+              {/* Browse Templates Modal */}
+              <BrowseTemplatesModal
+                open={browseOpen}
+                categoryKey={browseCategory}
+                categories={TEMPLATE_CATEGORIES}
+                onClose={() => setBrowseOpen(false)}
+                onUse={(key, { subject, content }) => {
+                  handleTemplateContentChange(key, "subject", subject);
+                  handleTemplateContentChange(key, "content", content);
+                  setBrowseOpen(false);
+                }}
+              />
             </>
           )}
         </div>
