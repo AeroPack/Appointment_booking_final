@@ -4,6 +4,7 @@
  * This script tests the UltraMsg API connection with the provided credentials.
  * Run with: node --import dotenv/config --import tsx src/test-ultramsg.ts
  */
+//ss
 
 import axios from 'axios';
 

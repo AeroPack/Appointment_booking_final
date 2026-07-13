@@ -23,7 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/core/components/ui/avatar
 import { Badge } from '@/core/components/ui/badge';
 import { Textarea } from '@/core/components/ui/textarea';
 import { useGetAppointmentQuery, useUpdateAppointmentStatusMutation } from '@/features/appointments/appointmentsApi';
-
+//ok
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
