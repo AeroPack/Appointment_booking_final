@@ -1,5 +1,5 @@
 import { AppError } from '../../utils/response.js';
-import type { PutSettingsInput, CreateTemplateInput, UpdateTemplateInput } from './settings.types.js';
+import type { PutSettingsInput, CreateTemplateInput, UpdateTemplateInput, UpdateUserSettingsInput } from './settings.types.js';
 import { SettingsRepository } from './settings.repository.js';
 
 export class SettingsService {
@@ -135,5 +135,20 @@ export class SettingsService {
   async deleteTemplate(templateId: string, clinicId: string) {
     const deleted = await this.repo.deleteTemplate(templateId, clinicId);
     if (!deleted) throw new AppError(404, 'TEMPLATE_NOT_FOUND', 'Template not found');
+  }
+
+  async getUserSettings(userId: string) {
+    const settings = await this.repo.findUserSettings(userId);
+    if (!settings) {
+      return this.repo.upsertUserSettings(userId, {});
+    }
+    return settings;
+  }
+
+  async updateUserSettings(userId: string, input: UpdateUserSettingsInput) {
+    const data: Record<string, unknown> = {};
+    if (input.notifications_enabled !== undefined) data.notifications_enabled = input.notifications_enabled;
+    if (input.language !== undefined) data.language = input.language;
+    return this.repo.upsertUserSettings(userId, data);
   }
 }

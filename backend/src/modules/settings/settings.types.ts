@@ -62,3 +62,14 @@ export interface UpdateTemplateInput {
   channel?: string;
   is_active?: boolean;
 }
+
+export interface UserSettingsRow {
+  user_id: string;
+  notifications_enabled: boolean;
+  language: string;
+}
+
+export interface UpdateUserSettingsInput {
+  notifications_enabled?: boolean;
+  language?: string;
+}

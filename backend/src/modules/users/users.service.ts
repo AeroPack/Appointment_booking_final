@@ -57,6 +57,12 @@ export class UsersService {
     return user;
   }
 
+  async updateAvatar(userId: string, avatarUrl: string) {
+    const user = await this.repo.update(userId, { avatar_url: avatarUrl });
+    if (!user) throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+    return user;
+  }
+
   async createDependent(callerId: string, clinicId: string, input: CreateDependentInput) {
     const user = await this.repo.create({
       clinic_id: clinicId,

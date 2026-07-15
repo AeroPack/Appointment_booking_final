@@ -23,8 +23,9 @@ export class AppointmentsService {
       throw new AppError(400, 'INVALID_DATE', 'Invalid scheduled_start');
     }
 
-    if (scheduledStart <= new Date()) {
-      throw new AppError(400, 'PAST_SLOT', 'Cannot book a slot in the past');
+    const minNoticeHours = await this.repo.findBookingMinNoticeHours(body.doctor_id);
+    if (scheduledStart.getTime() <= Date.now() + minNoticeHours * 60 * 60 * 1000) {
+      throw new AppError(400, 'PAST_SLOT', 'Cannot book a slot inside the minimum notice window');
     }
 
     const ist = toIST(scheduledStart);
@@ -98,8 +99,8 @@ export class AppointmentsService {
       throw new AppError(400, 'RANGE_TOO_LARGE', 'Date range must not exceed 31 days');
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const todayStr = getISTDateString(new Date());
+    const minNoticeHours = await this.repo.findBookingMinNoticeHours(query.doctor_id);
 
     const days: DaySlots[] = [];
     let slotDuration = 15;
@@ -110,7 +111,7 @@ export class AppointmentsService {
       currentDate.setDate(from.getDate() + i);
       const dateStr = formatDate(currentDate);
 
-      if (currentDate < today) {
+      if (dateStr < todayStr) {
         days.push({ date: dateStr, slots: [] });
         continue;
       }
@@ -149,9 +150,8 @@ export class AppointmentsService {
 
       const daySlots: SlotResponse[] = allSlotTimes
         .filter((s) => {
-          if (currentDate > today) return true;
           const slotDateTime = new Date(combineDateAndTime(dateStr, s.start));
-          return slotDateTime > new Date();
+          return slotDateTime.getTime() > Date.now() + minNoticeHours * 60 * 60 * 1000;
         })
         .map((s) => {
           const booked = bookedMap.get(s.start) || 0;
@@ -221,6 +221,11 @@ export class AppointmentsService {
     const scheduledStart = new Date(body.scheduled_start);
     if (isNaN(scheduledStart.getTime())) {
       throw new AppError(400, 'INVALID_DATE', 'Invalid scheduled_start');
+    }
+
+    const minNoticeHours = await this.repo.findBookingMinNoticeHours(body.doctor_id);
+    if (scheduledStart.getTime() <= Date.now() + minNoticeHours * 60 * 60 * 1000) {
+      throw new AppError(400, 'PAST_SLOT', 'Cannot book a slot inside the minimum notice window');
     }
 
     const ist = toIST(scheduledStart);
@@ -425,6 +430,15 @@ function formatDate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getISTDateString(date: Date): string {
+  const offset = 5.5 * 60 * 60 * 1000;
+  const d = new Date(date.getTime() + offset);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
 

@@ -10,6 +10,8 @@ import {
   listTemplates,
   updateTemplate,
   deleteTemplate,
+  getUserSettings,
+  updateUserSettings,
 } from './settings.controller.js';
 
 const router = Router();
@@ -59,6 +61,11 @@ const updateTemplateSchema = z.object({
   is_active: z.boolean().optional(),
 });
 
+const updateUserSettingsSchema = z.object({
+  notifications_enabled: z.boolean().optional(),
+  language: z.string().max(10).optional(),
+});
+
 router.get('/appointment-setting', authGuard, getSettings);
 router.put('/appointment-setting', authGuard, requireRole('doctor', 'staff'), validate(putSettingsSchema), putSettings);
 
@@ -66,5 +73,9 @@ router.get('/message-templates', authGuard, listTemplates);
 router.post('/message-templates', authGuard, requireRole('doctor', 'staff'), validate(createTemplateSchema), createTemplate);
 router.patch('/message-templates/:id', authGuard, requireRole('doctor', 'staff'), validate(updateTemplateSchema), updateTemplate);
 router.delete('/message-templates/:id', authGuard, requireRole('doctor', 'staff'), deleteTemplate);
+
+// User settings (notifications, language)
+router.get('/user/settings', authGuard, getUserSettings);
+router.patch('/user/settings', authGuard, validate(updateUserSettingsSchema), updateUserSettings);
 
 export default router;

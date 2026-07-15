@@ -17,6 +17,14 @@ export class AppointmentsRepository {
     return result.rows;
   }
 
+  async findBookingMinNoticeHours(doctorId: string): Promise<number> {
+    const result = await pool.query(
+      `SELECT booking_min_notice_hours FROM doctor_profiles WHERE user_id = $1`,
+      [doctorId]
+    );
+    return result.rows[0]?.booking_min_notice_hours ?? 0;
+  }
+
   async findBookedCounts(doctorId: string, dateStr: string): Promise<{ slot_time: string; count: number }[]> {
     const result = await pool.query(
       `SELECT (scheduled_start AT TIME ZONE 'Asia/Kolkata')::time AS slot_time, COUNT(*)::int AS count

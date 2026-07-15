@@ -4,6 +4,8 @@ import type {
   UpdateProfileInput,
   CreateDependentInput,
   UpdateDependentInput,
+  UserSettings,
+  UpdateUserSettingsInput,
 } from './types'
 
 export interface CreatePatientInput {
@@ -23,6 +25,18 @@ export const usersApi = api.injectEndpoints({
     updateMe: builder.mutation<UserProfile, UpdateProfileInput>({
       query: (body) => ({ url: '/api/users/me', method: 'PATCH', body }),
       invalidatesTags: ['User'],
+    }),
+    uploadAvatar: builder.mutation<UserProfile, FormData>({
+      query: (body) => ({ url: '/api/users/avatar', method: 'POST', body }),
+      invalidatesTags: ['User'],
+    }),
+    getUserSettings: builder.query<UserSettings, void>({
+      query: () => '/api/user/settings',
+      providesTags: ['UserSettings'],
+    }),
+    updateUserSettings: builder.mutation<UserSettings, UpdateUserSettingsInput>({
+      query: (body) => ({ url: '/api/user/settings', method: 'PATCH', body }),
+      invalidatesTags: ['UserSettings'],
     }),
     getDependents: builder.query<UserProfile[], void>({
       query: () => '/api/users/dependents',
@@ -53,6 +67,9 @@ export const usersApi = api.injectEndpoints({
 export const {
   useGetMeQuery,
   useUpdateMeMutation,
+  useUploadAvatarMutation,
+  useGetUserSettingsQuery,
+  useUpdateUserSettingsMutation,
   useGetDependentsQuery,
   useCreateDependentMutation,
   useUpdateDependentMutation,

@@ -1,5 +1,5 @@
 import pool from '../../config/db.js';
-import type { AppointmentSettingRow, MessageTemplateRow } from './settings.types.js';
+import type { AppointmentSettingRow, MessageTemplateRow, UserSettingsRow } from './settings.types.js';
 
 export class SettingsRepository {
   async findSettingsByDoctor(doctorId: string, clinicId: string): Promise<AppointmentSettingRow[]> {
@@ -134,5 +134,38 @@ export class SettingsRepository {
       [venueId]
     );
     return result.rows[0]?.name || null;
+  }
+
+  async findUserSettings(userId: string): Promise<UserSettingsRow | null> {
+    const result = await pool.query(
+      `SELECT user_id, notifications_enabled, language
+       FROM user_settings WHERE user_id = $1`,
+      [userId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async upsertUserSettings(userId: string, data: Record<string, unknown>): Promise<UserSettingsRow> {
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      const existing = await this.findUserSettings(userId);
+      if (existing) return existing;
+      const result = await pool.query(
+        `INSERT INTO user_settings (user_id) VALUES ($1)
+         RETURNING user_id, notifications_enabled, language`,
+        [userId]
+      );
+      return result.rows[0];
+    }
+    const setClauses = keys.map((k, i) => `${k} = $${i + 2}`);
+    const values = keys.map((k) => data[k]);
+    const result = await pool.query(
+      `INSERT INTO user_settings (user_id, ${keys.join(', ')})
+       VALUES ($1, ${keys.map((_, i) => `$${i + 2}`).join(', ')})
+       ON CONFLICT (user_id) DO UPDATE SET ${setClauses.map((c, i) => c.replace(` = $${i + 2}`, ` = EXCLUDED.${keys[i]}`)).join(', ')}
+       RETURNING user_id, notifications_enabled, language`,
+      [userId, ...values]
+    );
+    return result.rows[0];
   }
 }

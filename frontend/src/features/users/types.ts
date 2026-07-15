@@ -44,3 +44,14 @@ export interface UpdateDependentInput {
   relationship?: string;
   date_of_birth?: string;
 }
+
+export interface UserSettings {
+  user_id: string;
+  notifications_enabled: boolean;
+  language: string;
+}
+
+export interface UpdateUserSettingsInput {
+  notifications_enabled?: boolean;
+  language?: string;
+}

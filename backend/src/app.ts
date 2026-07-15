@@ -37,6 +37,9 @@ app.use('/chatbot.js', express.static(path.join(__dirname, '../../static/chatbot
   },
 }));
 
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {

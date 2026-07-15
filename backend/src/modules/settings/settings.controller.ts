@@ -67,3 +67,21 @@ export async function deleteTemplate(req: Request, res: Response, next: NextFunc
     next(err);
   }
 }
+
+export async function getUserSettings(req: Request, res: Response, next: NextFunction) {
+  try {
+    const settings = await service.getUserSettings(req.auth!.userId);
+    res.json(success(settings));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateUserSettings(req: Request, res: Response, next: NextFunction) {
+  try {
+    const settings = await service.updateUserSettings(req.auth!.userId, req.body);
+    res.json(success(settings));
+  } catch (err) {
+    next(err);
+  }
+}

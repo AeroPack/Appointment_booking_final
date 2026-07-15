@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/core/components/ui/avatar
 import { Input } from '@/core/components/ui/input';
 import { Textarea } from '@/core/components/ui/textarea';
 import { Badge } from '@/core/components/ui/badge';
-import { useGetMeQuery, useUpdateMeMutation } from '@/features/users/usersApi';
+import { useGetMeQuery, useUpdateMeMutation, useUploadAvatarMutation, useGetUserSettingsQuery, useUpdateUserSettingsMutation } from '@/features/users/usersApi';
 import { useGetOwnDoctorProfileQuery, useUpdateDoctorProfileMutation } from '@/features/doctors/doctorsApi';
 import { useAppDispatch } from '@/core/store/hooks';
 import { logout } from '@/features/auth/authSlice';
@@ -63,6 +63,11 @@ export const Profile: React.FC = () => {
   } = useGetOwnDoctorProfileQuery();
   const [updateMe] = useUpdateMeMutation();
   const [updateDoctorProfile] = useUpdateDoctorProfileMutation();
+  const [uploadAvatar, { isLoading: uploadingAvatar }] = useUploadAvatarMutation();
+  const { data: userSettings } = useGetUserSettingsQuery();
+  const [updateUserSettings] = useUpdateUserSettingsMutation();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<DoctorLocalProfile>({
     name: '',
@@ -188,6 +193,48 @@ export const Profile: React.FC = () => {
     navigate('/');
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setSaveStatus('error');
+      setSaveMessage('Image must be under 5MB');
+      setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 3000);
+      return;
+    }
+
+    const formDataObj = new FormData();
+    formDataObj.append('avatar', file);
+
+    try {
+      setSaveStatus('saving');
+      setSaveMessage('Uploading...');
+      await uploadAvatar(formDataObj).unwrap();
+      setSaveStatus('success');
+      setSaveMessage('Photo updated');
+      setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 2000);
+    } catch {
+      setSaveStatus('error');
+      setSaveMessage('Upload failed');
+      setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 3000);
+    }
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    try {
+      await updateUserSettings({ notifications_enabled: enabled }).unwrap();
+    } catch {
+      // revert handled by RTK cache
+    }
+  };
+
   if (meLoading && profileLoading) {
     return <div className="min-h-screen bg-[#f7f9fb] flex items-center justify-center text-slate-500">Loading profile...</div>;
   }
@@ -247,6 +294,13 @@ export const Profile: React.FC = () => {
           {/* MOBILE TOP SECTION */}
           <div className="md:hidden flex flex-col items-center text-center mb-2 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="relative group mb-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
               <Avatar className="w-32 h-32 ring-4 ring-[#9cf2e8] shadow-sm">
                 <AvatarImage src={formData.imageUrl} alt={formData.name} className="object-cover" />
                 <AvatarFallback className="bg-[#005c55] text-white text-3xl font-bold">
@@ -254,11 +308,16 @@ export const Profile: React.FC = () => {
                 </AvatarFallback>
               </Avatar>
               <button
-                className="absolute bottom-0 right-0 bg-[#005c55] text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform opacity-50 cursor-not-allowed"
+                onClick={handleAvatarClick}
+                disabled={uploadingAvatar}
+                className="absolute bottom-0 right-0 bg-[#005c55] text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform hover:bg-[#006b5f] disabled:opacity-50"
                 aria-label="Edit Profile Photo"
-                title="Photo upload coming soon"
               >
-                <Camera className="w-5 h-5" />
+                {uploadingAvatar ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Camera className="w-5 h-5" />
+                )}
               </button>
             </div>
             <h2 className="text-[24px] font-bold text-[#191c1e] leading-tight mt-2">{formData.name}</h2>
@@ -271,6 +330,12 @@ export const Profile: React.FC = () => {
             {/* Desktop Profile Card */}
             <Card className="hidden md:flex p-8 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 flex-col md:flex-row gap-8 items-center bg-white">
               <div className="relative group shrink-0">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleAvatarChange}
+                />
                 <Avatar className="w-32 h-32 border-4 border-[#f2f4f6] ring-2 ring-[#4fdbc8]">
                   <AvatarImage src={formData.imageUrl} alt={formData.name} className="object-cover" />
                   <AvatarFallback className="bg-[#005c55] text-white text-3xl font-bold">
@@ -278,11 +343,16 @@ export const Profile: React.FC = () => {
                   </AvatarFallback>
                 </Avatar>
                 <button
-                  className="absolute bottom-1 right-1 bg-[#005c55] text-white p-2.5 rounded-full opacity-50 cursor-not-allowed"
+                  onClick={handleAvatarClick}
+                  disabled={uploadingAvatar}
+                  className="absolute bottom-1 right-1 bg-[#005c55] text-white p-2.5 rounded-full hover:bg-[#006b5f] transition-colors disabled:opacity-50"
                   aria-label="Edit Profile Photo"
-                  title="Photo upload coming soon"
                 >
-                  <Edit2 className="w-4 h-4" />
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Edit2 className="w-4 h-4" />
+                  )}
                 </button>
               </div>
               <div>
@@ -466,7 +536,11 @@ export const Profile: React.FC = () => {
               </div>
             </Card>
 
-            <AppSettingsCard onLogout={handleLogout} />
+            <AppSettingsCard
+              onLogout={handleLogout}
+              notificationsEnabled={userSettings?.notifications_enabled ?? true}
+              onNotificationsChange={handleNotificationsToggle}
+            />
 
             <SecurityTipCard />
 

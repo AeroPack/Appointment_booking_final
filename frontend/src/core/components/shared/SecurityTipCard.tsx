@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { Shield } from 'lucide-react'
 
 export function SecurityTipCard() {
+  const navigate = useNavigate()
+
   return (
     <div className="hidden md:block bg-[#0f766e] text-[#a3faef] p-6 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] relative overflow-hidden">
       <div className="relative z-10">
@@ -11,7 +14,10 @@ export function SecurityTipCard() {
         <p className="text-[12px] leading-relaxed text-white/90">
           Keep your health data safe. Enable two-factor authentication in the security panel to add an extra layer of protection to your medical records.
         </p>
-        <button className="mt-4 text-[12px] underline font-semibold text-white hover:text-[#a3faef] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white rounded">
+        <button
+          onClick={() => navigate('/doctor/settings')}
+          className="mt-4 text-[12px] underline font-semibold text-white hover:text-[#a3faef] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white rounded"
+        >
           Configure Security
         </button>
       </div>

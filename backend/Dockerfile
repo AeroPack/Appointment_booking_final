@@ -12,6 +12,7 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
+RUN mkdir -p /app/uploads/avatars && chown app:app /app/uploads /app/uploads/avatars
 USER app
 EXPOSE 5000
 ENV NODE_ENV=production

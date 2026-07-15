@@ -6,7 +6,7 @@ import { Card } from '@/core/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/core/components/ui/avatar'
 import { Input } from '@/core/components/ui/input'
 import { Badge } from '@/core/components/ui/badge'
-import { useGetMeQuery, useUpdateMeMutation } from '@/features/users/usersApi'
+import { useGetMeQuery, useUpdateMeMutation, useGetUserSettingsQuery, useUpdateUserSettingsMutation } from '@/features/users/usersApi'
 import { useAppDispatch } from '@/core/store/hooks'
 import { logout } from '@/features/auth/authSlice'
 import { AppSettingsCard } from '@/core/components/shared/AppSettingsCard'
@@ -31,6 +31,8 @@ export const Profile: React.FC = () => {
   const dispatch = useAppDispatch()
   const { data: me, isLoading } = useGetMeQuery()
   const [updateProfile] = useUpdateMeMutation()
+  const { data: userSettings } = useGetUserSettingsQuery()
+  const [updateUserSettings] = useUpdateUserSettingsMutation()
 
   const [formData, setFormData] = useState<StaffLocalProfile>({
     name: '', phone: '', email: '', dob: '',
@@ -101,6 +103,12 @@ export const Profile: React.FC = () => {
   }, [formData])
 
   const handleLogout = () => { dispatch(logout()); navigate('/') }
+
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    try {
+      await updateUserSettings({ notifications_enabled: enabled }).unwrap()
+    } catch { /* reverted by cache */ }
+  }
 
   if (isLoading) {
     return <div className="min-h-screen bg-[#f7f9fb] flex items-center justify-center text-slate-500">Loading profile...</div>
@@ -209,7 +217,11 @@ export const Profile: React.FC = () => {
           {/* RIGHT COLUMN */}
           <div className="md:col-span-5 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
 
-            <AppSettingsCard onLogout={handleLogout} />
+            <AppSettingsCard
+              onLogout={handleLogout}
+              notificationsEnabled={userSettings?.notifications_enabled ?? true}
+              onNotificationsChange={handleNotificationsToggle}
+            />
 
             <SecurityTipCard />
 

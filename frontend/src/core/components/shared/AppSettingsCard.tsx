@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, Globe, HelpCircle, Accessibility, ChevronRight, LogOut } from 'lucide-react'
 import { Button } from '@/core/components/ui/button'
 import { Card } from '@/core/components/ui/card'
@@ -6,10 +6,12 @@ import { Switch } from '@/core/components/ui/switch'
 
 interface AppSettingsCardProps {
   onLogout: () => void
+  notificationsEnabled: boolean
+  onNotificationsChange: (enabled: boolean) => void
 }
 
-export function AppSettingsCard({ onLogout }: AppSettingsCardProps) {
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+export function AppSettingsCard({ onLogout, notificationsEnabled, onNotificationsChange }: AppSettingsCardProps) {
+  const navigate = useNavigate()
 
   return (
     <Card className="rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 bg-white overflow-hidden">
@@ -36,13 +38,16 @@ export function AppSettingsCard({ onLogout }: AppSettingsCardProps) {
           <span className="hidden md:block">
             <Switch
               checked={notificationsEnabled}
-              onCheckedChange={setNotificationsEnabled}
+              onCheckedChange={onNotificationsChange}
               className="data-[state=checked]:bg-[#006b5f]"
             />
           </span>
         </div>
 
-        <div className="p-6 flex items-center justify-between hover:bg-[#f7f9fb] transition-colors cursor-pointer group active:bg-[#f2f4f6] md:active:bg-[#f7f9fb]">
+        <div
+          className="p-6 flex items-center justify-between hover:bg-[#f7f9fb] transition-colors cursor-pointer group active:bg-[#f2f4f6] md:active:bg-[#f7f9fb]"
+          onClick={() => navigate('/doctor/settings')}
+        >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-[#71f8e4]/30 flex items-center justify-center text-[#006b5f]">
               <Globe className="w-5 h-5" />
@@ -55,7 +60,10 @@ export function AppSettingsCard({ onLogout }: AppSettingsCardProps) {
           <ChevronRight className="w-5 h-5 text-[#6e7977] group-hover:translate-x-1 transition-transform" />
         </div>
 
-        <div className="p-6 flex items-center justify-between hover:bg-[#f7f9fb] transition-colors cursor-pointer group active:bg-[#f2f4f6] md:active:bg-[#f7f9fb]">
+        <div
+          className="p-6 flex items-center justify-between hover:bg-[#f7f9fb] transition-colors cursor-pointer group active:bg-[#f2f4f6] md:active:bg-[#f7f9fb]"
+          onClick={() => navigate('/doctor/settings')}
+        >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-[#ffe5db]/50 flex items-center justify-center text-[#7f4025]">
               <HelpCircle className="w-5 h-5" />
@@ -68,7 +76,10 @@ export function AppSettingsCard({ onLogout }: AppSettingsCardProps) {
           <ChevronRight className="w-5 h-5 text-[#6e7977] group-hover:translate-x-1 transition-transform" />
         </div>
 
-        <div className="hidden md:flex p-6 items-center justify-between hover:bg-[#f7f9fb] transition-colors cursor-pointer group">
+        <div
+          className="hidden md:flex p-6 items-center justify-between hover:bg-[#f7f9fb] transition-colors cursor-pointer group"
+          onClick={() => navigate('/doctor/settings')}
+        >
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-[#a3faef]/30 flex items-center justify-center text-[#005c55]">
               <Accessibility className="w-5 h-5" />

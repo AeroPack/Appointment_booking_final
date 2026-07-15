@@ -42,7 +42,7 @@ services:
   # ---- Bootstrap: ensure DB + schema exist in an EXISTING Postgres -----------
   # (only runs with: --profile bootstrap). Uses host networking so it can reach
   # a Postgres published on 127.0.0.1:<port> — the local one (5433) OR the VPS
-  # one (usually 5432) — without needing the other container's network name.
+  # one (usually 5432) — without needing the other container's network name ..
   bootstrap:
     profiles: ["bootstrap"]
     image: postgres:16-alpine
