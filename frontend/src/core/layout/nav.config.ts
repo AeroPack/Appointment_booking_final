@@ -1,7 +1,7 @@
 // src/core/layout/nav.config.ts
 import type { LucideIcon } from 'lucide-react'
 import {
-  Home, Calendar, Users, User, LayoutDashboard, PlusCircle, Tag, MapPin, List, Settings, Bot,
+  Home, Calendar, Users, User, LayoutDashboard, PlusCircle, Tag, MapPin, List, Settings, Bot, Workflow,
 } from 'lucide-react'
 
 export type Role = 'doctor' | 'patient' | 'staff'
@@ -21,6 +21,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: 'Calendar',     icon: Calendar,        to: '/doctor/calendar' },
     { label: 'Settings',     icon: Settings,        to: '/doctor/settings' },
     { label: 'Chatbot',      icon: Bot,             to: '/doctor/chatbot' },
+    { label: 'Flows',        icon: Workflow,        to: '/doctor/flows' },
     { label: 'Profile',      icon: User,            to: '/doctor/profile' },
   ],
   staff: [

@@ -22,6 +22,10 @@ export interface BotLookupQuery {
   doctor_id: string;
 }
 
+export interface InternalSetTypebotEmbedBody {
+  typebot_embed_snippet: string;
+}
+
 export interface BotDoctorInfo {
   user_id: string;
   name: string;
@@ -47,6 +51,8 @@ export interface BotChatbotConfig {
   primary_color: string;
   greeting_msg: string;
   position: string;
+  widget_key?: string;
+  typebot_embed_snippet?: string | null;
 }
 
 export interface BotPatientLookup {

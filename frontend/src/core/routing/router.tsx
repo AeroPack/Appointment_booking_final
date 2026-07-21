@@ -25,6 +25,8 @@ import { AppointmentDetail as DoctorAppointmentDetail } from '@/pages/doctor/App
 import { Settings as DoctorSettings } from '@/pages/doctor/Settings'
 import { Profile as DoctorProfile } from '@/pages/doctor/Profile'
 import ChatbotSettings from '@/pages/doctor/ChatbotSettings'
+import { FlowList } from '@/pages/doctor/FlowList'
+import { FlowEditor } from '@/pages/doctor/FlowEditor'
 
 // Staff
 import { Dashboard as StaffDashboard } from '@/pages/staff/Dashboard'
@@ -64,6 +66,8 @@ export function Router() {
             <Route path="/doctor/appointment/:id" element={<DoctorAppointmentDetail />} />
             <Route path="/doctor/settings" element={<DoctorSettings />} />
             <Route path="/doctor/chatbot" element={<ChatbotSettings />} />
+            <Route path="/doctor/flows" element={<FlowList />} />
+            <Route path="/doctor/flows/:flowId" element={<FlowEditor />} />
             <Route path="/doctor/profile" element={<DoctorProfile />} />
             <Route path="/doctor/tags" element={<Tags />} />
           </Route>

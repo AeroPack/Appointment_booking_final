@@ -143,12 +143,38 @@ export class BotRepository {
 
   async findChatbotConfig(doctorId: string): Promise<BotChatbotConfig | null> {
     const result = await pool.query(
-      `SELECT is_enabled, primary_color, greeting_msg, position
+      `SELECT is_enabled, primary_color, greeting_msg, position, widget_key, typebot_embed_snippet
        FROM doctor_chatbot_config
        WHERE doctor_id = $1`,
       [doctorId]
     );
     return result.rows[0] || null;
+  }
+
+  async getOrCreateChatbotConfig(doctorId: string): Promise<BotChatbotConfig> {
+    await pool.query(
+      `INSERT INTO doctor_chatbot_config (doctor_id) VALUES ($1) ON CONFLICT (doctor_id) DO NOTHING`,
+      [doctorId]
+    );
+    const config = await this.findChatbotConfig(doctorId);
+    return config!;
+  }
+
+  async findDoctorIdByWidgetKey(widgetKey: string): Promise<string | null> {
+    const result = await pool.query(
+      `SELECT doctor_id FROM doctor_chatbot_config WHERE widget_key = $1 AND is_enabled = true`,
+      [widgetKey]
+    );
+    return result.rows[0]?.doctor_id || null;
+  }
+
+  async setTypebotEmbedSnippet(doctorId: string, snippet: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO doctor_chatbot_config (doctor_id, typebot_embed_snippet)
+       VALUES ($1, $2)
+       ON CONFLICT (doctor_id) DO UPDATE SET typebot_embed_snippet = $2`,
+      [doctorId, snippet]
+    );
   }
 
   async upsertChatbotConfig(doctorId: string, data: {

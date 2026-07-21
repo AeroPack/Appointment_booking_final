@@ -255,13 +255,7 @@ export class BotService {
   }
 
   async getConfig(doctorId: string) {
-    const config = await this.repo.findChatbotConfig(doctorId);
-    return config || {
-      is_enabled: false,
-      primary_color: '#3b82f6',
-      greeting_msg: 'Hi! How can I help you today?',
-      position: 'bottom-right',
-    };
+    return this.repo.getOrCreateChatbotConfig(doctorId);
   }
 
   async updateConfig(doctorId: string, data: {

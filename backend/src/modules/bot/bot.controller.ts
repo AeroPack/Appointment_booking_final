@@ -13,7 +13,7 @@ function str(val: unknown): string {
 export async function getSlots(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.getSlots({
-      doctor_id: str(req.query.doctor_id),
+      doctor_id: req.botDoctorId!,
       from: str(req.query.from),
       to: req.query.to ? str(req.query.to) : undefined,
     });
@@ -25,7 +25,7 @@ export async function getSlots(req: Request, res: Response, next: NextFunction) 
 
 export async function bookAppointment(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await service.bookAppointment(req.body);
+    const result = await service.bookAppointment({ ...req.body, doctor_id: req.botDoctorId! });
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -34,7 +34,7 @@ export async function bookAppointment(req: Request, res: Response, next: NextFun
 
 export async function getDoctorInfo(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await service.getDoctorInfo(str(req.params.id));
+    const result = await service.getDoctorInfo(req.botDoctorId!);
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -44,7 +44,7 @@ export async function getDoctorInfo(req: Request, res: Response, next: NextFunct
 export async function searchFaq(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.searchFaq({
-      doctor_id: str(req.query.doctor_id),
+      doctor_id: req.botDoctorId!,
       query: str(req.query.query),
     });
     res.json(success(result));
@@ -57,7 +57,7 @@ export async function lookupPatient(req: Request, res: Response, next: NextFunct
   try {
     const result = await service.lookupPatient({
       phone: str(req.query.phone),
-      doctor_id: str(req.query.doctor_id),
+      doctor_id: req.botDoctorId!,
     });
     res.json(success(result));
   } catch (err) {
@@ -67,7 +67,7 @@ export async function lookupPatient(req: Request, res: Response, next: NextFunct
 
 export async function getConfig(req: Request, res: Response, next: NextFunction) {
   try {
-    const doctorId = req.auth?.userId ?? (req.query.doctor_id as string | undefined);
+    const doctorId = req.auth?.userId ?? req.botDoctorId;
     if (!doctorId) {
       throw new AppError(400, 'MISSING_DOCTOR_ID', 'doctor_id is required');
     }
@@ -118,6 +118,15 @@ export async function deleteFaq(req: Request, res: Response, next: NextFunction)
   try {
     await service.deleteFaq(str(req.params.id), req.auth!.userId);
     res.json(success({ message: 'FAQ deleted' }));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setTypebotEmbed(req: Request, res: Response, next: NextFunction) {
+  try {
+    await repo.setTypebotEmbedSnippet(str(req.params.doctorId), req.body.typebot_embed_snippet);
+    res.json(success({ message: 'Typebot embed snippet updated' }));
   } catch (err) {
     next(err);
   }
