@@ -6,6 +6,8 @@ COPY tsconfig.json tsconfig.node.json vite.config.ts postcss.config.js tailwind.
 COPY src/ src/
 ARG VITE_API_URL=
 ENV VITE_API_URL=$VITE_API_URL
+ARG VITE_PUBLIC_API_URL=
+ENV VITE_PUBLIC_API_URL=$VITE_PUBLIC_API_URL
 RUN npx vite build
 
 FROM nginx:alpine AS runner

@@ -27,12 +27,14 @@ jobs:
           IMAGE_NAME=${{ secrets.DOCKER_HUB_USERNAME }}/frontend
           VERSION=$(date +%Y%m%d%H%M%S)
           API_URL=${VITE_API_URL:-""}
+          PUBLIC_API_URL=${VITE_PUBLIC_API_URL:-""}
 
           echo "Building image: $IMAGE_NAME:$VERSION"
           docker build \
             -t $IMAGE_NAME:$VERSION \
             -t $IMAGE_NAME:latest \
             --build-arg VITE_API_URL=$API_URL \
+            --build-arg VITE_PUBLIC_API_URL=$PUBLIC_API_URL \
             ./frontend
 
           echo "Pushing to Docker Hub..."
