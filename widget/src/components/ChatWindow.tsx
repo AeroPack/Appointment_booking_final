@@ -49,6 +49,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        pointerEvents: 'auto',
         zIndex: 2147483647,
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
