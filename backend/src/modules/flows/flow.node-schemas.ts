@@ -7,6 +7,11 @@ export const NODE_DATA_SCHEMAS = {
     text: z.string().min(1).max(1000),
   }).strict(),
 
+  input: z.object({
+    text: z.string().min(1).max(500),
+    variable: z.string().min(1).max(100),
+  }).strict(),
+
   choice: z.object({
     text: z.string().min(1).max(500),
     options: z.array(z.object({

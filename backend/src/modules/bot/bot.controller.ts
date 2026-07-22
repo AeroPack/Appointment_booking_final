@@ -131,3 +131,12 @@ export async function setTypebotEmbed(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
+
+export async function regenerateWidgetKey(req: Request, res: Response, next: NextFunction) {
+  try {
+    const key = await repo.regenerateWidgetKey(req.auth!.userId);
+    res.json(success({ widget_key: key }));
+  } catch (err) {
+    next(err);
+  }
+}

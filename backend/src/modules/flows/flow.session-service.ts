@@ -51,19 +51,15 @@ export class FlowSessionService {
 
   async respondToSession(params: {
     sessionId: string;
-    doctorId: string;
-    channelSessionId: string;
+    patientId: string;
     input: string;
   }) {
     const session = await this.repo.findSessionById(params.sessionId);
     if (!session) {
       throw new AppError(404, 'SESSION_NOT_FOUND', 'Session not found');
     }
-    if (session.doctor_id !== params.doctorId) {
-      throw new AppError(403, 'FORBIDDEN', 'Session does not belong to this doctor');
-    }
-    if (session.channel_session_id !== params.channelSessionId) {
-      throw new AppError(403, 'FORBIDDEN', 'Session does not belong to this channel session');
+    if (session.patient_id !== params.patientId) {
+      throw new AppError(403, 'FORBIDDEN', 'Session does not belong to this patient');
     }
 
     const graph = await this.repo.getFlowGraph(session.flow_version_id);
@@ -111,18 +107,24 @@ export class FlowSessionService {
     throw new AppError(400, 'INVALID_STATE', `Session is in "${session.status}" state and cannot be resumed`);
   }
 
-  async getSession(sessionId: string) {
+  async getSession(sessionId: string, patientId: string) {
     const session = await this.repo.findSessionById(sessionId);
     if (!session) {
       throw new AppError(404, 'SESSION_NOT_FOUND', 'Session not found');
     }
+    if (session.patient_id !== patientId) {
+      throw new AppError(403, 'FORBIDDEN', 'Session does not belong to this patient');
+    }
     return session;
   }
 
-  async getMessages(sessionId: string) {
+  async getMessages(sessionId: string, patientId: string) {
     const session = await this.repo.findSessionById(sessionId);
     if (!session) {
       throw new AppError(404, 'SESSION_NOT_FOUND', 'Session not found');
+    }
+    if (session.patient_id !== patientId) {
+      throw new AppError(403, 'FORBIDDEN', 'Session does not belong to this patient');
     }
     return this.repo.getMessages(session.id);
   }

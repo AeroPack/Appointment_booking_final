@@ -28,8 +28,7 @@ export async function respondToSession(req: Request, res: Response) {
 
   const result = await service.respondToSession({
     sessionId,
-    doctorId: userId,
-    channelSessionId: userId,
+    patientId: userId,
     input,
   });
 
@@ -37,13 +36,15 @@ export async function respondToSession(req: Request, res: Response) {
 }
 
 export async function getSession(req: Request, res: Response) {
+  const userId = req.auth!.userId;
   const sessionId = req.params.sessionId as string;
-  const session = await service.getSession(sessionId);
+  const session = await service.getSession(sessionId, userId);
   res.json(success(session));
 }
 
 export async function getSessionMessages(req: Request, res: Response) {
+  const userId = req.auth!.userId;
   const sessionId = req.params.sessionId as string;
-  const messages = await service.getMessages(sessionId);
+  const messages = await service.getMessages(sessionId, userId);
   res.json(success(messages));
 }

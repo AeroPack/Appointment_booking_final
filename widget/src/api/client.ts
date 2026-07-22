@@ -2,13 +2,11 @@ import type { SlotsResponse, BookResponse, DoctorInfo, FaqResponse } from '../ty
 
 export class ApiClient {
   private apiHost: string;
-  private botApiKey: string;
-  private doctorId: string;
+  private widgetKey: string;
 
-  constructor(apiHost: string, botApiKey: string, doctorId: string) {
+  constructor(apiHost: string, widgetKey: string) {
     this.apiHost = apiHost.replace(/\/$/, '');
-    this.botApiKey = botApiKey;
-    this.doctorId = doctorId;
+    this.widgetKey = widgetKey;
   }
 
   private async request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -17,7 +15,7 @@ export class ApiClient {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'X-Bot-Key': this.botApiKey,
+        'X-Widget-Key': this.widgetKey,
         ...options.headers,
       },
     });
@@ -30,7 +28,7 @@ export class ApiClient {
   }
 
   async getSlots(from: string, to?: string): Promise<SlotsResponse> {
-    const params = new URLSearchParams({ doctor_id: this.doctorId, from });
+    const params = new URLSearchParams({ from });
     if (to) params.set('to', to);
     return this.request<SlotsResponse>(`/bot/slots?${params}`);
   }
@@ -43,16 +41,16 @@ export class ApiClient {
   }): Promise<BookResponse> {
     return this.request<BookResponse>('/bot/book', {
       method: 'POST',
-      body: JSON.stringify({ ...data, doctor_id: this.doctorId }),
+      body: JSON.stringify(data),
     });
   }
 
   async getDoctorInfo(): Promise<DoctorInfo> {
-    return this.request<DoctorInfo>(`/bot/doctor/${this.doctorId}`);
+    return this.request<DoctorInfo>('/bot/doctor');
   }
 
   async searchFaq(query: string): Promise<FaqResponse> {
-    const params = new URLSearchParams({ doctor_id: this.doctorId, query });
+    const params = new URLSearchParams({ query });
     return this.request<FaqResponse>(`/bot/faq?${params}`);
   }
 }

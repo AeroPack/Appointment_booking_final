@@ -155,6 +155,23 @@ export class BotService {
       throw new AppError(409, 'SLOT_FULL', 'This slot is fully booked');
     }
 
+    const idempotencyKey = `widget:${body.patient_phone}:${body.slot_start}`;
+    const existing = await this.repo.findIdempotencyKey(idempotencyKey);
+    if (existing) {
+      const appt = await this.repo.findAppointmentById(existing.appointment_id);
+      if (appt) {
+        return {
+          appointment_id: appt.id,
+          token_number: appt.token_number,
+          doctor_name: appt.doctor_name,
+          scheduled_start: new Date(appt.scheduled_start).toISOString(),
+          scheduled_end: new Date(appt.scheduled_end).toISOString(),
+          venue: appt.venue_id ? { id: appt.venue_id, name: appt.venue_name || 'Unknown' } : null,
+          patient_name: appt.patient_name,
+        };
+      }
+    }
+
     let patient = await this.repo.findPatientByPhone(body.patient_phone);
     if (!patient) {
       patient = await this.repo.createPatient({
@@ -178,6 +195,8 @@ export class BotService {
       token_number: tokenNumber,
       notes: body.reason,
     });
+
+    await this.repo.insertIdempotencyKey(idempotencyKey, appointment.id);
 
     const doctorInfo = await this.repo.findDoctorInfo(body.doctor_id);
 

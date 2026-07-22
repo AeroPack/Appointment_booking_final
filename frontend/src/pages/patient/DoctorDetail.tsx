@@ -15,6 +15,7 @@ import { Badge } from '@/core/components/ui/badge';
 import { useGetDoctorProfileQuery } from '@/features/doctors/doctorsApi';
 import { useAppDispatch } from '@/core/store/hooks';
 import { setDoctor } from '@/features/appointments/bookingDraftSlice';
+import { ChatWidget } from '@/features/flows/ChatWidget';
 
 // --- Component ---
 
@@ -329,7 +330,9 @@ export function DoctorDetail() {
 
         </div>
       </div>
-      
+
+      <ChatWidget doctorId={doctor.id} />
+
     </div>
   );
 }

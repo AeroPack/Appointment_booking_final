@@ -318,7 +318,7 @@ function FlowEditorInner() {
     loadDraft();
   }, [flowId, getOrCreateDraft, updateSnapshot]);
 
-  const onNodesChange: OnNodesChange = useCallback((changes) => {
+  const onNodesChange: OnNodesChange<Node> = useCallback((changes) => {
     setNodes((nds) => {
       const updated = applyNodeChanges(changes, nds);
       markDirty(updated, edges);
@@ -326,7 +326,7 @@ function FlowEditorInner() {
     });
   }, [edges, markDirty]);
 
-  const onEdgesChange: OnEdgesChange = useCallback((changes) => {
+  const onEdgesChange: OnEdgesChange<Edge> = useCallback((changes) => {
     setEdges((eds) => {
       const updated = applyEdgeChanges(changes, eds);
       markDirty(nodes, updated);
@@ -334,7 +334,7 @@ function FlowEditorInner() {
     });
   }, [nodes, markDirty]);
 
-  const onConnect: OnConnect = useCallback((connection) => {
+  const onConnect: OnConnect = useCallback((connection: Connection) => {
     const error = validateConnectionRules(connection, nodes, edges);
     if (error) return;
 
@@ -537,7 +537,10 @@ function FlowEditorInner() {
             nodesDraggable={!isReadOnly}
             nodesConnectable={!isReadOnly}
             elementsSelectable={!isReadOnly}
-            isValidConnection={(conn) => 'sourceHandle' in conn && validateConnectionRules(conn as Connection, nodes, edges) === null}
+            isValidConnection={(conn) => {
+              const c = conn as Connection;
+              return 'sourceHandle' in conn && validateConnectionRules(c, nodes, edges) === null;
+            }}
             fitView
           >
             <Background />

@@ -16,7 +16,15 @@ export const chatbotApi = api.injectEndpoints({
       query: (body) => ({ url: '/api/doctor/chatbot-config', method: 'PUT', body }),
       invalidatesTags: ['ChatbotConfig'],
     }),
+    regenerateWidgetKey: builder.mutation<{ widget_key: string }, void>({
+      query: () => ({ url: '/api/doctor/chatbot-config/regenerate-widget-key', method: 'POST' }),
+      invalidatesTags: ['ChatbotConfig'],
+    }),
   }),
 });
 
-export const { useGetChatbotConfigQuery, useUpdateChatbotConfigMutation } = chatbotApi;
+export const {
+  useGetChatbotConfigQuery,
+  useUpdateChatbotConfigMutation,
+  useRegenerateWidgetKeyMutation,
+} = chatbotApi;

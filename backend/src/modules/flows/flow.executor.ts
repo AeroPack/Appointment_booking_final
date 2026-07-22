@@ -141,6 +141,32 @@ export class FlowExecutor {
       return this.executeTurn(session, graph);
     }
 
+    if (node.type === 'input') {
+      const variable = String(node.data.variable || '');
+      const context = { ...session.context, [variable]: input.trim() };
+      const edge = graph.edges.find(e => e.source === node.id);
+
+      if (!edge) {
+        await this.sessionRepo.updateSessionStatus(session.id, 'error', {
+          errorMessage: 'Input node has no outgoing edge',
+        });
+        return { ...session, status: 'error' };
+      }
+
+      await this.sessionRepo.addMessage({
+        sessionId: session.id,
+        direction: 'inbound',
+        nodeId: node.id,
+        content: input,
+        messageType: 'text',
+      });
+
+      session.current_node_id = edge.target;
+      session.context = context;
+      session.step_count = await this.sessionRepo.incrementStepCount(session.id);
+      return this.executeTurn(session, graph);
+    }
+
     if (node.type === 'api' && node.data._clientResponse !== undefined) {
       const resp = node.data._clientResponse as { status?: number; data?: unknown; error?: string };
       const apiResponse = { status: resp.status, data: resp.data, error: resp.error };
@@ -200,6 +226,8 @@ export class FlowExecutor {
         return this.handleStart(node, edges);
       case 'message':
         return this.handleMessage(node, edges, session);
+      case 'input':
+        return this.handleInputPrompt(node, session);
       case 'choice':
         return this.handleChoice(node, session);
       case 'condition':
@@ -234,6 +262,15 @@ export class FlowExecutor {
     const edge = edges.find(e => e.source === node.id);
     if (!edge) return { action: 'complete' };
     return { action: 'advance', nextNodeId: edge.target };
+  }
+
+  private async handleInputPrompt(
+    node: { id: string; data: Record<string, unknown> },
+    session: FlowSessionRow,
+  ): Promise<NodeResult> {
+    const text = String(node.data.text || '');
+    await this.sendOutbound(session, text, 'text', node.id);
+    return { action: 'wait' };
   }
 
   private async handleChoice(

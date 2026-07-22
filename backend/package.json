@@ -9,6 +9,7 @@
     "start": "node --import dotenv/config dist/index.js",
     "dev": "nodemon",
     "seed": "node --import dotenv/config --import tsx src/db/seed.ts",
+    "seed:shared-flow": "node --import dotenv/config --import tsx src/db/seed-shared-flow.ts",
     "migrate:up": "node --import dotenv/config --import tsx src/db/migrate.ts",
     "inventory": "tsx scripts/generate-endpoint-inventory.ts",
     "prestart": "npm run build"

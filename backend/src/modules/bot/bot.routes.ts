@@ -19,6 +19,7 @@ import {
   updateFaq,
   deleteFaq,
   setTypebotEmbed,
+  regenerateWidgetKey,
 } from './bot.controller.js';
 
 const router = Router();
@@ -66,9 +67,9 @@ const internalEmbedSchema = z.object({
   typebot_embed_snippet: z.string().min(1).max(5000),
 });
 
-// Public bot endpoints — authenticated via per-doctor X-Bot-Key (botAuth resolves req.botDoctorId).
-// Called server-to-server from Typebot's webhook blocks, so no browser CORS is needed here;
-// scoped rate limiting guards against a leaked/replayed key being hit directly.
+// Public bot endpoints — authenticated via per-doctor X-Widget-Key (botAuth resolves req.botDoctorId).
+// Embedded widget on third-party doctor websites; CORS is handled by botCors in app.ts.
+// Scoped rate limiting guards against abuse.
 router.use('/bot', rateLimit(60_000, 30));
 router.get('/bot/slots', botAuth, validate(botSlotsSchema, 'query'), getSlots);
 router.post('/bot/book', botAuth, validate(botBookSchema), bookAppointment);
@@ -80,6 +81,7 @@ router.get('/bot/config', botAuth, getConfig);
 // Doctor-only endpoints (authenticated via JWT)
 router.get('/doctor/chatbot-config', authGuard, requireRole('doctor'), getConfig);
 router.put('/doctor/chatbot-config', authGuard, requireRole('doctor'), validate(botConfigBodySchema), updateConfig);
+router.post('/doctor/chatbot-config/regenerate-widget-key', authGuard, requireRole('doctor'), regenerateWidgetKey);
 router.get('/doctor/faq', authGuard, requireRole('doctor'), listFaq);
 router.post('/doctor/faq', authGuard, requireRole('doctor'), validate(faqCreateSchema), createFaq);
 router.patch('/doctor/faq/:id', authGuard, requireRole('doctor'), validate(faqUpdateSchema), updateFaq);

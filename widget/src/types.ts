@@ -71,9 +71,8 @@ export type FlowStep =
   | 'done';
 
 export interface WidgetConfig {
-  doctorId: string;
+  widgetKey: string;
   apiHost: string;
-  botApiKey: string;
   primaryColor: string;
   greeting: string;
   position: 'bottom-right' | 'bottom-left';

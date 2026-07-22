@@ -168,6 +168,18 @@ export class BotRepository {
     return result.rows[0]?.doctor_id || null;
   }
 
+  async regenerateWidgetKey(doctorId: string): Promise<string> {
+    const result = await pool.query(
+      `UPDATE doctor_chatbot_config SET widget_key = gen_random_uuid()
+       WHERE doctor_id = $1 RETURNING widget_key`,
+      [doctorId]
+    );
+    if (!result.rows[0]) {
+      throw new Error('Chatbot config not found for this doctor');
+    }
+    return result.rows[0].widget_key;
+  }
+
   async setTypebotEmbedSnippet(doctorId: string, snippet: string): Promise<void> {
     await pool.query(
       `INSERT INTO doctor_chatbot_config (doctor_id, typebot_embed_snippet)
@@ -243,6 +255,45 @@ export class BotRepository {
       [patientId, doctorId]
     );
     return result.rows[0].count;
+  }
+
+  async findIdempotencyKey(key: string): Promise<{ appointment_id: string } | null> {
+    const result = await pool.query(
+      `SELECT appointment_id FROM booking_idempotency WHERE idempotency_key = $1`,
+      [key]
+    );
+    return result.rows[0] || null;
+  }
+
+  async insertIdempotencyKey(key: string, appointmentId: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO booking_idempotency (idempotency_key, appointment_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [key, appointmentId]
+    );
+  }
+
+  async findAppointmentById(appointmentId: string): Promise<{
+    id: string;
+    token_number: number;
+    scheduled_start: string;
+    scheduled_end: string;
+    doctor_name: string;
+    patient_name: string;
+    venue_name: string | null;
+    venue_id: string | null;
+  } | null> {
+    const result = await pool.query(
+      `SELECT a.id, a.token_number, a.scheduled_start, a.scheduled_end,
+              u.name AS doctor_name, p.name AS patient_name,
+              v.name AS venue_name, v.id AS venue_id
+       FROM appointments a
+       JOIN users u ON u.id = a.doctor_id
+       JOIN users p ON p.id = a.patient_id
+       LEFT JOIN venues v ON v.id = a.venue_id
+       WHERE a.id = $1`,
+      [appointmentId]
+    );
+    return result.rows[0] || null;
   }
 
   async findDoctorExists(doctorId: string): Promise<boolean> {

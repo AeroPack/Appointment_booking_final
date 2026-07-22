@@ -25,7 +25,7 @@ export function useChat(config: WidgetConfig) {
   const [isOpen, setIsOpen] = useState(false);
   const [doctorName, setDoctorName] = useState('');
 
-  const apiRef = useRef(new ApiClient(config.apiHost, config.botApiKey, config.doctorId));
+  const apiRef = useRef(new ApiClient(config.apiHost, config.widgetKey));
   const bookingDataRef = useRef<{
     patientName?: string;
     patientPhone?: string;
@@ -120,7 +120,6 @@ export function useChat(config: WidgetConfig) {
     if (step === 'collect_reason') {
       addUserMessage(value === 'skip' ? 'No reason provided' : value);
       const reason = value === 'skip' ? undefined : value;
-      bookingDataRef.current.patientPhone = reason;
 
       setIsTyping(true);
       try {
@@ -132,12 +131,13 @@ export function useChat(config: WidgetConfig) {
         });
 
         const venueStr = result.venue ? ` at ${result.venue.name}` : '';
+        const venueLine = result.venue ? `Venue: ${result.venue.name}\n` : '';
         addBotMessage(
           `Booked! Your token is #${result.token_number}.\n\n` +
           `Doctor: ${result.doctor_name}\n` +
           `Date: ${formatDateDisplay(result.scheduled_start.split('T')[0])}\n` +
           `Time: ${formatTimeDisplay(result.scheduled_start)}\n` +
-          `${venueStr ? `Venue: ${result.venue.name}\n` : ''}` +
+          venueLine +
           `Patient: ${result.patient_name}`
         );
         setStep('done');

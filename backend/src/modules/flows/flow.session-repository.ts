@@ -133,10 +133,11 @@ export class FlowSessionRepository {
     graph: FlowGraph;
   } | null> {
     const result = await pool.query(
-      `SELECT f.id AS flow_id, f.name AS flow_name, fv.id AS version_id, fv.graph
+      `SELECT f.id AS "flowId", f.name AS "flowName", fv.id AS "versionId", fv.graph
        FROM flows f
        JOIN flow_versions fv ON fv.id = f.published_version_id
-       WHERE f.doctor_id = $1 AND f.trigger_type = $2 AND f.is_active = true
+       WHERE (f.doctor_id = $1 OR f.doctor_id IS NULL) AND f.trigger_type = $2 AND f.is_active = true
+       ORDER BY f.doctor_id NULLS LAST
        LIMIT 1`,
       [doctorId, triggerType]
     );
