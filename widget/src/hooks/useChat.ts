@@ -181,7 +181,9 @@ export function useChat(config: WidgetConfig) {
         return;
       }
 
-      bookingDataRef.current.patientPhone = text;
+      if (!bookingDataRef.current.patientPhone) {
+        bookingDataRef.current.patientPhone = text;
+      }
       setIsTyping(true);
       try {
         const today = new Date();
