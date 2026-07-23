@@ -119,7 +119,10 @@ export function useChat(config: WidgetConfig) {
 
     if (step === 'collect_reason') {
       addUserMessage(value === 'skip' ? 'No reason provided' : value);
-      const reason = value === 'skip' ? undefined : value;
+      let reason = value === 'skip' ? undefined : value;
+      if (reason) {
+        reason = await apiRef.current.extractField(reason, 'reason');
+      }
 
       setIsTyping(true);
       try {
@@ -151,8 +154,9 @@ export function useChat(config: WidgetConfig) {
 
   const handleTextSubmit = useCallback(async (text: string) => {
     if (step === 'collect_name') {
+      const extracted = await apiRef.current.extractField(text, 'name');
       addUserMessage(text);
-      bookingDataRef.current.patientName = text;
+      bookingDataRef.current.patientName = extracted;
       addBotMessage('What\'s your phone number?');
       setStep('collect_phone');
       return;
@@ -182,7 +186,8 @@ export function useChat(config: WidgetConfig) {
       }
 
       if (!bookingDataRef.current.patientPhone) {
-        bookingDataRef.current.patientPhone = text;
+        const extracted = await apiRef.current.extractField(text, 'phone');
+        bookingDataRef.current.patientPhone = extracted;
       }
       setIsTyping(true);
       try {
@@ -218,7 +223,8 @@ export function useChat(config: WidgetConfig) {
       addUserMessage(text);
       setIsTyping(true);
       try {
-        const faqResult = await apiRef.current.searchFaq(text);
+        const extractedQuery = await apiRef.current.extractField(text, 'faq');
+        const faqResult = await apiRef.current.searchFaq(extractedQuery);
         if (faqResult.matched && faqResult.answer) {
           addBotMessage(faqResult.answer, [
             { label: 'Book Appointment', value: 'book' },

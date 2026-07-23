@@ -140,3 +140,13 @@ export async function regenerateWidgetKey(req: Request, res: Response, next: Nex
     next(err);
   }
 }
+
+export async function extractField(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { text, field_type } = req.body;
+    const result = await service.extractField(text, field_type);
+    res.json(success({ extracted: result }));
+  } catch (err) {
+    next(err);
+  }
+}

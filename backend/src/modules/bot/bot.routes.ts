@@ -20,6 +20,7 @@ import {
   deleteFaq,
   setTypebotEmbed,
   regenerateWidgetKey,
+  extractField,
 } from './bot.controller.js';
 
 const router = Router();
@@ -67,12 +68,18 @@ const internalEmbedSchema = z.object({
   typebot_embed_snippet: z.string().min(1).max(5000),
 });
 
+const extractSchema = z.object({
+  text: z.string().min(1).max(2000),
+  field_type: z.enum(['name', 'phone', 'reason', 'faq']),
+});
+
 // Public bot endpoints — authenticated via per-doctor X-Widget-Key (botAuth resolves req.botDoctorId).
 // Embedded widget on third-party doctor websites; CORS is handled by botCors in app.ts.
 // Scoped rate limiting guards against abuse.
 router.use('/bot', rateLimit(60_000, 30));
 router.get('/bot/slots', botAuth, validate(botSlotsSchema, 'query'), getSlots);
 router.post('/bot/book', botAuth, validate(botBookSchema), bookAppointment);
+router.post('/bot/extract', botAuth, validate(extractSchema), extractField);
 router.get('/bot/doctor', botAuth, getDoctorInfo);
 router.get('/bot/faq', botAuth, validate(botFaqQuerySchema, 'query'), searchFaq);
 router.get('/bot/lookup', botAuth, validate(botLookupSchema, 'query'), lookupPatient);

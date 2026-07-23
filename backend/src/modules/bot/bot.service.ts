@@ -2,6 +2,7 @@ import { generateSlotsForPeriod, combineDateAndTime } from '../../utils/slotGene
 import { AppError } from '../../utils/response.js';
 import { BotRepository } from './bot.repository.js';
 import type { BotSlotsQuery, BotBookBody, BotFaqQuery, BotLookupQuery } from './bot.types.js';
+import axios from 'axios';
 
 const MAX_RANGE_DAYS = 14;
 
@@ -303,6 +304,51 @@ export class BotService {
   async deleteFaq(id: string, doctorId: string) {
     const deleted = await this.repo.deleteFaqEntry(id, doctorId);
     if (!deleted) throw new AppError(404, 'FAQ_NOT_FOUND', 'FAQ entry not found');
+  }
+
+  async extractField(text: string, fieldType: string): Promise<string> {
+    const apiKey = process.env['GEMINI_API_KEY'];
+    if (!apiKey) return text;
+
+    const fieldPrompts: Record<string, string> = {
+      name: 'Extract the person\'s actual name. Remove phrases like "my name is", "i am", "i\'m", "this is", "call me", "hello i am", etc. Return only the clean name.',
+      phone: 'Extract the phone number. Return only digits, no spaces, dashes, or country codes. If no phone number found, return the original text.',
+      reason: 'Extract the medical reason or condition for the visit. Keep it concise and clinical. Remove filler phrases.',
+      faq: 'Extract the core question the user is asking. Rephrase as a clear, short question.',
+    };
+
+    const prompt = fieldPrompts[fieldType] || `Extract the ${fieldType} from this message.`;
+
+    try {
+      const response = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+        {
+          contents: [{ parts: [{ text: `${prompt}\n\nUser message: "${text}"` }] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: 'OBJECT',
+              properties: {
+                extracted_value: { type: 'STRING', nullable: true },
+              },
+              required: ['extracted_value'],
+            },
+          },
+        },
+        {
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          timeout: 3000,
+        }
+      );
+
+      const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!content) return text;
+
+      const parsed = JSON.parse(content);
+      return parsed.extracted_value || text;
+    } catch {
+      return text;
+    }
   }
 }
 

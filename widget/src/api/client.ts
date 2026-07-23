@@ -53,4 +53,16 @@ export class ApiClient {
     const params = new URLSearchParams({ query });
     return this.request<FaqResponse>(`/bot/faq?${params}`);
   }
+
+  async extractField(text: string, fieldType: string): Promise<string> {
+    try {
+      const data = await this.request<{ extracted: string }>('/bot/extract', {
+        method: 'POST',
+        body: JSON.stringify({ text, field_type: fieldType }),
+      });
+      return data.extracted;
+    } catch {
+      return text;
+    }
+  }
 }

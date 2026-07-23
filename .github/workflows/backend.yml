@@ -99,4 +99,5 @@ jobs:
               -e DATABASE_URL="postgresql://postgres:${{ secrets.DB_PASSWORD }}@new_project_db:5432/appointment_booking" \
               -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
               -e NODE_ENV=production \
+              -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
               $IMAGE_NAME:latest
