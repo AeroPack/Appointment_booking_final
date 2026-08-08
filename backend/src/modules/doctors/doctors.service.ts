@@ -127,6 +127,7 @@ export class DoctorsService {
         ultramsg_token: null,
         whatsapp_number: null,
         whatsapp_enabled: false,
+        whatsapp_webhook_secret: null,
       };
     }
     return config;
@@ -144,5 +145,9 @@ export class DoctorsService {
     }
 
     return this.repo.updateWhatsAppConfig(clinicId, data);
+  }
+
+  async regenerateWhatsAppWebhookSecret(clinicId: string) {
+    return this.repo.regenerateWhatsAppWebhookSecret(clinicId);
   }
 }

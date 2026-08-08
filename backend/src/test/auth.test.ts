@@ -99,14 +99,33 @@ describe('POST /auth/request-otp', () => {
     expect(otpRows.rows[1].used).toBe(false);
   });
 
-  it('[edge] unknown mobile → 404', async () => {
+  it('[edge] unknown mobile → 200, auto-creates a patient (patients have no signup step)', async () => {
     const res = await request(app)
       .post(`${API}/request-otp`)
-      .send({ mobile_number: '9999999999' });
+      .send({ mobile_number: '9199999999999' });
 
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error.code).toBe('USER_NOT_FOUND');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const userRow = await pool.query(
+      'SELECT role, is_verified FROM users WHERE mobile_number = $1',
+      ['9199999999999']
+    );
+    expect(userRow.rows[0].role).toBe('patient');
+    expect(userRow.rows[0].is_verified).toBe(false);
+  });
+
+  it('[security] doctor account → 400 USE_PASSWORD_LOGIN, no code sent', async () => {
+    const clinicId = await seedClinic();
+    const mobile = generateMobile();
+    await seedUser({ clinicId, mobile, role: 'doctor' });
+
+    const res = await request(app)
+      .post(`${API}/request-otp`)
+      .send({ mobile_number: mobile });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('USE_PASSWORD_LOGIN');
   });
 });
 
@@ -389,5 +408,272 @@ describe('GET /auth/me', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.id).toBe(user.id);
     expect(res.body.data.name).toBe('Test Patient');
+  });
+});
+
+describe('POST /auth/register', () => {
+  /** Register, capturing the code from the trace log the way OTP tests already do. */
+  async function registerAndCaptureOtp(mobile: string, overrides: Partial<{ name: string; password: string }> = {}) {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const res = await request(app)
+      .post(`${API}/register`)
+      .send({
+        name: overrides.name ?? 'Dr Test',
+        mobile_number: mobile,
+        password: overrides.password ?? 'Test@1122',
+      });
+    const rawOtp = (consoleSpy.mock.calls[0]?.[0] as string | undefined)?.split(': ')[1];
+    consoleSpy.mockRestore();
+    return { res, rawOtp };
+  }
+
+  it('[happy] valid signup → 201, doctor + clinic created, code sent', async () => {
+    const mobile = generateMobile();
+    const { res, rawOtp } = await registerAndCaptureOtp(mobile);
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.user_id).toBeDefined();
+    expect(rawOtp).toMatch(/^\d{6}$/);
+
+    const userRow = await pool.query(
+      'SELECT role, is_verified, clinic_id FROM users WHERE mobile_number = $1',
+      [mobile]
+    );
+    expect(userRow.rows[0].role).toBe('doctor');
+    expect(userRow.rows[0].is_verified).toBe(false);
+
+    const clinicRow = await pool.query('SELECT id FROM clinics WHERE id = $1', [userRow.rows[0].clinic_id]);
+    expect(clinicRow.rows.length).toBe(1);
+  });
+
+  it('[validation] weak password → 400', async () => {
+    const res = await request(app)
+      .post(`${API}/register`)
+      .send({ name: 'Dr Weak', mobile_number: generateMobile(), password: 'alllowercase' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('[edge] number already used by a verified account → 409 USER_EXISTS', async () => {
+    const clinicId = await seedClinic();
+    const mobile = generateMobile();
+    await seedUser({ clinicId, mobile, role: 'patient' }); // seedUser rows are always is_verified: true
+
+    const res = await request(app)
+      .post(`${API}/register`)
+      .send({ name: 'Claim Attempt', mobile_number: mobile, password: 'Test@1122' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('USER_EXISTS');
+  });
+
+  it('[security] number held by an unverified patient shell → 409 IDENTIFIER_IN_USE, not silently promoted', async () => {
+    const mobile = generateMobile();
+    // Requesting a login code auto-creates an unverified patient shell.
+    await request(app).post(`${API}/request-otp`).send({ mobile_number: mobile });
+
+    const res = await request(app)
+      .post(`${API}/register`)
+      .send({ name: 'Takeover Attempt', mobile_number: mobile, password: 'Test@1122' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('IDENTIFIER_IN_USE');
+
+    const userRow = await pool.query('SELECT role, password_hash FROM users WHERE mobile_number = $1', [mobile]);
+    expect(userRow.rows[0].role).toBe('patient');
+    expect(userRow.rows[0].password_hash).toBeNull();
+  });
+
+  it('[edge] retrying an unverified signup reclaims the same account and clinic, not a second one', async () => {
+    const mobile = generateMobile();
+    const first = await registerAndCaptureOtp(mobile, { name: 'First Try' });
+    const firstUserId = first.res.body.data.user_id;
+    const firstClinic = (await pool.query('SELECT clinic_id FROM users WHERE id = $1', [firstUserId])).rows[0].clinic_id;
+
+    const second = await registerAndCaptureOtp(mobile, { name: 'Retry', password: 'Different@12' });
+
+    expect(second.res.status).toBe(201);
+    expect(second.res.body.data.user_id).toBe(firstUserId);
+
+    const rows = await pool.query('SELECT clinic_id FROM users WHERE mobile_number = $1', [mobile]);
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0].clinic_id).toBe(firstClinic);
+  });
+});
+
+describe('POST /auth/login-password', () => {
+  async function registerAndVerifyDoctor(mobile: string, password = 'Test@1122') {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const registerRes = await request(app)
+      .post(`${API}/register`)
+      .send({ name: 'Dr Login', mobile_number: mobile, password });
+    const rawOtp = (consoleSpy.mock.calls[0][0] as string).split(': ')[1];
+    consoleSpy.mockRestore();
+
+    await request(app)
+      .post(`${API}/verify-registration-otp`)
+      .send({ user_id: registerRes.body.data.user_id, otp: rawOtp });
+
+    return registerRes.body.data.user_id;
+  }
+
+  it('[happy] correct credentials → 200 with tokens', async () => {
+    const mobile = generateMobile();
+    await registerAndVerifyDoctor(mobile, 'Test@1122');
+
+    const res = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'Test@1122' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken).toBeDefined();
+    expect(res.body.data.user.role).toBe('doctor');
+  });
+
+  it('[edge] wrong password → 401 INVALID_PASSWORD', async () => {
+    const mobile = generateMobile();
+    await registerAndVerifyDoctor(mobile, 'Test@1122');
+
+    const res = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'WrongPass@1' });
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe('INVALID_PASSWORD');
+  });
+
+  it('[security] patient account → 400 USE_OTP_LOGIN', async () => {
+    const clinicId = await seedClinic();
+    const mobile = generateMobile();
+    await seedUser({ clinicId, mobile, role: 'patient' });
+
+    const res = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'anything' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('USE_OTP_LOGIN');
+  });
+
+  it('[security] unverified doctor → 403 ACCOUNT_UNVERIFIED, cannot skip the OTP step', async () => {
+    const mobile = generateMobile();
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    await request(app)
+      .post(`${API}/register`)
+      .send({ name: 'Dr Unverified', mobile_number: mobile, password: 'Test@1122' });
+    consoleSpy.mockRestore();
+
+    const res = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'Test@1122' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ACCOUNT_UNVERIFIED');
+  });
+});
+
+describe('Password reset flow', () => {
+  async function registerAndVerifyDoctor(mobile: string, password: string) {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const registerRes = await request(app)
+      .post(`${API}/register`)
+      .send({ name: 'Dr Reset', mobile_number: mobile, password });
+    const registerOtp = (consoleSpy.mock.calls[0][0] as string).split(': ')[1];
+    consoleSpy.mockRestore();
+
+    await request(app)
+      .post(`${API}/verify-registration-otp`)
+      .send({ user_id: registerRes.body.data.user_id, otp: registerOtp });
+  }
+
+  async function requestResetOtp(mobile: string): Promise<string> {
+    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    await request(app).post(`${API}/forgot-password`).send({ mobile_number: mobile });
+    const rawOtp = (consoleSpy.mock.calls[0][0] as string).split(': ')[1];
+    consoleSpy.mockRestore();
+    return rawOtp;
+  }
+
+  it('[happy] full cycle: request → verify → reset → login with the new password', async () => {
+    const mobile = generateMobile();
+    await registerAndVerifyDoctor(mobile, 'OldPass@11');
+
+    const otp = await requestResetOtp(mobile);
+
+    const verifyRes = await request(app)
+      .post(`${API}/verify-password-reset-otp`)
+      .send({ mobile_number: mobile, otp });
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body.data.valid).toBe(true);
+
+    const resetRes = await request(app)
+      .post(`${API}/reset-password`)
+      .send({ mobile_number: mobile, otp, new_password: 'NewPass@22' });
+    expect(resetRes.status).toBe(200);
+
+    const oldLogin = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'OldPass@11' });
+    expect(oldLogin.status).toBe(401);
+
+    const newLogin = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'NewPass@22' });
+    expect(newLogin.status).toBe(200);
+  });
+
+  it('[security] unknown or password-less contact → same 200 shape (no account-enumeration oracle)', async () => {
+    const knownMobile = generateMobile();
+    await registerAndVerifyDoctor(knownMobile, 'Test@1122');
+    const knownRes = await request(app).post(`${API}/forgot-password`).send({ mobile_number: knownMobile });
+
+    const unknownRes = await request(app)
+      .post(`${API}/forgot-password`)
+      .send({ mobile_number: generateMobile() });
+
+    // The fields a real (production) client ever sees must be identical either
+    // way. __dev_otp is a non-production debug echo and necessarily differs -
+    // there is no code to echo for a contact with nothing to reset - so it is
+    // excluded here rather than being the thing under test.
+    expect(unknownRes.status).toBe(knownRes.status);
+    expect(unknownRes.body.data.message).toBe(knownRes.body.data.message);
+    expect(unknownRes.body.data.expires_in).toBe(knownRes.body.data.expires_in);
+  });
+
+  it('[security] reset-password rejects an incorrect code instead of trusting the contact alone', async () => {
+    // Regression test: this endpoint previously never checked the submitted OTP at
+    // all - any request naming a valid, used, unexpired reset row succeeded.
+    const mobile = generateMobile();
+    await registerAndVerifyDoctor(mobile, 'OldPass@11');
+    await requestResetOtp(mobile);
+
+    const res = await request(app)
+      .post(`${API}/reset-password`)
+      .send({ mobile_number: mobile, otp: '000000', new_password: 'ShouldNotApply@1' });
+
+    expect(res.status).toBe(401);
+
+    const stillOld = await request(app)
+      .post(`${API}/login-password`)
+      .send({ email_or_mobile: mobile, password: 'OldPass@11' });
+    expect(stillOld.status).toBe(200);
+  });
+
+  it('[security] a consumed reset code cannot be replayed', async () => {
+    const mobile = generateMobile();
+    await registerAndVerifyDoctor(mobile, 'OldPass@11');
+    const otp = await requestResetOtp(mobile);
+
+    const first = await request(app)
+      .post(`${API}/reset-password`)
+      .send({ mobile_number: mobile, otp, new_password: 'NewPass@22' });
+    expect(first.status).toBe(200);
+
+    const replay = await request(app)
+      .post(`${API}/reset-password`)
+      .send({ mobile_number: mobile, otp, new_password: 'AnotherPass@33' });
+    expect(replay.status).toBe(401);
+    expect(replay.body.error.code).toBe('OTP_USED');
   });
 });

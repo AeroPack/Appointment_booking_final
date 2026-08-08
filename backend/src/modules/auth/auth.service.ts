@@ -1,26 +1,41 @@
+/**
+ * Auth Service
+ *
+ * Two account kinds, two ways in, and they do not overlap:
+ *
+ *   doctor  - permanent. Signs up at /register, signs in with a password.
+ *   patient - temporary. No signup at all; the account is created on first OTP
+ *             request and only ever authenticates with a one-time code.
+ *
+ * Every method here takes contacts already canonicalized by src/utils/phone.ts.
+ */
+
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { hashToken, verifyToken, generateOtp } from '../../utils/hash.js';
 import { sendOtpEmail, sendPasswordResetEmail } from '../../utils/email.js';
 import { AppError } from '../../utils/response.js';
-import type { AuthPayload, AuthIdentifier, RegisterInput, LoginPasswordInput, UpdateProfileInput, SetupWhatsAppInput, ForgotPasswordInput, ResetPasswordInput } from './auth.types.js';
-import { AuthRepository } from './auth.repository.js';
-import { channelRegistry } from '../../utils/channels/index.js';
 import { hashPassword, verifyPassword } from '../../utils/password.js';
+import { channelRegistry } from '../../utils/channels/index.js';
+import type {
+  AuthPayload, AuthIdentifier, UserRow, OtpRow, PasswordResetOtpRow,
+  RegisterInput, LoginPasswordInput, UpdateProfileInput, SetupWhatsAppInput,
+  ForgotPasswordInput, VerifyPasswordResetInput, ResetPasswordInput,
+} from './auth.types.js';
+import { AuthRepository } from './auth.repository.js';
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000;
+const OTP_EXPIRY_SECONDS = OTP_EXPIRY_MS / 1000;
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_OTP_ATTEMPTS = 5;
+
+const isProduction = () => process.env['NODE_ENV'] === 'production';
 
 function getJwtSecret(): string {
   const secret = process.env['JWT_SECRET'];
   if (!secret) throw new Error('JWT_SECRET is not configured');
   return secret;
-}
-
-function signAccessToken(payload: AuthPayload): string {
-  return jwt.sign(payload as object, getJwtSecret(), { expiresIn: ACCESS_TOKEN_EXPIRY });
 }
 
 function isEmail(id: AuthIdentifier): id is { email: string } {
@@ -31,88 +46,124 @@ function identifierLabel(id: AuthIdentifier): string {
   return isEmail(id) ? id.email : id.mobile_number;
 }
 
+/** What to call the channel in a user-facing message. */
+function channelName(id: AuthIdentifier): string {
+  return isEmail(id) ? 'email' : 'mobile number';
+}
+
+/**
+ * Log an OTP for local debugging only. A code printed to a production log is a
+ * credential sitting in plaintext for anyone with log access.
+ */
+function traceOtp(label: string, otp: string): void {
+  if (!isProduction()) {
+    console.log(`[OTP] ${label}: ${otp}`);
+  }
+}
+
+/** The user shape returned alongside a token pair. One shape for every login path. */
+function toAuthUser(user: UserRow) {
+  return {
+    id: user.id,
+    name: user.name,
+    role: user.role,
+    clinic_id: user.clinic_id,
+    mobile_number: user.mobile_number,
+    email: user.email,
+  };
+}
+
 export class AuthService {
   constructor(private readonly repo: AuthRepository) {}
 
-  async sendOtp(identifier: AuthIdentifier): Promise<string> {
-    const label = identifierLabel(identifier);
-    console.log(`[SERVICE] sendOtp called for ${isEmail(identifier) ? 'email' : 'mobile'}: ${label}`);
+  // ─── Token issuing ────────────────────────────────────────────────────────
 
-    let user = isEmail(identifier)
-      ? await this.repo.findUserByEmail(identifier.email)
-      : await this.repo.findUserByMobile(identifier.mobile_number);
+  /**
+   * Issue an access/refresh pair for a user.
+   * @param user - The authenticated account
+   * @returns Tokens plus the user shape the clients expect
+   */
+  private async issueSession(user: UserRow) {
+    const payload: AuthPayload = {
+      userId: user.id,
+      role: user.role,
+      clinicId: user.clinic_id,
+    };
 
-    if (!user) {
-      // No signup step for patients: an unrecognized identifier becomes a new
-      // patient account right here, then proceeds through the normal OTP flow.
-      const clinicId = await this.repo.findOrCreatePlatformClinic();
-      const placeholderName = isEmail(identifier)
-        ? 'New Patient'
-        : `Patient ${identifier.mobile_number.slice(-4)}`;
-      user = await this.repo.createSelfServePatient({
-        name: placeholderName,
-        email: isEmail(identifier) ? identifier.email : null,
-        mobile_number: isEmail(identifier) ? null : identifier.mobile_number,
-        clinic_id: clinicId,
-      });
-    }
+    const accessToken = jwt.sign(payload as object, getJwtSecret(), {
+      expiresIn: ACCESS_TOKEN_EXPIRY,
+    });
 
-    if (user.role === 'doctor') {
-      throw new AppError(400, 'USE_PASSWORD_LOGIN', 'Doctor accounts sign in with a password.');
-    }
+    const refreshToken = crypto.randomBytes(32).toString('hex');
+    await this.repo.storeRefreshToken(
+      user.id,
+      hashToken(refreshToken),
+      new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS)
+    );
 
-    const mobileNumber = isEmail(identifier) ? null : identifier.mobile_number;
-    const email = isEmail(identifier) ? identifier.email : null;
+    return { accessToken, refreshToken, user: toAuthUser(user) };
+  }
 
-    await this.repo.invalidatePriorOtps(mobileNumber, email);
+  // ─── OTP issuing and checking ─────────────────────────────────────────────
+
+  /**
+   * Generate, store, and deliver a fresh OTP for an account.
+   * @param user - Account the code belongs to
+   * @param identifier - Where to send it
+   * @returns The generated code (for non-production echo only)
+   */
+  private async issueOtp(user: UserRow, identifier: AuthIdentifier): Promise<string> {
+    await this.repo.invalidatePriorOtps(user.id);
 
     const otp = generateOtp();
-    const otpHash = hashToken(otp);
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+    await this.repo.storeOtp(
+      user.id,
+      isEmail(identifier) ? null : identifier.mobile_number,
+      isEmail(identifier) ? identifier.email : null,
+      hashToken(otp),
+      new Date(Date.now() + OTP_EXPIRY_MS)
+    );
 
-    await this.repo.storeOtp(mobileNumber, email, otpHash, expiresAt);
-    console.log(`[OTP] OTP for ${label}: ${otp}`);
-
-    if (isEmail(identifier)) {
-      try {
-        await sendOtpEmail(identifier.email, otp);
-        console.log(`[SERVICE] OTP email sent to ${identifier.email}`);
-      } catch (err) {
-        console.error(`[SERVICE] Failed to send OTP email to ${identifier.email}:`, err);
-      }
-    } else {
-      // Send OTP via WhatsApp for mobile numbers
-      try {
-        await this.sendOtpWhatsApp(identifier.mobile_number, otp, user.clinic_id);
-        console.log(`[SERVICE] OTP WhatsApp sent to ${identifier.mobile_number}`);
-      } catch (err) {
-        console.error(`[SERVICE] Failed to send OTP WhatsApp to ${identifier.mobile_number}:`, err);
-      }
-    }
+    traceOtp(identifierLabel(identifier), otp);
+    await this.deliverOtp(identifier, otp, user.clinic_id);
 
     return otp;
   }
 
   /**
-   * Send OTP via WhatsApp
-   * @param mobileNumber - Recipient mobile number
-   * @param otp - OTP code to send
-   * @param clinicId - Clinic ID for configuration lookup
+   * Deliver an OTP over the channel the identifier implies.
+   * Throws on failure: reporting "code sent" for a code that was never sent
+   * leaves the user waiting with no way to tell that delivery broke.
    */
+  private async deliverOtp(identifier: AuthIdentifier, otp: string, clinicId: string): Promise<void> {
+    try {
+      if (isEmail(identifier)) {
+        await sendOtpEmail(identifier.email, otp);
+      } else {
+        await this.sendOtpWhatsApp(identifier.mobile_number, otp, clinicId);
+      }
+    } catch (err) {
+      console.error(`[auth] OTP delivery failed for ${identifierLabel(identifier)}:`, err);
+      throw new AppError(
+        502,
+        'OTP_SEND_FAILED',
+        'Could not send the verification code. Please try again in a moment.'
+      );
+    }
+  }
+
   private async sendOtpWhatsApp(mobileNumber: string, otp: string, clinicId: string): Promise<void> {
-    const whatsappChannel = channelRegistry.get('whatsapp');
-    if (!whatsappChannel) {
-      console.warn('[AuthService] WhatsApp channel not registered, skipping OTP send');
-      return;
+    const whatsapp = channelRegistry.get('whatsapp');
+    if (!whatsapp) {
+      throw new Error('WhatsApp channel not registered');
     }
 
-    const message = `Your verification code is: ${otp}. It expires in 5 minutes.`;
-    
-    const result = await whatsappChannel.sendMessage({
+    // `params` fills the approved auth template; `content` is the fallback body.
+    const result = await whatsapp.sendMessage({
       to: mobileNumber,
-      content: message,
+      content: `Your verification code is: ${otp}. It expires in 5 minutes.`,
       clinicId,
-      options: { type: 'auth_otp' },
+      options: { type: 'auth_otp', params: otp },
     });
 
     if (!result.success) {
@@ -121,157 +172,272 @@ export class AuthService {
   }
 
   /**
-   * Send registration OTP (used during doctor signup)
-   * Skips the doctor role check that blocks login OTP for doctors.
-   * @param identifier - Email or mobile number identifier
-   * @param clinicId - Clinic ID for WhatsApp config lookup
+   * Check a submitted code against an account's latest OTP.
+   * Records a failed attempt; the caller consumes the row on success.
+   * @param row - The account's most recent OTP, if any
+   * @param otp - The code the user submitted
    */
-  private async sendRegistrationOtp(identifier: AuthIdentifier, clinicId: string): Promise<string> {
-    const label = identifierLabel(identifier);
-
-    const mobileNumber = isEmail(identifier) ? null : identifier.mobile_number;
-    const email = isEmail(identifier) ? identifier.email : null;
-
-    await this.repo.invalidatePriorOtps(mobileNumber, email);
-
-    const otp = generateOtp();
-    const otpHash = hashToken(otp);
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
-
-    await this.repo.storeOtp(mobileNumber, email, otpHash, expiresAt);
-    console.log(`[OTP] Registration OTP for ${label}: ${otp}`);
-
-    if (isEmail(identifier)) {
-      try {
-        await sendOtpEmail(identifier.email, otp);
-        console.log(`[SERVICE] Registration OTP email sent to ${identifier.email}`);
-      } catch (err) {
-        console.error(`[SERVICE] Failed to send registration OTP email to ${identifier.email}:`, err);
-      }
-    } else {
-      try {
-        await this.sendOtpWhatsApp(identifier.mobile_number, otp, clinicId);
-        console.log(`[SERVICE] Registration OTP WhatsApp sent to ${identifier.mobile_number}`);
-      } catch (err) {
-        console.error(`[SERVICE] Failed to send registration OTP WhatsApp to ${identifier.mobile_number}:`, err);
-      }
+  private async assertOtpValid(row: OtpRow | null, otp: string): Promise<OtpRow> {
+    if (!row) {
+      throw new AppError(401, 'OTP_NOT_FOUND', 'No verification code was requested. Request a new one.');
+    }
+    if (row.used) {
+      throw new AppError(401, 'OTP_USED', 'This code has already been used. Request a new one.');
+    }
+    if (new Date() > row.expires_at) {
+      throw new AppError(401, 'OTP_EXPIRED', 'This code has expired. Request a new one.');
+    }
+    if (row.attempts >= MAX_OTP_ATTEMPTS) {
+      throw new AppError(401, 'OTP_LOCKED', 'Too many incorrect attempts. Request a new code.');
     }
 
-    return otp;
+    if (!verifyToken(otp, row.otp_hash)) {
+      await this.repo.incrementOtpAttempts(row.id);
+      const remaining = MAX_OTP_ATTEMPTS - (row.attempts + 1);
+      throw new AppError(401, 'INVALID_OTP', `Incorrect code. ${remaining} attempt(s) remaining.`);
+    }
+
+    return row;
   }
 
-  async verifyOtpAndLogin(identifier: AuthIdentifier, otp: string) {
-    const mobileNumber = isEmail(identifier) ? null : identifier.mobile_number;
-    const email = isEmail(identifier) ? identifier.email : null;
+  // ─── Patient sign-in (OTP only) ───────────────────────────────────────────
 
-    const user = isEmail(identifier)
-      ? await this.repo.findUserByEmail(identifier.email)
-      : await this.repo.findUserByMobile(identifier.mobile_number);
+  /**
+   * Send a login code. An unrecognized identifier becomes a new patient:
+   * patients are temporary accounts and have no signup step of their own.
+   * @param identifier - Canonicalized email or mobile number
+   * @returns The generated code (echoed to non-production clients only)
+   */
+  async sendOtp(identifier: AuthIdentifier): Promise<string> {
+    let user = await this.findByIdentifier(identifier);
 
     if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', `No account found with this ${isEmail(identifier) ? 'email' : 'mobile number'}`);
+      user = await this.repo.createSelfServePatient({
+        name: isEmail(identifier) ? 'New Patient' : `Patient ${identifier.mobile_number.slice(-4)}`,
+        email: isEmail(identifier) ? identifier.email : null,
+        mobile_number: isEmail(identifier) ? null : identifier.mobile_number,
+      });
     }
 
+    this.assertNotDoctor(user);
+    return this.issueOtp(user, identifier);
+  }
+
+  /**
+   * Verify a login code and start a session.
+   * @param identifier - Canonicalized email or mobile number
+   * @param otp - The submitted code
+   * @returns Access token, refresh token, and the user
+   */
+  async verifyOtpAndLogin(identifier: AuthIdentifier, otp: string) {
+    const user = await this.findByIdentifier(identifier);
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', `No account found with this ${channelName(identifier)}.`);
+    }
+
+    this.assertNotDoctor(user);
+
+    const row = await this.assertOtpValid(await this.repo.findLatestOtp(user.id), otp);
+    await this.repo.markOtpUsed(row.id);
+    await this.repo.markUserVerified(user.id);
+
+    return this.issueSession({ ...user, is_verified: true });
+  }
+
+  /** Doctors hold a password; sending them a login code would create a second way in. */
+  private assertNotDoctor(user: UserRow): void {
     if (user.role === 'doctor') {
       throw new AppError(400, 'USE_PASSWORD_LOGIN', 'Doctor accounts sign in with a password.');
     }
-
-    const otpRow = await this.repo.findLatestOtp(mobileNumber, email);
-    if (!otpRow) {
-      throw new AppError(401, 'OTP_NOT_FOUND', `No OTP requested for this ${isEmail(identifier) ? 'email' : 'number'}`);
-    }
-
-    if (otpRow.used) {
-      throw new AppError(401, 'OTP_USED', 'OTP has already been used');
-    }
-
-    if (new Date() > otpRow.expires_at) {
-      throw new AppError(401, 'OTP_EXPIRED', 'OTP has expired');
-    }
-
-    if (otpRow.attempts >= MAX_OTP_ATTEMPTS) {
-      throw new AppError(401, 'OTP_LOCKED', 'Too many failed attempts. Request a new OTP.');
-    }
-
-    const isValid = verifyToken(otp, otpRow.otp_hash);
-    if (!isValid) {
-      await this.repo.incrementOtpAttempts(otpRow.id);
-      const remaining = MAX_OTP_ATTEMPTS - (otpRow.attempts + 1);
-      throw new AppError(401, 'INVALID_OTP', `Invalid OTP. ${remaining} attempt(s) remaining`);
-    }
-
-    await this.repo.markOtpUsed(otpRow.id);
-    await this.repo.markUserVerified(user.id);
-
-    const payload: AuthPayload = {
-      userId: user.id,
-      role: user.role,
-      clinicId: user.clinic_id,
-    };
-
-    const accessToken = signAccessToken(payload);
-    const rawRefreshToken = crypto.randomBytes(32).toString('hex');
-    const refreshTokenHash = hashToken(rawRefreshToken);
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS);
-    await this.repo.storeRefreshToken(user.id, refreshTokenHash, expiresAt);
-
-    return {
-      accessToken,
-      refreshToken: rawRefreshToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        mobile_number: user.mobile_number,
-        email: user.email,
-      },
-    };
   }
 
+  private async findByIdentifier(identifier: AuthIdentifier): Promise<UserRow | null> {
+    return isEmail(identifier)
+      ? this.repo.findUserByEmail(identifier.email)
+      : this.repo.findUserByMobile(identifier.mobile_number);
+  }
+
+  // ─── Doctor sign-up ───────────────────────────────────────────────────────
+
+  /**
+   * Register a doctor and send them a verification code.
+   * The account and its clinic are created atomically, then the code is sent -
+   * so a delivery failure leaves a resumable signup, not an orphan clinic.
+   * @param input - Name, password, and at least one contact (already canonical)
+   * @returns The new user's id and how long the code lasts
+   */
+  async register(input: RegisterInput): Promise<{ user_id: string; expires_in: number }> {
+    const email = input.email ?? null;
+    const mobile = input.mobile_number ?? null;
+
+    const existing = await this.resolveSignupConflict(email, mobile);
+    const passwordHash = await hashPassword(input.password);
+
+    let userId: string;
+
+    if (existing) {
+      // Their own abandoned signup: reuse the row and its clinic.
+      await this.repo.reclaimDoctorSignup({
+        id: existing.id,
+        name: input.name,
+        email,
+        mobile_number: mobile,
+        password_hash: passwordHash,
+      });
+      userId = existing.id;
+    } else {
+      const created = await this.repo.createDoctorWithClinic({
+        name: input.name,
+        email,
+        mobile_number: mobile,
+        password_hash: passwordHash,
+      });
+      userId = created.id;
+    }
+
+    const user = await this.repo.findUserById(userId);
+    if (!user) {
+      throw new AppError(500, 'INTERNAL_ERROR', 'Could not create the account.');
+    }
+
+    // Send to whichever contact they supplied; email wins when both are given.
+    const identifier: AuthIdentifier = email ? { email } : { mobile_number: mobile! };
+    await this.issueOtp(user, identifier);
+
+    return { user_id: user.id, expires_in: OTP_EXPIRY_SECONDS };
+  }
+
+  /**
+   * Decide whether a signup may proceed over an account that already holds one
+   * of these contacts.
+   * @returns The reclaimable account, or null when both contacts are free
+   */
+  private async resolveSignupConflict(
+    email: string | null,
+    mobile: string | null
+  ): Promise<UserRow | null> {
+    const byEmail = email ? await this.repo.findUserByEmail(email) : null;
+    const byMobile = mobile ? await this.repo.findUserByMobile(mobile) : null;
+
+    if (byEmail && byMobile && byEmail.id !== byMobile.id) {
+      throw new AppError(
+        409,
+        'USER_EXISTS',
+        'That email and mobile number belong to two different accounts.'
+      );
+    }
+
+    const existing = byEmail ?? byMobile;
+    if (!existing) return null;
+
+    const contactWord = byEmail ? 'email' : 'mobile number';
+
+    if (existing.is_verified) {
+      throw new AppError(409, 'USER_EXISTS', `An account with this ${contactWord} already exists.`);
+    }
+
+    // A patient shell was never a doctor signup. Promoting it silently would let
+    // anyone claim a number someone else already uses to receive codes.
+    if (existing.role !== 'doctor') {
+      throw new AppError(
+        409,
+        'IDENTIFIER_IN_USE',
+        `This ${contactWord} is already registered to a patient account. Use a different one.`
+      );
+    }
+
+    return existing;
+  }
+
+  /**
+   * Verify a signup code and start the doctor's first session.
+   * @param userId - The id returned by register()
+   * @param otp - The submitted code
+   */
+  async verifyRegistrationOtp(userId: string, otp: string) {
+    const user = await this.repo.findUserById(userId);
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'Account not found.');
+    }
+
+    const row = await this.assertOtpValid(await this.repo.findLatestOtp(user.id), otp);
+    await this.repo.markOtpUsed(row.id);
+    await this.repo.markUserVerified(user.id);
+
+    return this.issueSession({ ...user, is_verified: true });
+  }
+
+  // ─── Doctor sign-in ───────────────────────────────────────────────────────
+
+  /**
+   * Sign a doctor in with their password.
+   * @param input - Contact and password; the contact is canonicalized upstream
+   */
+  async loginWithPassword(input: LoginPasswordInput) {
+    const user = await this.repo.findUserByEmailOrMobile(
+      input.email ?? null,
+      input.mobile_number ?? null
+    );
+    if (!user) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'No account found with this email or mobile number.');
+    }
+
+    if (user.role !== 'doctor') {
+      throw new AppError(400, 'USE_OTP_LOGIN', 'This account signs in with a one-time code.');
+    }
+
+    if (!user.password_hash) {
+      throw new AppError(400, 'NO_PASSWORD', 'This account has no password set.');
+    }
+
+    if (!(await verifyPassword(input.password, user.password_hash))) {
+      throw new AppError(401, 'INVALID_PASSWORD', 'Incorrect password.');
+    }
+
+    // Skipping this made OTP verification optional: an abandoned signup could
+    // sign in with nothing but the password it had set.
+    if (!user.is_verified) {
+      throw new AppError(
+        403,
+        'ACCOUNT_UNVERIFIED',
+        'Please verify your account with the code we sent before signing in.'
+      );
+    }
+
+    return this.issueSession(user);
+  }
+
+  // ─── Sessions ─────────────────────────────────────────────────────────────
+
   async refresh(rawRefreshToken: string) {
-    const tokenHash = hashToken(rawRefreshToken);
-    const stored = await this.repo.findRefreshTokenByHash(tokenHash);
+    const stored = await this.repo.findRefreshTokenByHash(hashToken(rawRefreshToken));
     if (!stored) {
-      throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token');
+      throw new AppError(401, 'INVALID_REFRESH_TOKEN', 'Invalid refresh token.');
     }
 
     if (stored.revoked_at) {
+      // A revoked token being replayed means it leaked. Drop every session.
       await this.repo.revokeAllUserRefreshTokens(stored.user_id);
-      throw new AppError(401, 'TOKEN_REUSED', 'Refresh token has been revoked. All sessions revoked.');
+      throw new AppError(401, 'TOKEN_REUSED', 'Session revoked. Please sign in again.');
     }
 
     if (new Date() > stored.expires_at) {
-      throw new AppError(401, 'TOKEN_EXPIRED', 'Refresh token has expired');
+      throw new AppError(401, 'TOKEN_EXPIRED', 'Session expired. Please sign in again.');
     }
 
     await this.repo.revokeRefreshToken(stored.id);
 
     const user = await this.repo.findUserById(stored.user_id);
     if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+      throw new AppError(404, 'USER_NOT_FOUND', 'Account not found.');
     }
 
-    const payload: AuthPayload = {
-      userId: user.id,
-      role: user.role,
-      clinicId: user.clinic_id,
-    };
-
-    const accessToken = signAccessToken(payload);
-    const newRawRefreshToken = crypto.randomBytes(32).toString('hex');
-    const newRefreshTokenHash = hashToken(newRawRefreshToken);
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS);
-    await this.repo.storeRefreshToken(user.id, newRefreshTokenHash, expiresAt);
-
-    return {
-      accessToken,
-      refreshToken: newRawRefreshToken,
-    };
+    const { accessToken, refreshToken } = await this.issueSession(user);
+    return { accessToken, refreshToken };
   }
 
   async logout(rawRefreshToken: string): Promise<void> {
-    const tokenHash = hashToken(rawRefreshToken);
-    const stored = await this.repo.findRefreshTokenByHash(tokenHash);
+    const stored = await this.repo.findRefreshTokenByHash(hashToken(rawRefreshToken));
     if (stored) {
       await this.repo.revokeRefreshToken(stored.id);
     }
@@ -280,192 +446,16 @@ export class AuthService {
   async me(userId: string) {
     const user = await this.repo.findUserById(userId);
     if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+      throw new AppError(404, 'USER_NOT_FOUND', 'Account not found.');
     }
-    return user;
+    return toAuthUser(user);
   }
 
-  // ─── Registration Methods ─────────────────────────────────────────────────────
+  // ─── Doctor profile / clinic settings ─────────────────────────────────────
 
-  /**
-   * Register a new user
-   */
-  async register(input: RegisterInput): Promise<{ user_id: string; expires_in: number }> {
-    // Validate input
-    if (!input.email && !input.mobile_number) {
-      throw new AppError(400, 'MISSING_CONTACT', 'Either email or mobile number is required');
-    }
-
-    // Check if user already exists
-    if (input.email) {
-      const existingUser = await this.repo.findUserByEmail(input.email);
-      if (existingUser) {
-        throw new AppError(409, 'USER_EXISTS', 'User with this email already exists');
-      }
-    }
-
-    if (input.mobile_number) {
-      const existingUser = await this.repo.findUserByMobile(input.mobile_number);
-      if (existingUser) {
-        throw new AppError(409, 'USER_EXISTS', 'User with this mobile number already exists');
-      }
-    }
-
-    // Hash password
-    const passwordHash = await hashPassword(input.password);
-
-    // Create default clinic for the doctor
-    const clinicId = await this.repo.createDefaultClinic(input.name);
-
-    // Create user
-    const user = await this.repo.createUser({
-      name: input.name,
-      email: input.email,
-      mobile_number: input.mobile_number,
-      password_hash: passwordHash,
-      clinic_id: clinicId,
-      role: 'doctor',
-    });
-
-    // Send OTP for verification
-    const identifier: AuthIdentifier = input.email 
-      ? { email: input.email } 
-      : { mobile_number: input.mobile_number! };
-    
-    const otp = await this.sendRegistrationOtp(identifier, clinicId);
-
-    return {
-      user_id: user.id,
-      expires_in: 300, // 5 minutes
-    };
-  }
-
-  /**
-   * Verify registration OTP and complete registration
-   */
-  async verifyRegistrationOtp(userId: string, otp: string): Promise<{
-    accessToken: string;
-    refreshToken: string;
-    user: AuthPayload & { name: string; mobile_number: string | null; email: string | null };
-  }> {
-    // Find user
-    const user = await this.repo.findUserById(userId);
-    if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
-    }
-
-    // Find OTP
-    const otpRow = await this.repo.findLatestOtp(user.mobile_number, user.email);
-    if (!otpRow) {
-      throw new AppError(401, 'OTP_NOT_FOUND', 'No OTP requested');
-    }
-
-    if (otpRow.used) {
-      throw new AppError(401, 'OTP_USED', 'OTP has already been used');
-    }
-
-    if (new Date() > otpRow.expires_at) {
-      throw new AppError(401, 'OTP_EXPIRED', 'OTP has expired');
-    }
-
-    if (otpRow.attempts >= MAX_OTP_ATTEMPTS) {
-      throw new AppError(401, 'OTP_LOCKED', 'Too many failed attempts');
-    }
-
-    // Verify OTP
-    const isValid = verifyToken(otp, otpRow.otp_hash);
-    if (!isValid) {
-      await this.repo.incrementOtpAttempts(otpRow.id);
-      const remaining = MAX_OTP_ATTEMPTS - (otpRow.attempts + 1);
-      throw new AppError(401, 'INVALID_OTP', `Invalid OTP. ${remaining} attempt(s) remaining`);
-    }
-
-    // Mark OTP as used
-    await this.repo.markOtpUsed(otpRow.id);
-
-    // Mark user as verified
-    await this.repo.markUserVerified(userId);
-
-    // Generate tokens
-    const payload: AuthPayload = {
-      userId: user.id,
-      role: user.role,
-      clinicId: user.clinic_id,
-    };
-
-    const accessToken = signAccessToken(payload);
-    const rawRefreshToken = crypto.randomBytes(32).toString('hex');
-    const refreshTokenHash = hashToken(rawRefreshToken);
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS);
-    await this.repo.storeRefreshToken(user.id, refreshTokenHash, expiresAt);
-
-    return {
-      accessToken,
-      refreshToken: rawRefreshToken,
-      user: {
-        ...payload,
-        name: user.name,
-        mobile_number: user.mobile_number,
-        email: user.email,
-      },
-    };
-  }
-
-  /**
-   * Login with password
-   */
-  async loginWithPassword(input: LoginPasswordInput) {
-    // Find user by email or mobile
-    const user = await this.repo.findUserByEmailOrMobile(input.email_or_mobile);
-    if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'No account found with this email or mobile number');
-    }
-
-    if (user.role !== 'doctor') {
-      throw new AppError(400, 'USE_OTP_LOGIN', 'This account signs in with an OTP.');
-    }
-
-    // Check if password exists
-    if (!user.password_hash) {
-      throw new AppError(400, 'NO_PASSWORD', 'This account does not have a password set. Please use OTP login.');
-    }
-
-    // Verify password
-    const isValid = await verifyPassword(input.password, user.password_hash);
-    if (!isValid) {
-      throw new AppError(401, 'INVALID_PASSWORD', 'Invalid password');
-    }
-
-    // Generate tokens
-    const payload: AuthPayload = {
-      userId: user.id,
-      role: user.role,
-      clinicId: user.clinic_id,
-    };
-
-    const accessToken = signAccessToken(payload);
-    const rawRefreshToken = crypto.randomBytes(32).toString('hex');
-    const refreshTokenHash = hashToken(rawRefreshToken);
-    const expiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS);
-    await this.repo.storeRefreshToken(user.id, refreshTokenHash, expiresAt);
-
-    return {
-      accessToken,
-      refreshToken: rawRefreshToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        role: user.role,
-        mobile_number: user.mobile_number,
-        email: user.email,
-      },
-    };
-  }
-
-  /**
-   * Update doctor profile after registration
-   */
   async updateProfile(userId: string, input: UpdateProfileInput): Promise<void> {
+    // Copied field by field: upsertDoctorProfile builds column names from these
+    // keys, so it must never receive an unvalidated body.
     const data: Record<string, unknown> = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.speciality !== undefined) data.speciality = input.speciality;
@@ -475,19 +465,13 @@ export class AuthService {
     if (input.experience_years !== undefined) data.experience_years = input.experience_years;
     if (input.bio !== undefined) data.bio = input.bio;
 
-    if (Object.keys(data).length > 0) {
-      await this.repo.upsertDoctorProfile(userId, data);
-    }
+    await this.repo.upsertDoctorProfile(userId, data);
   }
 
-  /**
-   * Setup WhatsApp configuration for the clinic
-   */
   async setupWhatsApp(userId: string, input: SetupWhatsAppInput): Promise<void> {
-    // Get user to find clinic_id
     const user = await this.repo.findUserById(userId);
     if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
+      throw new AppError(404, 'USER_NOT_FOUND', 'Account not found.');
     }
 
     const data: Record<string, unknown> = {};
@@ -496,132 +480,123 @@ export class AuthService {
     if (input.ultramsg_token !== undefined) data.ultramsg_token = input.ultramsg_token;
     if (input.whatsapp_number !== undefined) data.whatsapp_number = input.whatsapp_number;
 
-    if (Object.keys(data).length > 0) {
-      await this.repo.updateClinicWhatsApp(user.clinic_id, data);
-    }
+    await this.repo.updateClinicWhatsApp(user.clinic_id, data);
   }
 
-  // ─── Password Reset Methods ───────────────────────────────────────────────────
+  // ─── Password reset ───────────────────────────────────────────────────────
 
   /**
-   * Initiate forgot password flow: validate user, send OTP via email or WhatsApp
+   * Send a password reset code.
+   * Always reports success: a 404 here would tell an attacker which contacts
+   * have accounts. Returns the code so non-production clients can echo it.
+   * @param input - The contact to send to (already canonicalized)
    */
-  async forgotPassword(input: ForgotPasswordInput): Promise<{ user_id: string; expires_in: number; otp: string }> {
-    if (!input.email && !input.mobile_number) {
-      throw new AppError(400, 'MISSING_CONTACT', 'Either email or mobile number is required');
+  async forgotPassword(input: ForgotPasswordInput): Promise<{ expires_in: number; otp?: string }> {
+    const identifier = this.toIdentifier(input);
+    const user = await this.findByIdentifier(identifier);
+
+    // Nothing to reset (no such account, or an OTP-only patient) - but the
+    // response must be indistinguishable from the success case.
+    if (!user?.password_hash) {
+      return { expires_in: OTP_EXPIRY_SECONDS };
     }
-
-    const identifier = input.email || input.mobile_number!;
-    const user = await this.repo.findUserByEmailOrMobile(identifier);
-
-    if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', `No account found with this ${input.email ? 'email' : 'mobile number'}`);
-    }
-
-    if (!user.password_hash) {
-      throw new AppError(400, 'NO_PASSWORD', 'This account does not use password login.');
-    }
-
-    const requestedEmail = input.email;
-    const requestedMobile = input.mobile_number;
-
-    const contactEmail = input.email || user.email;
-    const contactMobile = input.mobile_number || user.mobile_number;
 
     await this.repo.invalidatePriorPasswordResetOtps(user.id);
 
     const otp = generateOtp();
-    const otpHash = hashToken(otp);
-    const expiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
+    await this.repo.storePasswordResetOtp(
+      user.id,
+      isEmail(identifier) ? null : identifier.mobile_number,
+      isEmail(identifier) ? identifier.email : null,
+      hashToken(otp),
+      new Date(Date.now() + OTP_EXPIRY_MS)
+    );
+    traceOtp(`password reset for ${identifierLabel(identifier)}`, otp);
 
-    await this.repo.storePasswordResetOtp(user.id, contactMobile, contactEmail, otpHash, expiresAt);
-    console.log(`[OTP] Password reset OTP for ${user.id}: ${otp}`);
-
-    if (requestedEmail) {
-      try {
-        await sendPasswordResetEmail(requestedEmail, otp);
-        console.log(`[SERVICE] Password reset OTP email sent to ${requestedEmail}`);
-      } catch (err) {
-        console.error(`[SERVICE] Failed to send password reset email to ${requestedEmail}:`, err);
+    try {
+      if (isEmail(identifier)) {
+        await sendPasswordResetEmail(identifier.email, otp);
+      } else {
+        await this.sendOtpWhatsApp(identifier.mobile_number, otp, user.clinic_id);
       }
-    } else if (requestedMobile) {
-      try {
-        await this.sendOtpWhatsApp(requestedMobile, otp, user.clinic_id);
-        console.log(`[SERVICE] Password reset OTP WhatsApp sent to ${requestedMobile}`);
-      } catch (err) {
-        console.error(`[SERVICE] Failed to send password reset WhatsApp to ${requestedMobile}:`, err);
-      }
+    } catch (err) {
+      console.error(`[auth] Password reset delivery failed for ${user.id}:`, err);
+      throw new AppError(
+        502,
+        'OTP_SEND_FAILED',
+        'Could not send the verification code. Please try again in a moment.'
+      );
     }
 
-    return { user_id: user.id, expires_in: 300, otp };
+    return { expires_in: OTP_EXPIRY_SECONDS, otp };
   }
 
   /**
-   * Verify the password reset OTP. Marks OTP as used on success but does NOT issue tokens.
+   * Check a reset code without consuming it, so the UI can advance a step.
+   * resetPassword checks it again - this is a convenience, not the authorization.
    */
-  async verifyPasswordResetOtp(userId: string, otp: string): Promise<{ valid: true }> {
-    const user = await this.repo.findUserById(userId);
-    if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
-    }
-
-    const otpRow = await this.repo.findLatestPasswordResetOtp(user.mobile_number, user.email);
-    if (!otpRow) {
-      throw new AppError(401, 'OTP_NOT_FOUND', 'No password reset OTP requested');
-    }
-
-    if (otpRow.used) {
-      throw new AppError(401, 'OTP_USED', 'OTP has already been used');
-    }
-
-    if (new Date() > otpRow.expires_at) {
-      throw new AppError(401, 'OTP_EXPIRED', 'OTP has expired');
-    }
-
-    if (otpRow.attempts >= MAX_OTP_ATTEMPTS) {
-      throw new AppError(401, 'OTP_LOCKED', 'Too many failed attempts. Request a new OTP.');
-    }
-
-    const isValid = verifyToken(otp, otpRow.otp_hash);
-    if (!isValid) {
-      await this.repo.incrementPasswordResetOtpAttempts(otpRow.id);
-      const remaining = MAX_OTP_ATTEMPTS - (otpRow.attempts + 1);
-      throw new AppError(401, 'INVALID_OTP', `Invalid OTP. ${remaining} attempt(s) remaining`);
-    }
-
-    await this.repo.markPasswordResetOtpUsed(otpRow.id);
+  async verifyPasswordResetOtp(input: VerifyPasswordResetInput): Promise<{ valid: true }> {
+    await this.loadVerifiedResetRequest(input, input.otp);
     return { valid: true };
   }
 
   /**
-   * Reset password after OTP verification. Revokes all refresh tokens.
+   * Set a new password, then sign every device out.
+   * The code is verified here and consumed here. This method previously ignored
+   * the submitted code entirely and authorized on a user_id the API itself had
+   * handed to the client, which also left the reset replayable.
    */
   async resetPassword(input: ResetPasswordInput): Promise<{ message: string }> {
-    const user = await this.repo.findUserById(input.user_id);
-    if (!user) {
-      throw new AppError(404, 'USER_NOT_FOUND', 'User not found');
-    }
+    const { user, row } = await this.loadVerifiedResetRequest(input, input.otp);
 
-    const otpRow = await this.repo.findLatestPasswordResetOtp(user.mobile_number, user.email);
-    if (!otpRow) {
-      throw new AppError(401, 'OTP_NOT_FOUND', 'No password reset OTP requested');
-    }
-
-    if (!otpRow.used) {
-      throw new AppError(401, 'OTP_NOT_VERIFIED', 'OTP has not been verified yet');
-    }
-
-    // Ensure OTP was verified within the last 5 minutes
-    if (new Date() > otpRow.expires_at) {
-      throw new AppError(401, 'OTP_EXPIRED', 'Password reset session expired. Request a new code.');
-    }
-
-    const passwordHash = await hashPassword(input.new_password);
-    await this.repo.updatePasswordHash(user.id, passwordHash);
-
-    // Force re-login on all devices
+    await this.repo.markPasswordResetOtpUsed(row.id);
+    await this.repo.updatePasswordHash(user.id, await hashPassword(input.new_password));
     await this.repo.revokeAllUserRefreshTokens(user.id);
 
     return { message: 'Password reset successful' };
+  }
+
+  /**
+   * Resolve a reset request to its account and prove the code is correct.
+   * @returns The account and the OTP row authorizing the request
+   */
+  private async loadVerifiedResetRequest(
+    input: { email?: string; mobile_number?: string },
+    otp: string
+  ): Promise<{ user: UserRow; row: PasswordResetOtpRow }> {
+    const identifier = this.toIdentifier(input);
+    const user = await this.findByIdentifier(identifier);
+
+    // Same message whether the account is missing or has no reset in flight:
+    // the failure must not reveal which.
+    const invalid = new AppError(401, 'INVALID_OTP', 'That code is not valid. Request a new one.');
+    if (!user) throw invalid;
+
+    const row = await this.repo.findLatestPasswordResetOtp(user.id);
+    if (!row) throw invalid;
+
+    if (new Date() > row.expires_at) {
+      throw new AppError(401, 'OTP_EXPIRED', 'This code has expired. Request a new one.');
+    }
+    if (row.used) {
+      throw new AppError(401, 'OTP_USED', 'This code has already been used. Request a new one.');
+    }
+    if (row.attempts >= MAX_OTP_ATTEMPTS) {
+      throw new AppError(401, 'OTP_LOCKED', 'Too many incorrect attempts. Request a new code.');
+    }
+
+    if (!verifyToken(otp, row.otp_hash)) {
+      await this.repo.incrementPasswordResetOtpAttempts(row.id);
+      const remaining = MAX_OTP_ATTEMPTS - (row.attempts + 1);
+      throw new AppError(401, 'INVALID_OTP', `Incorrect code. ${remaining} attempt(s) remaining.`);
+    }
+
+    return { user, row };
+  }
+
+  private toIdentifier(input: { email?: string; mobile_number?: string }): AuthIdentifier {
+    if (input.email) return { email: input.email };
+    if (input.mobile_number) return { mobile_number: input.mobile_number };
+    throw new AppError(400, 'MISSING_CONTACT', 'An email or mobile number is required.');
   }
 }

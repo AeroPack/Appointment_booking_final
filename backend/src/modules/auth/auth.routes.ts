@@ -2,56 +2,55 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { validate } from '../../middleware/validate.js';
 import { authGuard } from '../../middleware/authGuard.js';
-import { rateLimit } from '../../middleware/rateLimit.js';
-import { 
+import { rateLimit, byContact } from '../../middleware/rateLimit.js';
+import { validatePasswordStrength } from '../../utils/password.js';
+import { isValidPhone } from '../../utils/phone.js';
+import {
   sendOtp, verifyOtp, refresh, logout, me,
   register, verifyRegistrationOtp, loginWithPassword,
   updateProfile, setupWhatsApp,
-  forgotPassword, verifyPasswordResetOtp, resetPassword
+  forgotPassword, verifyPasswordResetOtp, resetPassword,
 } from './auth.controller.js';
 
 const router = Router();
-console.log("!!! ROUTES LOADED !!!");
 
+const MINUTE = 60_000;
 
-const requestOtpSchema = z.union([
-  z.object({ mobile_number: z.string().min(10).max(20), email: z.string().email().optional() }),
-  z.object({ mobile_number: z.string().optional(), email: z.string().email() }),
-]);
+// ─── Field schemas ────────────────────────────────────────────────────────────
 
-const verifyOtpSchema = z.object({
-  mobile_number: z.string().min(10).max(20).optional(),
-  email: z.string().email().optional(),
-  otp: z.string().length(6),
-}).refine(data => data.mobile_number || data.email, {
-  message: 'THIS IS A TEST MESSAGE',
+const mobile = z.string().refine(isValidPhone, 'Enter a valid mobile number');
+const email = z.string().email('Enter a valid email address');
+const otp = z.string().length(6, 'Enter the 6-digit code');
+
+/** Password rules live in one place (utils/password.ts) and are enforced here. */
+const password = z.string().superRefine((value, ctx) => {
+  const { isValid, message } = validatePasswordStrength(value);
+  if (!isValid) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  }
 });
 
-const refreshSchema = z.object({
-  refresh_token: z.string().min(1),
-});
+/** Exactly one contact is required; either field alone is enough. */
+const contact = z
+  .object({ mobile_number: mobile.optional(), email: email.optional() })
+  .refine((d) => d.mobile_number || d.email, 'An email or mobile number is required');
 
-const logoutSchema = z.object({
-  refresh_token: z.string().min(1),
-});
+// ─── Request schemas ──────────────────────────────────────────────────────────
 
-const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email().optional(),
-  mobile_number: z.string().min(10).max(20).optional(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-}).refine(data => data.email || data.mobile_number, {
-  message: 'Either email or mobile number is required',
-});
+const requestOtpSchema = contact;
+const verifyOtpSchema = contact.and(z.object({ otp }));
 
-const verifyRegistrationSchema = z.object({
-  user_id: z.string().uuid(),
-  otp: z.string().length(6),
-});
+const refreshSchema = z.object({ refresh_token: z.string().min(1) });
+const logoutSchema = refreshSchema;
+
+const registerSchema = contact.and(
+  z.object({ name: z.string().min(2, 'Name must be at least 2 characters'), password })
+);
+const verifyRegistrationSchema = z.object({ user_id: z.string().uuid(), otp });
 
 const loginPasswordSchema = z.object({
-  email_or_mobile: z.string().min(1),
-  password: z.string().min(1),
+  email_or_mobile: z.string().min(1, 'Enter your email or mobile number'),
+  password: z.string().min(1, 'Enter your password'),
 });
 
 const updateProfileSchema = z.object({
@@ -68,48 +67,68 @@ const setupWhatsAppSchema = z.object({
   whatsapp_enabled: z.boolean().optional(),
   ultramsg_instance_id: z.string().optional(),
   ultramsg_token: z.string().optional(),
-  whatsapp_number: z.string().optional(),
+  whatsapp_number: mobile.optional(),
 });
 
-const forgotPasswordSchema = z.union([
-  z.object({ mobile_number: z.string().min(10).max(20), email: z.string().email().optional() }),
-  z.object({ mobile_number: z.string().optional(), email: z.string().email() }),
-]).refine(data => data.mobile_number || data.email, {
-  message: 'Either email or mobile number is required',
-});
+// Password reset is addressed by contact, not by a user_id handed out by the API.
+const forgotPasswordSchema = contact;
+const verifyPasswordResetSchema = contact.and(z.object({ otp }));
+const resetPasswordSchema = contact.and(z.object({ otp, new_password: password }));
 
-const verifyPasswordResetSchema = z.object({
-  user_id: z.string().uuid(),
-  otp: z.string().length(6),
-});
+// ─── Routes ───────────────────────────────────────────────────────────────────
+//
+// Limits are keyed per route and, where a request names an account, per account.
+// Behind the reverse proxy every browser shares one source address, so keying on
+// the address alone let any user exhaust everyone else's budget.
 
-const resetPasswordSchema = z.object({
-  user_id: z.string().uuid(),
-  otp: z.string().length(6),
-  new_password: z.string().min(8, 'Password must be at least 8 characters'),
-});
+// Patient sign-in: OTP only. An unrecognized contact becomes a new patient.
+router.post('/request-otp', rateLimit(MINUTE, 5, byContact), validate(requestOtpSchema), sendOtp);
+router.post('/verify-otp', rateLimit(MINUTE, 10, byContact), validate(verifyOtpSchema), verifyOtp);
 
-// Existing routes
-router.post('/request-otp', rateLimit(60_000, 5), validate(requestOtpSchema), sendOtp);
-router.post('/verify-otp', rateLimit(60_000, 10), validate(verifyOtpSchema), verifyOtp);
+// Sessions
 router.post('/refresh', validate(refreshSchema), refresh);
 router.post('/logout', authGuard, validate(logoutSchema), logout);
 router.get('/me', authGuard, me);
 
-// Registration routes
-router.post('/register', rateLimit(60_000, 3), validate(registerSchema), register);
-router.post('/verify-registration-otp', rateLimit(60_000, 10), validate(verifyRegistrationSchema), verifyRegistrationOtp);
+// Doctor sign-up
+router.post('/register', rateLimit(MINUTE, 5, byContact), validate(registerSchema), register);
+router.post(
+  '/verify-registration-otp',
+  rateLimit(MINUTE, 10),
+  validate(verifyRegistrationSchema),
+  verifyRegistrationOtp
+);
 
-// Password login route
-router.post('/login-password', rateLimit(60_000, 10), validate(loginPasswordSchema), loginWithPassword);
+// Doctor sign-in
+router.post(
+  '/login-password',
+  rateLimit(MINUTE, 10, byContact),
+  validate(loginPasswordSchema),
+  loginWithPassword
+);
 
-// Protected routes (require authentication)
+// Doctor profile / clinic settings
 router.post('/update-profile', authGuard, validate(updateProfileSchema), updateProfile);
 router.post('/setup-whatsapp', authGuard, validate(setupWhatsAppSchema), setupWhatsApp);
 
-// Password reset routes (public)
-router.post('/forgot-password', rateLimit(60_000, 5), validate(forgotPasswordSchema), forgotPassword);
-router.post('/verify-password-reset-otp', rateLimit(60_000, 10), validate(verifyPasswordResetSchema), verifyPasswordResetOtp);
-router.post('/reset-password', rateLimit(60_000, 5), validate(resetPasswordSchema), resetPassword);
+// Password reset
+router.post(
+  '/forgot-password',
+  rateLimit(MINUTE, 5, byContact),
+  validate(forgotPasswordSchema),
+  forgotPassword
+);
+router.post(
+  '/verify-password-reset-otp',
+  rateLimit(MINUTE, 10, byContact),
+  validate(verifyPasswordResetSchema),
+  verifyPasswordResetOtp
+);
+router.post(
+  '/reset-password',
+  rateLimit(MINUTE, 10, byContact),
+  validate(resetPasswordSchema),
+  resetPassword
+);
 
 export default router;

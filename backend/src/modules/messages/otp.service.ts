@@ -70,11 +70,12 @@ export class OtpService {
     
     // Send OTP via selected channel
     const channelImpl = channelRegistry.getOrThrow(channel);
+    // `params` feeds the approved auth template; `content` is the fallback body.
     const result = await channelImpl.sendMessage({
       to: identifier,
       content: message,
       clinicId,
-      options: { type: 'otp', otpId },
+      options: { type: 'otp', otpId, params: otp },
     });
     
     if (!result.success) {

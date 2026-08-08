@@ -1,20 +1,21 @@
 import React, { useState } from 'react'
-import { ArrowRight, Loader2, Plus, Stethoscope, User } from 'lucide-react'
+import { ArrowRight, Loader2, Plus } from 'lucide-react'
 import { Button } from '@/core/components/ui/button'
 import { Card, CardContent } from '@/core/components/ui/card'
 import { Input } from '@/core/components/ui/input'
 import { Link } from 'react-router-dom'
 
+// Doctor-only: doctors are permanent accounts and sign in with a password.
+// Patients are temporary (auto-created on first OTP request) and have their
+// own sign-in surface, not this one - see /login vs the patient entry point.
 export interface LoginFormProps {
-  onRequestOtp: (identifier: { mobile_number?: string; email?: string }) => void
   onPasswordLogin: (data: { email_or_mobile: string; password: string }) => void
   onForgotPassword: () => void
   isLoading: boolean
   error?: string
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ onRequestOtp, onPasswordLogin, onForgotPassword, isLoading, error }) => {
-  const [role, setRole] = useState<'patient' | 'doctor'>('patient')
+export const LoginForm: React.FC<LoginFormProps> = ({ onPasswordLogin, onForgotPassword, isLoading, error }) => {
   const [emailMode, setEmailMode] = useState(false)
   const [value, setValue] = useState('')
   const [password, setPassword] = useState('')
@@ -31,17 +32,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onRequestOtp, onPasswordLo
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (isLoading) return
-
-    if (role === 'doctor') {
-      onPasswordLogin({ email_or_mobile: value, password })
-      return
-    }
-
-    if (emailMode) {
-      onRequestOtp({ email: value })
-    } else {
-      onRequestOtp({ mobile_number: value })
-    }
+    onPasswordLogin({ email_or_mobile: value, password })
   }
 
   const setIdentifierMode = (wantEmail: boolean) => {
@@ -51,19 +42,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onRequestOtp, onPasswordLo
     setPassword('')
   }
 
-  const switchRole = (nextRole: 'patient' | 'doctor') => {
-    setRole(nextRole)
-    setValue('')
-    setPassword('')
-  }
-
   const isIdentifierValid = emailMode
     ? value.includes('@') && value.includes('.')
     : value.length === 10
 
-  const isValid = role === 'doctor'
-    ? isIdentifierValid && password.length > 0
-    : isIdentifierValid
+  const isValid = isIdentifierValid && password.length > 0
 
   return (
     <main className="min-h-screen flex flex-col items-center md:justify-center justify-start px-5 py-12 relative overflow-hidden bg-background">
@@ -76,37 +59,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onRequestOtp, onPasswordLo
             <Plus className="text-white w-8 h-8 md:w-10 md:h-10" strokeWidth={3} />
           </div>
           <h1 className="text-[22px] md:text-[24px] font-bold leading-[28px] md:leading-[32px] tracking-[-0.01em] text-foreground px-4 md:px-0">
-            Book your appointment in seconds
+            Doctor sign in
           </h1>
           <p className="hidden md:block text-[16px] leading-[24px] text-muted-foreground max-w-[320px] mt-2">
-            Access professional healthcare with simplicity and serenity.
+            Access your clinic dashboard with your email or mobile number and password.
           </p>
         </div>
 
         <Card className="w-full border-0 shadow-none bg-transparent md:bg-white md:shadow-[0px_4px_12px_rgba(15,23,42,0.05)] md:border md:border-border md:rounded-xl">
           <CardContent className="p-0 md:p-8">
-            <div className="flex p-1 bg-muted rounded-lg mb-6">
-              <button
-                type="button"
-                onClick={() => switchRole('patient')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[14px] font-semibold rounded-md transition-all ${role === 'patient' ? 'bg-white text-[#0f766e] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                <User className="w-4 h-4" />
-                Patient / Staff
-              </button>
-              <button
-                type="button"
-                onClick={() => switchRole('doctor')}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[14px] font-semibold rounded-md transition-all ${role === 'doctor' ? 'bg-white text-[#0f766e] shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                <Stethoscope className="w-4 h-4" />
-                Doctor
-              </button>
-            </div>
-            <p className="text-[12px] text-muted-foreground -mt-4 mb-5">
-              {role === 'doctor' ? 'Doctors sign in with a password.' : 'Patients and staff sign in with a one-time code.'}
-            </p>
-
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -154,39 +115,37 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onRequestOtp, onPasswordLo
                 </div>
               </div>
 
-              {role === 'doctor' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label
-                      htmlFor="password"
-                      className="block text-[14px] font-semibold leading-[20px] text-foreground tracking-[0.01em]"
-                    >
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={onForgotPassword}
-                      className="text-[13px] font-medium text-[#0f766e] hover:underline"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                  <div className={`flex items-center border rounded-lg overflow-hidden transition-all duration-200 h-[48px] bg-white
-                    ${error ? 'border-destructive focus-within:ring-destructive' : 'border-border focus-within:border-[#0f766e] focus-within:ring-1 focus-within:ring-[#0f766e]'}
-                  `}>
-                    <Input
-                      id="password"
-                      name="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-4 text-[16px] text-foreground placeholder:text-muted-foreground/50 h-full rounded-none bg-transparent"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="password"
+                    className="block text-[14px] font-semibold leading-[20px] text-foreground tracking-[0.01em]"
+                  >
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={onForgotPassword}
+                    className="text-[13px] font-medium text-[#0f766e] hover:underline"
+                  >
+                    Forgot password?
+                  </button>
                 </div>
-              )}
+                <div className={`flex items-center border rounded-lg overflow-hidden transition-all duration-200 h-[48px] bg-white
+                  ${error ? 'border-destructive focus-within:ring-destructive' : 'border-border focus-within:border-[#0f766e] focus-within:ring-1 focus-within:ring-[#0f766e]'}
+                `}>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-4 text-[16px] text-foreground placeholder:text-muted-foreground/50 h-full rounded-none bg-transparent"
+                  />
+                </div>
+              </div>
 
               {error && (
                 <p className="text-[12px] font-medium leading-[16px] text-destructive -mt-2">
@@ -203,23 +162,21 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onRequestOtp, onPasswordLo
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
-                    {role === 'doctor' ? 'Sign In' : 'Send OTP'}
+                    Sign In
                     <ArrowRight className="hidden md:block w-5 h-5" />
                   </>
                 )}
               </Button>
             </form>
 
-            {role === 'doctor' && (
-              <div className="mt-6 text-center">
-                <p className="text-[14px] font-medium text-muted-foreground">
-                  Don't have an account?{' '}
-                  <Link to="/signup" className="text-[#0f766e] hover:underline">
-                    Sign Up
-                  </Link>
-                </p>
-              </div>
-            )}
+            <div className="mt-6 text-center">
+              <p className="text-[14px] font-medium text-muted-foreground">
+                Don't have an account?{' '}
+                <Link to="/signup" className="text-[#0f766e] hover:underline">
+                  Sign Up
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
 

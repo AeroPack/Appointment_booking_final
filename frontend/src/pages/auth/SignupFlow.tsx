@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAppDispatch } from '@/core/store/hooks'
 import { useRegisterMutation, useVerifyRegistrationOtpMutation, useUpdateProfileMutation, useSetupWhatsAppMutation } from '@/features/auth/authApi'
 import { setCredentials } from '@/features/auth/authSlice'
+import { extractErrorMessage } from '@/features/auth/errorMessage'
 import { BasicInfoStep } from './components/BasicInfoStep'
 import { ProfileStep } from './components/ProfileStep'
 import { WhatsAppStep } from './components/WhatsAppStep'
@@ -58,12 +59,7 @@ export function SignupFlow() {
         setSecondsLeft(result.expires_in)
         setStep('otp')
       } catch (err: unknown) {
-        const errPayload =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-            : null
-        const msg = errPayload?.message ?? 'Registration failed'
-        setError(msg)
+        setError(extractErrorMessage(err, 'Registration failed'))
       }
     },
     [register],
@@ -78,12 +74,7 @@ export function SignupFlow() {
         dispatch(setCredentials(result))
         setStep('profile')
       } catch (err: unknown) {
-        const errPayload =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-            : null
-        const msg = errPayload?.message ?? 'Invalid OTP'
-        setError(msg)
+        setError(extractErrorMessage(err, 'Invalid OTP'))
       }
     },
     [verifyRegistrationOtp, userId, dispatch],
@@ -96,12 +87,7 @@ export function SignupFlow() {
         await updateProfile(data).unwrap()
         setStep('whatsapp')
       } catch (err: unknown) {
-        const errPayload =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-            : null
-        const msg = errPayload?.message ?? 'Failed to update profile'
-        setError(msg)
+        setError(extractErrorMessage(err, 'Failed to update profile'))
       }
     },
     [updateProfile],
@@ -114,12 +100,7 @@ export function SignupFlow() {
         await setupWhatsApp(data).unwrap()
         navigate('/doctor/dashboard', { replace: true })
       } catch (err: unknown) {
-        const errPayload =
-          err && typeof err === 'object' && 'data' in err
-            ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-            : null
-        const msg = errPayload?.message ?? 'Failed to configure WhatsApp'
-        setError(msg)
+        setError(extractErrorMessage(err, 'Failed to configure WhatsApp'))
       }
     },
     [setupWhatsApp, navigate],
@@ -130,13 +111,15 @@ export function SignupFlow() {
   }, [navigate])
 
   const handleResendOtp = useCallback(async () => {
-    if (signupData) {
-      try {
-        await register(signupData).unwrap()
-        setSecondsLeft(300)
-      } catch {
-        // Silently fail on resend
-      }
+    if (!signupData) return
+    setError(undefined)
+    try {
+      const result = await register(signupData).unwrap()
+      setSecondsLeft(result.expires_in)
+    } catch (err: unknown) {
+      // A resend that silently does nothing leaves the user waiting on a code
+      // that was never sent (e.g. the gateway is down), with no way to tell.
+      setError(extractErrorMessage(err, 'Failed to resend code'))
     }
   }, [register, signupData])
 

@@ -107,6 +107,7 @@ export interface WhatsAppConfigRow {
   ultramsg_token: string | null;
   whatsapp_number: string | null;
   whatsapp_enabled: boolean;
+  whatsapp_webhook_secret: string | null;
 }
 
 export interface UpdateWhatsAppConfigInput {

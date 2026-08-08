@@ -15,4 +15,26 @@ pool.on('error', (err: Error) => {
     });
 
 
+/**
+ * Run a set of statements as one atomic unit.
+ * Multi-step writes (creating a clinic and its doctor, say) must not leave a
+ * half-finished account behind when a later step fails.
+ * @param fn - Receives a dedicated client; every query in it shares one transaction
+ * @returns Whatever fn returns, after COMMIT
+ */
+export async function withTransaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
     export default pool;

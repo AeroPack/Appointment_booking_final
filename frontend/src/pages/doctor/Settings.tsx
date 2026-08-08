@@ -33,6 +33,7 @@ import {
   Key,
   Phone,
   XCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
@@ -45,6 +46,7 @@ import {
   useDeleteLeaveMutation,
   useGetWhatsAppConfigQuery,
   useUpdateWhatsAppConfigMutation,
+  useRegenerateWhatsAppWebhookSecretMutation,
 } from "@/features/doctors/doctorSettingsApi";
 import type { BookingPolicies, DoctorLeave, WhatsAppConfig } from "@/features/doctors/doctorSettingsApi";
 import {
@@ -570,13 +572,16 @@ export function Settings() {
   // ─── WhatsApp Configuration State ───
   const { data: whatsappConfig } = useGetWhatsAppConfigQuery();
   const [updateWhatsAppConfig, { isLoading: isSavingWhatsApp }] = useUpdateWhatsAppConfigMutation();
+  const [regenerateWebhookSecret, { isLoading: isRegeneratingSecret }] = useRegenerateWhatsAppWebhookSecretMutation();
   const [whatsappLocal, setWhatsappLocal] = useState<WhatsAppConfig>({
     ultramsg_instance_id: '',
     ultramsg_token: '',
     whatsapp_number: '',
     whatsapp_enabled: false,
+    whatsapp_webhook_secret: null,
   });
   const [sendFromOwnNumber, setSendFromOwnNumber] = useState(false);
+  const [webhookCopied, setWebhookCopied] = useState(false);
 
   // ─── Sync Policies from Server ───
   useEffect(() => {
@@ -659,6 +664,27 @@ export function Settings() {
       toast.success("WhatsApp settings saved");
     } catch {
       toast.error("Failed to save WhatsApp settings");
+    }
+  };
+
+  const webhookUrl = authUser?.clinic_id && whatsappLocal.whatsapp_webhook_secret
+    ? `${window.location.origin}/api/webhooks/whatsapp/${authUser.clinic_id}?key=${whatsappLocal.whatsapp_webhook_secret}`
+    : '';
+
+  const handleCopyWebhookUrl = () => {
+    if (!webhookUrl) return;
+    navigator.clipboard.writeText(webhookUrl);
+    setWebhookCopied(true);
+    setTimeout(() => setWebhookCopied(false), 2000);
+  };
+
+  const handleRegenerateWebhookSecret = async () => {
+    try {
+      const result = await regenerateWebhookSecret().unwrap();
+      setWhatsappLocal((prev) => ({ ...prev, whatsapp_webhook_secret: result.whatsapp_webhook_secret }));
+      toast.success("Webhook secret regenerated. Update your UltraMsg webhook URL.");
+    } catch {
+      toast.error("Failed to regenerate webhook secret");
     }
   };
 
@@ -1217,6 +1243,52 @@ export function Settings() {
                       </div>
                     </>
                   )}
+
+                  {/* Webhook URL */}
+                  <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Key className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium text-foreground">Webhook URL</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Configure this URL in your UltraMsg dashboard to receive inbound WhatsApp messages.
+                    </p>
+                    {webhookUrl ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded text-xs font-mono break-all">
+                            {webhookUrl}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={handleCopyWebhookUrl}
+                          >
+                            {webhookCopied ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                            {webhookCopied ? "Copied" : "Copy"}
+                          </Button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRegenerateWebhookSecret}
+                            disabled={isRegeneratingSecret}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-1 ${isRegeneratingSecret ? 'animate-spin' : ''}`} />
+                            Regenerate Secret
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Regenerate if the secret is compromised. The old key stops working immediately.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Save your WhatsApp configuration first to generate a webhook URL.
+                      </p>
+                    )}
+                  </div>
 
                   {/* Save button */}
                   <div className="flex justify-end pt-2">

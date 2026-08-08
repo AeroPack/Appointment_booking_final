@@ -21,6 +21,7 @@ export interface WhatsAppConfig {
   ultramsg_token: string | null
   whatsapp_number: string | null
   whatsapp_enabled: boolean
+  whatsapp_webhook_secret: string | null
 }
 
 export const doctorSettingsApi = api.injectEndpoints({
@@ -68,6 +69,13 @@ export const doctorSettingsApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Doctor'],
     }),
+    regenerateWhatsAppWebhookSecret: builder.mutation<{ whatsapp_webhook_secret: string }, void>({
+      query: () => ({
+        url: '/api/clinic/whatsapp-config/regenerate-webhook-secret',
+        method: 'POST',
+      }),
+      invalidatesTags: ['Doctor'],
+    }),
   }),
 })
 
@@ -79,4 +87,5 @@ export const {
   useDeleteLeaveMutation,
   useGetWhatsAppConfigQuery,
   useUpdateWhatsAppConfigMutation,
+  useRegenerateWhatsAppWebhookSecretMutation,
 } = doctorSettingsApi

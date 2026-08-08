@@ -14,6 +14,7 @@ const TRUNCATE_TABLES = [
   'venues',
   'doctor_profiles',
   'refresh_tokens',
+  'password_reset_otps',
   'otps',
   'users',
   'clinics',

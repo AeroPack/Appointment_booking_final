@@ -29,6 +29,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Gateway credentials and other app secrets live in backend/.env. Anything
+    # also listed under `environment:` below overrides this file.
+    env_file:
+      - ./backend/.env
     environment:
       PORT: 5000
       NODE_ENV: production
@@ -39,6 +43,9 @@ services:
       EMAIL_SECURE: ${EMAIL_SECURE:-false}
       EMAIL_USERNAME: ${EMAIL_USERNAME:-wings.recr@gmail.com}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD:-gtkdnfuayxxevwnl}
+      # WA_GATEWAY_* / WA_AUTH_* come from backend/.env; listing them here with
+      # empty defaults would override the file and blank out the credentials.
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
     ports:
       - "5000:5000"
     networks:

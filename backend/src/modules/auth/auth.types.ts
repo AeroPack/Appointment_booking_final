@@ -25,6 +25,7 @@ export interface UserRow {
 
 export interface OtpRow {
   id: string;
+  user_id: string;
   mobile_number: string | null;
   email: string | null;
   otp_hash: string;
@@ -33,6 +34,10 @@ export interface OtpRow {
   used: boolean;
 }
 
+/**
+ * A contact the user typed, already canonicalized by src/utils/phone.ts.
+ * Auth code must only ever see this form - raw input never reaches a query.
+ */
 export type AuthIdentifier = { mobile_number: string } | { email: string };
 
 export interface RefreshTokenRow {
@@ -50,8 +55,11 @@ export interface RegisterInput {
   password: string;
 }
 
+// The controller splits the single "email or mobile" field the UI collects into
+// whichever it is, and canonicalizes it, before the service sees it.
 export interface LoginPasswordInput {
-  email_or_mobile: string;
+  email?: string;
+  mobile_number?: string;
   password: string;
 }
 
@@ -77,13 +85,18 @@ export interface ForgotPasswordInput {
   mobile_number?: string;
 }
 
+// Password reset is addressed by the contact the user typed, not by a user_id.
+// Returning a user_id from /forgot-password told the caller whether an account
+// existed, and made the reset authorizable by that id alone.
 export interface VerifyPasswordResetInput {
-  user_id: string;
+  email?: string;
+  mobile_number?: string;
   otp: string;
 }
 
 export interface ResetPasswordInput {
-  user_id: string;
+  email?: string;
+  mobile_number?: string;
   otp: string;
   new_password: string;
 }

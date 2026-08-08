@@ -18,6 +18,7 @@ export interface AuthUser {
   id: string
   name: string
   role: 'doctor' | 'patient' | 'staff'
+  clinic_id: string
   mobile_number: string | null
   email: string | null
 }
@@ -89,24 +90,26 @@ export interface ForgotPasswordRequest {
   mobile_number?: string
 }
 
+// No user_id: returning one would tell the caller whether the contact has an
+// account at all. The response is deliberately identical whether or not it does.
 export interface ForgotPasswordResponse {
   message: string
-  user_id: string
   expires_in: number
 }
 
 export interface VerifyPasswordResetOtpRequest {
-  user_id: string
+  email?: string
+  mobile_number?: string
   otp: string
 }
 
 export interface VerifyPasswordResetOtpResponse {
   valid: boolean
-  message: string
 }
 
 export interface ResetPasswordRequest {
-  user_id: string
+  email?: string
+  mobile_number?: string
   otp: string
   new_password: string
 }

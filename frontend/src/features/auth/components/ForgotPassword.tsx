@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
 import { OtpForm } from './OtpForm';
 import { PasswordStrength } from './PasswordStrength';
+import { extractErrorMessage } from '@/features/auth/errorMessage';
 import {
   useForgotPasswordMutation,
   useVerifyPasswordResetOtpMutation,
@@ -13,14 +14,6 @@ import {
 } from '@/features/auth/authApi';
 
 type Step = 'identifier' | 'otp' | 'new-password' | 'success';
-
-function extractErrorMessage(err: unknown, fallback: string): string {
-  const errPayload =
-    err && typeof err === 'object' && 'data' in err
-      ? (err as { data: { error?: { code?: string; message?: string } } }).data?.error
-      : null;
-  return errPayload?.message ?? fallback;
-}
 
 function maskIdentifier(value: string): string {
   if (value.includes('@')) {
@@ -34,7 +27,6 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const [contactMode, setContactMode] = useState<'phone' | 'email'>('phone');
   const [value, setValue] = useState('');
   const [identifier, setLocalIdentifier] = useState('');
-  const [userId, setUserId] = useState('');
   const [verifiedOtp, setVerifiedOtp] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [error, setError] = useState<string>();
@@ -57,7 +49,6 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
     setError(undefined);
     try {
       const result = await forgotPassword(identifierData).unwrap();
-      setUserId(result.user_id);
       setLocalIdentifier(value);
       setSecondsLeft(result.expires_in);
       setStep('otp');
@@ -71,7 +62,7 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const handleVerify = useCallback(async (otp: string) => {
     setError(undefined);
     try {
-      await verifyOtp({ user_id: userId, otp }).unwrap();
+      await verifyOtp({ ...identifierData, otp }).unwrap();
       setVerifiedOtp(otp);
       setStep('new-password');
     } catch (err: unknown) {
@@ -79,13 +70,12 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       toast.error(msg);
       setError(msg);
     }
-  }, [verifyOtp, userId]);
+  }, [verifyOtp, identifierData]);
 
   const handleResend = useCallback(async () => {
     setError(undefined);
     try {
       const result = await forgotPassword(identifierData).unwrap();
-      setUserId(result.user_id);
       setSecondsLeft(result.expires_in);
     } catch (err: unknown) {
       const msg = extractErrorMessage(err, 'Failed to resend code');
@@ -105,14 +95,14 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
       return;
     }
     try {
-      await resetPassword({ user_id: userId, otp: verifiedOtp, new_password: newPassword }).unwrap();
+      await resetPassword({ ...identifierData, otp: verifiedOtp, new_password: newPassword }).unwrap();
       setStep('success');
     } catch (err: unknown) {
       const msg = extractErrorMessage(err, 'Password reset failed');
       toast.error(msg);
       setError(msg);
     }
-  }, [resetPassword, userId, verifiedOtp, newPassword, confirmPassword]);
+  }, [resetPassword, identifierData, verifiedOtp, newPassword, confirmPassword]);
 
   if (step === 'success') {
     return (

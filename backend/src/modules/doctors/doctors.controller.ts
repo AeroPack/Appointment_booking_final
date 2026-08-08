@@ -134,3 +134,12 @@ export async function updateWhatsAppConfig(req: Request, res: Response, next: Ne
     next(err);
   }
 }
+
+export async function regenerateWhatsAppWebhookSecret(req: Request, res: Response, next: NextFunction) {
+  try {
+    const secret = await service.regenerateWhatsAppWebhookSecret(req.auth!.clinicId);
+    res.json(success({ whatsapp_webhook_secret: secret }));
+  } catch (err) {
+    next(err);
+  }
+}

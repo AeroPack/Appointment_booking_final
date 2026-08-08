@@ -240,7 +240,10 @@ export async function seedUserTag(userId: string, tagId: string, assignedBy?: st
 
 let mobileCounter = 0;
 
+// Canonical form (country code, no separators) - matches what src/utils/phone.ts
+// normalizes every real request to, so a value seeded directly via SQL matches
+// what the API looks up after normalizing the same number from a request body.
 export function generateMobile(): string {
   mobileCounter++;
-  return `987654${String(3210 + mobileCounter).padStart(4, '0')}`;
+  return `91987654${String(3210 + mobileCounter).padStart(4, '0')}`;
 }

@@ -1,4 +1,5 @@
 import pool from '../../config/db.js';
+import { normalizePhone } from '../../utils/phone.js';
 import type { BotDoctorInfo, BotFaqEntry, BotChatbotConfig, BotPatientLookup } from './bot.types.js';
 
 export class BotRepository {
@@ -72,13 +73,16 @@ export class BotRepository {
     return result.rows[0].next;
   }
 
+  // Phones are normalized here rather than at each caller: mobile_number is
+  // matched by exact string, so a lookup and an insert that disagree on format
+  // silently create a duplicate patient.
   async findPatientByPhone(phone: string): Promise<{ id: string; name: string; mobile_number: string | null } | null> {
     const result = await pool.query(
       `SELECT id, name, mobile_number
        FROM users
        WHERE mobile_number = $1 AND role = 'patient' AND deleted_at IS NULL
        LIMIT 1`,
-      [phone]
+      [normalizePhone(phone)]
     );
     return result.rows[0] || null;
   }
@@ -88,7 +92,7 @@ export class BotRepository {
       `INSERT INTO users (name, mobile_number, clinic_id, role)
        VALUES ($1, $2, $3, 'patient')
        RETURNING id, name, mobile_number`,
-      [data.name, data.phone, data.clinicId]
+      [data.name, normalizePhone(data.phone), data.clinicId]
     );
     return result.rows[0];
   }

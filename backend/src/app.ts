@@ -20,6 +20,11 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { initializeChannels } from './utils/channels/index.js';
 
 const app = express();
+
+// One reverse proxy (nginx) sits in front of this service. Without this,
+// req.ip is the proxy's own address for every visitor, so all users share a
+// single rate-limit bucket.
+app.set('trust proxy', 1);
 const port = process.env.PORT || 3000;
 
 const __filename = fileURLToPath(import.meta.url);

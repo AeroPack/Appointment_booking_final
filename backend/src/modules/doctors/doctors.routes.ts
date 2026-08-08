@@ -8,7 +8,7 @@ import {
   createVenue, getVenues, patchVenue,
   getBookingPolicies, updateBookingPolicies,
   getLeaves, createLeave, deleteLeave,
-  getWhatsAppConfig, updateWhatsAppConfig,
+  getWhatsAppConfig, updateWhatsAppConfig, regenerateWhatsAppWebhookSecret,
 } from './doctors.controller.js';
 
 const router = Router();
@@ -76,5 +76,6 @@ router.delete('/doctor/leaves/:id', authGuard, requireRole('doctor'), deleteLeav
 // WhatsApp configuration
 router.get('/clinic/whatsapp-config', authGuard, requireRole('doctor', 'staff'), getWhatsAppConfig);
 router.patch('/clinic/whatsapp-config', authGuard, requireRole('doctor', 'staff'), validate(updateWhatsAppConfigSchema), updateWhatsAppConfig);
+router.post('/clinic/whatsapp-config/regenerate-webhook-secret', authGuard, requireRole('doctor', 'staff'), regenerateWhatsAppWebhookSecret);
 
 export default router;

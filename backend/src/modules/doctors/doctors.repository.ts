@@ -189,7 +189,7 @@ export class DoctorsRepository {
 
   async getWhatsAppConfig(clinicId: string): Promise<WhatsAppConfigRow | null> {
     const result = await pool.query(
-      `SELECT ultramsg_instance_id, ultramsg_token, whatsapp_number, whatsapp_enabled
+      `SELECT ultramsg_instance_id, ultramsg_token, whatsapp_number, whatsapp_enabled, whatsapp_webhook_secret::text AS whatsapp_webhook_secret
        FROM clinics WHERE id = $1`,
       [clinicId]
     );
@@ -205,9 +205,21 @@ export class DoctorsRepository {
     
     const result = await pool.query(
       `UPDATE clinics SET ${setClauses.join(', ')} WHERE id = $1
-       RETURNING ultramsg_instance_id, ultramsg_token, whatsapp_number, whatsapp_enabled`,
+       RETURNING ultramsg_instance_id, ultramsg_token, whatsapp_number, whatsapp_enabled, whatsapp_webhook_secret::text AS whatsapp_webhook_secret`,
       [clinicId, ...values]
     );
     return result.rows[0] || null;
+  }
+
+  async regenerateWhatsAppWebhookSecret(clinicId: string): Promise<string> {
+    const result = await pool.query(
+      `UPDATE clinics SET whatsapp_webhook_secret = gen_random_uuid()
+       WHERE id = $1 RETURNING whatsapp_webhook_secret::text AS whatsapp_webhook_secret`,
+      [clinicId]
+    );
+    if (!result.rows[0]) {
+      throw new Error('Clinic not found');
+    }
+    return result.rows[0].whatsapp_webhook_secret;
   }
 }
