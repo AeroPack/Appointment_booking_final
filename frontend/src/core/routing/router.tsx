@@ -27,6 +27,7 @@ import { Profile as DoctorProfile } from '@/pages/doctor/Profile'
 import ChatbotSettings from '@/pages/doctor/ChatbotSettings'
 import { FlowList } from '@/pages/doctor/FlowList'
 import { FlowEditor } from '@/pages/doctor/FlowEditor'
+import { WhatsAppIntegrationPage } from '@/features/doctors/components/WhatsAppIntegrationPage'
 
 // Staff
 import { Dashboard as StaffDashboard } from '@/pages/staff/Dashboard'
@@ -68,6 +69,7 @@ export function Router() {
             <Route path="/doctor/chatbot" element={<ChatbotSettings />} />
             <Route path="/doctor/flows" element={<FlowList />} />
             <Route path="/doctor/flows/:flowId" element={<FlowEditor />} />
+            <Route path="/doctor/whatsapp" element={<WhatsAppIntegrationPage />} />
             <Route path="/doctor/profile" element={<DoctorProfile />} />
             <Route path="/doctor/tags" element={<Tags />} />
           </Route>

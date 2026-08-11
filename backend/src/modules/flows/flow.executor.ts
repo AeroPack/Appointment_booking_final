@@ -906,7 +906,10 @@ export class FlowExecutor {
             content,
             clinicId,
             channel: 'whatsapp',
-            ...(interactive ? { options: { interactive } } : {}),
+            options: {
+              ...(interactive ? { interactive } : {}),
+              doctorId: session.doctor_id,
+            },
           });
         } catch (err) {
           console.error('[FlowExecutor] Failed to send WhatsApp message:', err);

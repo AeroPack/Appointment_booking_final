@@ -8,6 +8,7 @@
 import { channelRegistry } from './registry.js';
 import { WhatsAppChannel } from './whatsapp.js';
 import { WhatsAppCloudChannel } from './whatsapp-cloud.js';
+import { WhatsAppEvolutionChannel } from './whatsapp-evolution.js';
 
 /**
  * Initialize all message channels
@@ -18,14 +19,19 @@ import { WhatsAppCloudChannel } from './whatsapp-cloud.js';
 export function initializeChannels(): void {
   console.log('[ChannelInitializer] Initializing message channels...');
 
-  // ponytail: temporary cutover switch. The Cloud API is the target provider -
-  // it is the only one that can send the booking flow's buttons and slot list -
-  // but OTP keeps working on the already-approved BhashSMS `aero_auth` template
-  // until its Cloud API equivalent clears review. Delete this switch, the
-  // default, and whatsapp.ts once cutover is verified.
-  const provider = process.env['WA_PROVIDER'] || 'bhashsms';
-  const whatsappChannel =
-    provider === 'cloud' ? new WhatsAppCloudChannel() : new WhatsAppChannel();
+  const provider = process.env['WA_PROVIDER'] || 'evolution';
+  let whatsappChannel;
+  switch (provider) {
+    case 'cloud':
+      whatsappChannel = new WhatsAppCloudChannel();
+      break;
+    case 'evolution':
+      whatsappChannel = new WhatsAppEvolutionChannel();
+      break;
+    default:
+      whatsappChannel = new WhatsAppChannel();
+      break;
+  }
   channelRegistry.register(whatsappChannel);
   console.log(`[ChannelInitializer] WhatsApp provider: ${provider}`);
 

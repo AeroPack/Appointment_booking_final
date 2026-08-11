@@ -16,6 +16,8 @@ import botRoutes from './modules/bot/bot.routes.js';
 import flowRoutes from './modules/flows/flow.routes.js';
 import flowSessionRoutes from './modules/flows/flow.session-routes.js';
 import flowWebhookRoutes from './modules/flows/flow.webhook-routes.js';
+import flowEvolutionWebhookRoutes from './modules/flows/flow.webhook-evolution-routes.js';
+import evolutionRoutes from './modules/doctors/evolution.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeChannels } from './utils/channels/index.js';
 
@@ -90,6 +92,8 @@ app.use('/api', botRoutes);
 app.use('/api', flowRoutes);
 app.use('/api', flowSessionRoutes);
 app.use('/api', flowWebhookRoutes);
+app.use('/api', flowEvolutionWebhookRoutes);
+app.use('/api', evolutionRoutes);
 
 app.use(errorHandler);
 
