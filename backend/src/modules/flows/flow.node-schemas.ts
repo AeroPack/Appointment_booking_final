@@ -12,13 +12,22 @@ export const NODE_DATA_SCHEMAS = {
     variable: z.string().min(1).max(100),
   }).strict(),
 
+  // min(1): a single-option choice is a valid call to action ("Book
+  // Appointment"), and renders as one tappable button on WhatsApp.
   choice: z.object({
     text: z.string().min(1).max(500),
     options: z.array(z.object({
       id: z.string().min(1),
       label: z.string().min(1).max(100),
       value: z.string().min(1).max(100),
-    })).min(2).max(10),
+    })).min(1).max(10),
+  }).strict(),
+
+  // Offers real appointment slots, read live from the doctor's schedule.
+  // Distinct from `choice`, whose options are fixed when the flow is authored.
+  slot_picker: z.object({
+    text: z.string().min(1).max(500),
+    days_ahead: z.number().int().min(1).max(14).default(7),
   }).strict(),
 
   api: z.object({

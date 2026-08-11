@@ -1,4 +1,4 @@
-export type FlowNodeType = 'start' | 'message' | 'choice' | 'api' | 'condition' | 'booking_action' | 'end';
+export type FlowNodeType = 'start' | 'message' | 'choice' | 'slot_picker' | 'api' | 'condition' | 'booking_action' | 'end';
 
 export interface FlowNode {
   id: string;
@@ -71,6 +71,12 @@ export interface ChoiceNodeData {
   options: ChoiceOption[];
 }
 
+export interface SlotPickerNodeData {
+  text: string;
+  /** How far ahead to look for free appointments. */
+  days_ahead: number;
+}
+
 export interface ApiNodeData {
   url: string;
   method: 'GET' | 'POST';
@@ -92,6 +98,7 @@ export type FlowNodeDataMap = {
   start: StartNodeData;
   message: MessageNodeData;
   choice: ChoiceNodeData;
+  slot_picker: SlotPickerNodeData;
   api: ApiNodeData;
   condition: ConditionNodeData;
   booking_action: BookingActionNodeData;

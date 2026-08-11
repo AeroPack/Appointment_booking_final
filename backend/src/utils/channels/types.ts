@@ -22,6 +22,32 @@ export interface MessageResult {
 }
 
 /**
+ * A provider-agnostic interactive message.
+ *
+ * The flow engine describes *what* it wants to offer; each channel decides how
+ * to render it. Channels that cannot do interactivity (SMS, email, and the
+ * BhashSMS WhatsApp gateway) ignore this and fall back to `content`, which
+ * callers must always populate with an equivalent plain-text rendering.
+ */
+export type InteractiveMessage =
+  | {
+      kind: 'buttons';
+      body: string;
+      /** Rendered as tappable reply buttons. Providers cap this hard (Meta: 3). */
+      buttons: Array<{ id: string; title: string }>;
+    }
+  | {
+      kind: 'list';
+      body: string;
+      /** Label on the button that opens the list. */
+      button: string;
+      sections: Array<{
+        title?: string;
+        rows: Array<{ id: string; title: string; description?: string }>;
+      }>;
+    };
+
+/**
  * Parameters for sending a message through a channel
  */
 export interface SendMessageParams {

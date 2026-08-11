@@ -34,6 +34,13 @@ export interface FlowMessageRow {
 }
 
 export class FlowSessionRepository {
+  /**
+   * Create a session, optionally seeded with context the caller already knows.
+   *
+   * @param params - Session identity, plus any variables known up front (on
+   *                 WhatsApp the sender's number is already the patient's, so
+   *                 the flow need not ask for it)
+   */
   async createSession(params: {
     flowId: string;
     flowVersionId: string;
@@ -41,12 +48,21 @@ export class FlowSessionRepository {
     patientId: string | null;
     channel: 'whatsapp' | 'web';
     channelSessionId: string;
+    context?: Record<string, unknown>;
   }): Promise<FlowSessionRow> {
     const result = await pool.query(
-      `INSERT INTO flow_sessions (flow_id, flow_version_id, doctor_id, patient_id, channel, channel_session_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'idle')
+      `INSERT INTO flow_sessions (flow_id, flow_version_id, doctor_id, patient_id, channel, channel_session_id, status, context)
+       VALUES ($1, $2, $3, $4, $5, $6, 'idle', $7)
        RETURNING *`,
-      [params.flowId, params.flowVersionId, params.doctorId, params.patientId, params.channel, params.channelSessionId]
+      [
+        params.flowId,
+        params.flowVersionId,
+        params.doctorId,
+        params.patientId,
+        params.channel,
+        params.channelSessionId,
+        JSON.stringify(params.context ?? {}),
+      ]
     );
     return result.rows[0];
   }

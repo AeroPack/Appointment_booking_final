@@ -1,16 +1,47 @@
 import type { FlowGraph, FlowNodeType } from './flow.node-schemas.js';
 import type { FlowSessionRow, FlowSessionRepository } from './flow.session-repository.js';
+import type { InteractiveMessage } from '../../utils/channels/types.js';
 import { sendMessage } from '../../utils/channels/index.js';
+import { BotService } from '../bot/bot.service.js';
+import { BotRepository } from '../bot/bot.repository.js';
 import pool from '../../config/db.js';
 import { AppError } from '../../utils/response.js';
 
 const MAX_STEPS = 100;
+
+/**
+ * Rows offered by a slot_picker. One is spent on "show more", so a page holds
+ * one fewer slot than the provider's hard cap of 10 list rows.
+ */
+const SLOT_PAGE_SIZE = 9;
+
+/** Row id prefix for a bookable slot; the remainder is the ISO start time. */
+const SLOT_ID_PREFIX = 'slot:';
+
+/** Row id that pages the slot list forward. */
+const SLOT_MORE_ID = 'slots:more';
+
+const botService = new BotService(new BotRepository());
 
 export type NodeResult =
   | { action: 'advance'; nextNodeId: string }
   | { action: 'wait' }
   | { action: 'complete' }
   | { action: 'error'; message: string };
+
+/** A bookable slot, pre-formatted for display. */
+interface SlotOption {
+  /** Offset-bearing ISO start, e.g. 2026-08-08T10:00:00+05:30. Booked as-is. */
+  start: string;
+  /** Owning day, YYYY-MM-DD. */
+  date: string;
+  /** Short day label, e.g. "Fri, 08 Aug". */
+  dateLabel: string;
+  /** Clock range, e.g. "10:00 AM - 10:15 AM". */
+  timeLabel: string;
+  /** Venue name, when the period has one. */
+  venue?: string;
+}
 
 export class FlowExecutor {
   constructor(private readonly sessionRepo: FlowSessionRepository) {}
@@ -141,6 +172,60 @@ export class FlowExecutor {
       return this.executeTurn(session, graph);
     }
 
+    if (node.type === 'slot_picker') {
+      // Re-read the schedule rather than trusting the offered list: minutes may
+      // have passed since it was sent, and another patient may have taken the
+      // slot. booking_action re-checks capacity too, but failing here means a
+      // fresh picker instead of a dead-ended session.
+      const daysAhead = Number(node.data.days_ahead ?? 7);
+      const slots = await this.fetchSlots(session.doctor_id, daysAhead);
+      const page = Number(session.context.slot_page ?? 0);
+      const start = page * SLOT_PAGE_SIZE < slots.length ? page * SLOT_PAGE_SIZE : 0;
+      const offered = slots.slice(start, start + SLOT_PAGE_SIZE);
+
+      const resolved = this.resolveSlotInput(input, slots, offered);
+
+      await this.sessionRepo.addMessage({
+        sessionId: session.id,
+        direction: 'inbound',
+        nodeId: node.id,
+        content: input,
+        messageType: 'text',
+      });
+
+      if (!resolved) {
+        await this.sendOutbound(
+          session,
+          'Sorry, I did not recognise that time. Please pick one of the options.',
+          'text',
+          node.id,
+        );
+        // Re-render the same node so the patient always has a live list.
+        return this.executeTurn(session, graph);
+      }
+
+      if (resolved.kind === 'more') {
+        session.context = { ...session.context, slot_page: page + 1 };
+        await this.sessionRepo.updateSessionStatus(session.id, 'running', {
+          context: session.context,
+        });
+        return this.executeTurn(session, graph);
+      }
+
+      const edge = graph.edges.find(e => e.source === node.id);
+      if (!edge) {
+        await this.sessionRepo.updateSessionStatus(session.id, 'error', {
+          errorMessage: 'Slot picker node has no outgoing edge',
+        });
+        return { ...session, status: 'error' };
+      }
+
+      session.current_node_id = edge.target;
+      session.context = { ...session.context, slot_start: resolved.start, slot_page: 0 };
+      session.step_count = await this.sessionRepo.incrementStepCount(session.id);
+      return this.executeTurn(session, graph);
+    }
+
     if (node.type === 'input') {
       const variable = String(node.data.variable || '');
       const context = { ...session.context, [variable]: input.trim() };
@@ -230,6 +315,8 @@ export class FlowExecutor {
         return this.handleInputPrompt(node, session);
       case 'choice':
         return this.handleChoice(node, session);
+      case 'slot_picker':
+        return this.handleSlotPicker(node, context, session);
       case 'condition':
         return this.handleCondition(node, edges, context);
       case 'api':
@@ -278,11 +365,211 @@ export class FlowExecutor {
     session: FlowSessionRow,
   ): Promise<NodeResult> {
     const text = String(node.data.text || '');
-    const options = (node.data.options as Array<{ id: string; label: string }>) || [];
+    const options = (node.data.options as Array<{ id: string; label: string; value: string }>) || [];
     const numbered = options.map((o, i) => `${i + 1}. ${o.label}`).join('\n');
     const fullText = `${text}\n\n${numbered}`;
-    await this.sendOutbound(session, fullText, 'choice', node.id);
+
+    // The id carried back by a tap is matched by resolveChoiceInput, which
+    // checks `value` before `label` - so send `value`, not the option's uuid.
+    const interactive: InteractiveMessage =
+      options.length <= 3
+        ? {
+            kind: 'buttons',
+            body: text,
+            buttons: options.map((o) => ({ id: o.value, title: o.label })),
+          }
+        : {
+            kind: 'list',
+            body: text,
+            button: 'Choose an option',
+            sections: [{ rows: options.map((o) => ({ id: o.value, title: o.label })) }],
+          };
+
+    await this.sendOutbound(session, fullText, 'choice', node.id, interactive);
     return { action: 'wait' };
+  }
+
+  /**
+   * Offer real appointment slots read from the doctor's live schedule.
+   *
+   * Calls BotService in-process rather than going through /api/bot/slots: the
+   * generic `api` node sends no auth header, and that route requires a widget
+   * key it has no way to supply.
+   */
+  private async handleSlotPicker(
+    node: { id: string; data: Record<string, unknown> },
+    context: Record<string, unknown>,
+    session: FlowSessionRow,
+  ): Promise<NodeResult> {
+    const prompt = String(node.data.text || 'Please choose a time:');
+    const daysAhead = Number(node.data.days_ahead ?? 7);
+    const page = Number(context.slot_page ?? 0);
+
+    let slots: SlotOption[];
+    try {
+      slots = await this.fetchSlots(session.doctor_id, daysAhead);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not load slots';
+      await this.sendOutbound(session, `Sorry, I could not load available times: ${msg}`, 'text', node.id);
+      return { action: 'error', message: msg };
+    }
+
+    if (slots.length === 0) {
+      await this.sendOutbound(
+        session,
+        `Sorry, there are no free appointments in the next ${daysAhead} days. Please try again later.`,
+        'text',
+        node.id,
+      );
+      return { action: 'complete' };
+    }
+
+    // Paging past the end wraps to the start rather than dead-ending.
+    const start = page * SLOT_PAGE_SIZE < slots.length ? page * SLOT_PAGE_SIZE : 0;
+    const pageSlots = slots.slice(start, start + SLOT_PAGE_SIZE);
+    const hasMore = slots.length > start + pageSlots.length;
+
+    const sections = this.groupSlotsByDate(pageSlots);
+    if (hasMore) {
+      sections.push({ rows: [{ id: SLOT_MORE_ID, title: 'Show more times' }] });
+    }
+
+    const numbered = pageSlots
+      .map((s, i) => `${i + 1}. ${s.dateLabel}, ${s.timeLabel}`)
+      .join('\n');
+    const fallback = hasMore
+      ? `${prompt}\n\n${numbered}\n\nReply with a number, or MORE for later times.`
+      : `${prompt}\n\n${numbered}\n\nReply with a number.`;
+
+    await this.sendOutbound(session, fallback, 'choice', node.id, {
+      kind: 'list',
+      body: prompt,
+      button: 'View times',
+      sections,
+    });
+
+    return { action: 'wait' };
+  }
+
+  /**
+   * Read the doctor's free slots for the next N days, soonest first.
+   * @param doctorId - Doctor whose schedule to read
+   * @param daysAhead - How many days of schedule to consider
+   * @returns Bookable slots, full ones excluded
+   */
+  private async fetchSlots(doctorId: string, daysAhead: number): Promise<SlotOption[]> {
+    const today = new Date();
+    const from = this.formatDate(today);
+    const to = this.formatDate(new Date(today.getTime() + (daysAhead - 1) * 86400000));
+
+    const result = await botService.getSlots({ doctor_id: doctorId, from, to });
+
+    const out: SlotOption[] = [];
+    for (const day of result.days) {
+      for (const slot of day.slots) {
+        if (slot.is_full) continue;
+        out.push({
+          start: slot.start,
+          date: day.date,
+          dateLabel: this.formatDateLabel(day.date),
+          timeLabel: `${this.formatClock(slot.start)} - ${this.formatClock(slot.end)}`,
+          venue: slot.venue?.name,
+        });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Group slots into one list section per date, so a patient scanning the
+   * picker can tell Friday's 10:00 from Saturday's.
+   * @param slots - Slots for the current page, in chronological order
+   * @returns List sections ready for the channel
+   */
+  private groupSlotsByDate(
+    slots: SlotOption[],
+  ): Array<{ title?: string; rows: Array<{ id: string; title: string; description?: string }> }> {
+    const sections: Array<{ title?: string; rows: Array<{ id: string; title: string; description?: string }> }> = [];
+
+    for (const slot of slots) {
+      const row = {
+        id: `${SLOT_ID_PREFIX}${slot.start}`,
+        title: slot.timeLabel,
+        ...(slot.venue ? { description: slot.venue } : {}),
+      };
+      const last = sections[sections.length - 1];
+      if (last && last.title === slot.dateLabel) {
+        last.rows.push(row);
+      } else {
+        sections.push({ title: slot.dateLabel, rows: [row] });
+      }
+    }
+
+    return sections;
+  }
+
+  /**
+   * Resolve a reply to a slot_picker into either a chosen slot or a page turn.
+   * @param input - Raw patient input (a row id, or typed text)
+   * @param slots - The slots currently on offer, in display order
+   * @returns What the patient meant
+   */
+  private resolveSlotInput(
+    input: string,
+    available: SlotOption[],
+    offered: SlotOption[],
+  ): { kind: 'slot'; start: string } | { kind: 'more' } | null {
+    const trimmed = input.trim();
+
+    if (trimmed === SLOT_MORE_ID || trimmed.toLowerCase() === 'more') {
+      return { kind: 'more' };
+    }
+
+    // Checked against every free slot, not just the page on screen: WhatsApp
+    // leaves older list messages tappable in the chat history, so a patient
+    // can scroll up and pick from a list we sent several turns ago. Rejecting
+    // a slot that is genuinely free would be wrong.
+    if (trimmed.startsWith(SLOT_ID_PREFIX)) {
+      const start = trimmed.slice(SLOT_ID_PREFIX.length);
+      return available.some((s) => s.start === start) ? { kind: 'slot', start } : null;
+    }
+
+    // A typed ordinal is relative to the page just shown, so it resolves
+    // against `offered` rather than the full list.
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num) && num >= 1 && num <= offered.length) {
+      return { kind: 'slot', start: offered[num - 1].start };
+    }
+
+    return null;
+  }
+
+  /**
+   * Render "2026-08-08" as a short day label in clinic-local time.
+   * @param dateStr - Date in YYYY-MM-DD
+   * @returns Something like "Fri, 08 Aug"
+   */
+  private formatDateLabel(dateStr: string): string {
+    return new Date(`${dateStr}T00:00:00+05:30`).toLocaleDateString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+    });
+  }
+
+  /**
+   * Render an offset-bearing ISO timestamp as a clinic-local clock time.
+   * @param iso - Timestamp such as 2026-08-08T10:00:00+05:30
+   * @returns Something like "10:00 AM"
+   */
+  private formatClock(iso: string): string {
+    return new Date(iso).toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   }
 
   private handleCondition(
@@ -511,7 +798,14 @@ export class FlowExecutor {
 
       context.appointment = appointment;
 
-      const confirmMsg = `Appointment booked successfully!\nToken: #${tokenNumber}\nDoctor: ${appointment.doctor_name}\nDate: ${appointment.scheduled_start}\nThank you, ${appointment.patient_name}!`;
+      // Patient-facing, so render in clinic-local time. The raw ISO instant
+      // stays on the `appointment` context object for downstream nodes.
+      const confirmMsg =
+        `Your appointment is scheduled for ${this.formatDateLabel(this.formatDate(scheduledStart))}, ` +
+        `${this.formatClock(scheduledStart.toISOString())} - ${this.formatClock(scheduledEnd.toISOString())}.\n` +
+        `Doctor: ${appointment.doctor_name}\n` +
+        `Token: #${tokenNumber}\n\n` +
+        `Thank you, ${appointment.patient_name}!`;
       await this.sendOutbound(session, confirmMsg, 'text', node.id);
 
       const edge = edges.find(e => e.source === node.id);
@@ -577,11 +871,23 @@ export class FlowExecutor {
     return startNode?.id || null;
   }
 
+  /**
+   * Record an outbound message and, on WhatsApp, deliver it.
+   *
+   * @param session - Session being advanced
+   * @param content - Plain-text rendering. Always required: it is what the web
+   *                  widget shows, what the transcript stores, and the fallback
+   *                  for providers that cannot render `interactive`.
+   * @param messageType - Transcript classification
+   * @param nodeId - Node that produced the message
+   * @param interactive - Optional richer rendering (buttons / list picker)
+   */
   private async sendOutbound(
     session: FlowSessionRow,
     content: string,
     messageType: 'text' | 'choice',
     nodeId: string,
+    interactive?: InteractiveMessage,
   ): Promise<void> {
     await this.sessionRepo.addMessage({
       sessionId: session.id,
@@ -600,6 +906,7 @@ export class FlowExecutor {
             content,
             clinicId,
             channel: 'whatsapp',
+            ...(interactive ? { options: { interactive } } : {}),
           });
         } catch (err) {
           console.error('[FlowExecutor] Failed to send WhatsApp message:', err);

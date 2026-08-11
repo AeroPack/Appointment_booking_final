@@ -40,7 +40,19 @@ const botCors = cors({ origin: true, credentials: false });
 app.use('/api/bot', botCors);
 
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3001', 'https://appointment.aeropackpos.in'], credentials: true }));
-app.use(express.json());
+// Meta signs webhook deliveries over the exact bytes it sent, so the parsed
+// object cannot be re-serialized to check the signature - key order and
+// whitespace would differ. Keep the raw buffer, but only for the webhook path;
+// retaining it for every request would double the memory cost of each body.
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      if (req.url?.startsWith('/api/webhooks/whatsapp')) {
+        (req as express.Request).rawBody = buf;
+      }
+    },
+  })
+);
 
 // Serve chatbot widget
 app.get('/chatbot.js', (_req, res) => {

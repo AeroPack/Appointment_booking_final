@@ -26,6 +26,13 @@ export class FlowSessionService {
       throw new AppError(404, 'NO_PUBLISHED_FLOW', 'No published flow found for this trigger type');
     }
 
+    // On WhatsApp the channel session id *is* the patient's number, already
+    // normalized by the webhook, so the flow never has to ask for it.
+    const context: Record<string, unknown> = {};
+    if (params.channel === 'whatsapp' && params.channelSessionId) {
+      context.patient_phone = params.channelSessionId;
+    }
+
     const session = await this.repo.createSession({
       flowId: flow.flowId,
       flowVersionId: flow.versionId,
@@ -33,12 +40,8 @@ export class FlowSessionService {
       patientId: params.patientId,
       channel: params.channel,
       channelSessionId: params.channelSessionId,
+      context,
     });
-
-    const context: Record<string, unknown> = {};
-    if (params.channel === 'whatsapp' && params.channelSessionId) {
-      context.patient_phone = params.channelSessionId;
-    }
 
     const updatedSession = await this.repo.findSessionById(session.id);
     if (!updatedSession) throw new AppError(500, 'SESSION_NOT_FOUND', 'Session creation failed');

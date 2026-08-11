@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
-import { Play, MessageSquare, ListChecks, Globe, GitBranch, CalendarCheck, CircleOff } from 'lucide-react';
+import { Play, MessageSquare, ListChecks, CalendarClock, Globe, GitBranch, CalendarCheck, CircleOff } from 'lucide-react';
 import type { FlowNodeType } from './flowTypes';
-import { StartNode, MessageNode, ChoiceNode, ApiNode, ConditionNode, BookingActionNode, EndNode } from './nodes';
+import { StartNode, MessageNode, ChoiceNode, SlotPickerNode, ApiNode, ConditionNode, BookingActionNode, EndNode } from './nodes';
 
 export interface NodeTypeDefinition {
   type: FlowNodeType;
@@ -43,6 +43,14 @@ export const NODE_TYPE_DEFINITIONS: Record<FlowNodeType, NodeTypeDefinition> = {
       ],
     },
   },
+  slot_picker: {
+    type: 'slot_picker',
+    label: 'Slot Picker',
+    icon: CalendarClock,
+    color: '#0ea5e9',
+    bgColor: '#f0f9ff',
+    defaultData: { text: 'Please choose a time that suits you:', days_ahead: 7 },
+  },
   api: {
     type: 'api',
     label: 'API Fetch',
@@ -81,6 +89,7 @@ export const NODE_COMPONENTS: Record<FlowNodeType, React.ComponentType<any>> = {
   start: StartNode,
   message: MessageNode,
   choice: ChoiceNode,
+  slot_picker: SlotPickerNode,
   api: ApiNode,
   condition: ConditionNode,
   booking_action: BookingActionNode,
