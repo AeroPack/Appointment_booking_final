@@ -37,29 +37,43 @@ export class WhatsAppEvolutionChannel implements MessageChannel {
 
       const recipient = normalizePhone(to);
       const doctorId = params.options?.['doctorId'] as string | undefined;
+      const type = params.options?.['type'] as string | undefined;
+      const isAuthMessage = typeof type === 'string' && AUTH_MESSAGE_TYPES.includes(type);
 
-      if (!doctorId) {
-        return createErrorResult('doctorId is required for Evolution API routing');
+      // Resolve instance name
+      let instanceName: string | null = null;
+
+      if (isAuthMessage && !doctorId) {
+        // Auth OTP without doctorId -> use system instance
+        instanceName = process.env['EVO_SYSTEM_INSTANCE'] || 'chandan';
+      } else if (doctorId) {
+        // Doctor's chatbot message -> use their connected instance
+        instanceName = await this.resolveInstance(doctorId);
       }
 
-      const instanceName = await this.resolveInstance(doctorId);
       if (!instanceName) {
-        return createErrorResult('WhatsApp is not connected for this doctor');
+        return createErrorResult('No WhatsApp instance available');
       }
 
-      const type = params.options?.['type'];
-      if (typeof type === 'string' && AUTH_MESSAGE_TYPES.includes(type)) {
+      // Auth OTP -> plain text (Baileys doesn't support Cloud API templates)
+      if (isAuthMessage) {
         const templateParam = params.options?.['params'];
-        if (typeof templateParam === 'string' && templateParam !== '') {
-          return this.sendTemplate(credentials, instanceName, recipient, templateParam);
-        }
+        const otp = typeof templateParam === 'string' ? templateParam : '';
+        return this.sendText(
+          credentials,
+          instanceName,
+          recipient,
+          `Your verification code is: ${otp}. It expires in 5 minutes.`
+        );
       }
 
+      // Interactive messages (list/buttons fallback to numbered text)
       const interactive = params.options?.['interactive'] as InteractiveMessage | undefined;
       if (interactive) {
         return this.sendInteractive(credentials, instanceName, recipient, interactive, content);
       }
 
+      // Plain text
       return this.sendText(credentials, instanceName, recipient, content);
     } catch (error) {
       console.error('[WhatsAppEvolutionChannel] Error sending message:', error);
@@ -114,36 +128,6 @@ export class WhatsAppEvolutionChannel implements MessageChannel {
       instance: instanceName,
       to,
       type: 'text',
-    });
-  }
-
-  private async sendTemplate(
-    credentials: EvolutionCredentials,
-    instanceName: string,
-    to: string,
-    otp: string
-  ): Promise<MessageResult> {
-    const templateName = process.env['WA_AUTH_TEMPLATE'] || 'aero_auth';
-
-    const response = await axios.post(
-      `${credentials.apiUrl}/message/sendTemplate/${instanceName}`,
-      {
-        number: to,
-        template: {
-          name: templateName,
-          language: { code: process.env['WA_CLOUD_TEMPLATE_LANG'] || 'en' },
-          components: [{ type: 'body', parameters: [{ type: 'text', text: otp }] }],
-        },
-      },
-      { headers: this.headers(credentials.apiKey), timeout: this.timeout }
-    );
-
-    const messageId = response.data?.key?.id;
-    return createSuccessResult(messageId, {
-      provider: 'evolution',
-      instance: instanceName,
-      to,
-      type: 'template',
     });
   }
 
