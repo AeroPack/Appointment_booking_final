@@ -100,4 +100,9 @@ jobs:
               -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
               -e NODE_ENV=production \
               -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+              -e WA_PROVIDER="${{ secrets.WA_PROVIDER }}" \
+              -e EVOLUTION_API_URL="${{ secrets.EVOLUTION_API_URL }}" \
+              -e EVOLUTION_API_KEY="${{ secrets.EVOLUTION_API_KEY }}" \
+              -e BACKEND_URL="${{ secrets.BACKEND_URL }}" \
+              -e EVO_SYSTEM_INSTANCE="${{ secrets.EVO_SYSTEM_INSTANCE }}" \
               $IMAGE_NAME:latest
