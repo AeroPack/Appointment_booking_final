@@ -174,11 +174,15 @@ export class EvolutionService {
           await this.updateDb(doctorId, instanceName, 'connected');
           return { instanceName, status: 'connected' };
         }
-        if (!qrcode) {
+        // Instance closed without QR = truly failed, reset
+        if (state === 'close' && !qrcode) {
           await this.updateDb(doctorId, instanceName, 'disconnected');
           return { instanceName, status: 'disconnected' };
         }
-        const normalized = qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`;
+        // Still initializing (connecting state) - return connecting so frontend keeps polling
+        const normalized = qrcode
+          ? qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`
+          : undefined;
         return { instanceName, status: 'connecting', qrcode: normalized };
       } catch {
         await this.updateDb(doctorId, instanceName, 'disconnected');
