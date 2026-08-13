@@ -106,28 +106,35 @@ export class EvolutionService {
     }
 
     try {
-      const resp = await axios.get(
+      // 1. Check connection state
+      const stateResp = await axios.get(
         `${apiUrl}/instance/connectionState/${instanceName}`,
         { headers: this.headers(apiKey), timeout: 10000 }
       );
 
-      const state = resp.data?.instance?.state;
-      const qrcode = resp.data?.instance?.qrcode;
+      const state = stateResp.data?.instance?.state;
 
       if (state === 'open') {
         await this.updateDb(doctorId, instanceName, 'connected');
         return { instanceName, status: 'connected' };
       }
 
-      // Instance is closed/disconnected and no QR available - stale state, reset
-      if (state === 'close' && !qrcode) {
+      if (state === 'close') {
         await this.updateDb(doctorId, instanceName, 'disconnected');
         return { instanceName, status: 'disconnected' };
       }
 
-      const normalized = qrcode
-        ? qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`
+      // 2. Instance is connecting - get QR from /instance/connect/ endpoint
+      const connectResp = await axios.get(
+        `${apiUrl}/instance/connect/${instanceName}`,
+        { headers: this.headers(apiKey), timeout: 10000 }
+      );
+
+      const base64 = connectResp.data?.base64;
+      const normalized = base64
+        ? base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`
         : undefined;
+
       return { instanceName, status: 'connecting', qrcode: normalized };
     } catch {
       return { instanceName, status: 'disconnected' };
@@ -159,9 +166,8 @@ export class EvolutionService {
       }
     }
 
-    // If DB says "connecting" but the Evolution instance has no QR / is closed,
-    // the connect flow timed out. Reset to disconnected so the frontend stops
-    // polling the QR endpoint forever.
+    // If DB says "connecting" but the Evolution instance is closed,
+    // the connect flow timed out. Reset to disconnected.
     if (dbStatus.status === 'connecting') {
       try {
         const resp = await axios.get(
@@ -169,21 +175,17 @@ export class EvolutionService {
           { headers: this.headers(apiKey), timeout: 10000 }
         );
         const state = resp.data?.instance?.state;
-        const qrcode = resp.data?.instance?.qrcode;
         if (state === 'open') {
           await this.updateDb(doctorId, instanceName, 'connected');
           return { instanceName, status: 'connected' };
         }
-        // Instance closed without QR = truly failed, reset
-        if (state === 'close' && !qrcode) {
+        // Instance closed = truly failed, reset
+        if (state === 'close') {
           await this.updateDb(doctorId, instanceName, 'disconnected');
           return { instanceName, status: 'disconnected' };
         }
-        // Still initializing (connecting state) - return connecting so frontend keeps polling
-        const normalized = qrcode
-          ? qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`
-          : undefined;
-        return { instanceName, status: 'connecting', qrcode: normalized };
+        // Still initializing (connecting state) - return connecting so frontend keeps polling QR
+        return { instanceName, status: 'connecting' };
       } catch {
         await this.updateDb(doctorId, instanceName, 'disconnected');
         return { instanceName, status: 'disconnected' };
