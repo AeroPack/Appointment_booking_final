@@ -18,7 +18,7 @@ function extractMessages(body: unknown): EvolutionInboundMessage[] {
   const out: EvolutionInboundMessage[] = [];
   const event = (body as { event?: string })?.event;
 
-  if (event !== 'messages.upsert') return out;
+  if (event?.toLowerCase() !== 'messages.upsert') return out;
 
   const data = (body as { data?: Record<string, unknown> })?.data;
   if (!data) return out;

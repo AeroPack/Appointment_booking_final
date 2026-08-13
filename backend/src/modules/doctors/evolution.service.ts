@@ -45,18 +45,27 @@ export class EvolutionService {
       qrcode: true,
       reject_call: false,
       always_online: true,
-      webhook: {
-        enabled: true,
-        url: `${process.env['BACKEND_URL'] || 'http://localhost:3000'}/api/webhooks/whatsapp-evolution/${instanceName}`,
-        by_events: false,
-        events: ['messages.upsert'],
-      },
     };
+
+    const webhookUrl = `${process.env['BACKEND_URL'] || 'http://localhost:3000'}/api/webhooks/whatsapp-evolution/${instanceName}`;
 
     try {
       await axios.post(`${apiUrl}/instance/create`, payload, {
         headers: this.headers(apiKey),
         timeout: 30000,
+      });
+
+      // Set webhook explicitly (create endpoint may not accept it)
+      await axios.post(`${apiUrl}/webhook/set/${instanceName}`, {
+        webhook: {
+          enabled: true,
+          url: webhookUrl,
+          by_events: false,
+          events: ['MESSAGES_UPSERT'],
+        },
+      }, {
+        headers: this.headers(apiKey),
+        timeout: 10000,
       });
     } catch (error) {
       if (error instanceof AxiosError && error.response?.status === 403) {
@@ -69,6 +78,18 @@ export class EvolutionService {
           await axios.post(`${apiUrl}/instance/create`, payload, {
             headers: this.headers(apiKey),
             timeout: 30000,
+          });
+          // Set webhook after recreation
+          await axios.post(`${apiUrl}/webhook/set/${instanceName}`, {
+            webhook: {
+              enabled: true,
+              url: webhookUrl,
+              by_events: false,
+              events: ['MESSAGES_UPSERT'],
+            },
+          }, {
+            headers: this.headers(apiKey),
+            timeout: 10000,
           });
         } catch (retryErr) {
           console.error('[EvolutionService] Error recreating instance:', retryErr);
