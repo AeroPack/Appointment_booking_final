@@ -96,7 +96,8 @@ export class EvolutionService {
         }
 
         if (qrcode) {
-          return { instanceName, status: 'connecting', qrcode };
+          const normalized = qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`;
+          return { instanceName, status: 'connecting', qrcode: normalized };
         }
       } catch {
         // continue polling
@@ -129,7 +130,10 @@ export class EvolutionService {
         return { instanceName, status: 'connected' };
       }
 
-      return { instanceName, status: 'connecting', qrcode: qrcode || undefined };
+      const normalized = qrcode
+        ? qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`
+        : undefined;
+      return { instanceName, status: 'connecting', qrcode: normalized };
     } catch {
       return { instanceName, status: 'disconnected' };
     }

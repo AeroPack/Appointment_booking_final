@@ -1,14 +1,65 @@
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, AlertCircle, Copy, Bot, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Copy, Bot, RefreshCw, MessageSquare } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
 import { Card, CardContent } from "@/core/components/ui/card";
 import { useGetChatbotConfigQuery, useUpdateChatbotConfigMutation, useRegenerateWidgetKeyMutation } from "@/features/doctors/chatbotApi";
+import { WhatsAppIntegrationPage } from "@/features/doctors/components/WhatsAppIntegrationPage";
 import { env } from "@/core/config/env";
 
 const PUBLIC_API_HOST = env.VITE_PUBLIC_API_URL || window.location.origin;
 
+type TabId = "widget" | "whatsapp";
+
+const TABS: { id: TabId; label: string; icon: typeof Bot }[] = [
+  { id: "widget", label: "Web Widget", icon: Bot },
+  { id: "whatsapp", label: "WhatsApp Chatbot", icon: MessageSquare },
+];
+
 export default function ChatbotSettings() {
+  const [activeTab, setActiveTab] = useState<TabId>("widget");
+
+  return (
+    <div className="max-w-3xl mx-auto p-6 space-y-6">
+      <div className="flex items-center gap-3 mb-6">
+        <Bot className="h-6 w-6 text-primary" />
+        <h1 className="text-2xl font-bold">Chatbot</h1>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-1 border-b border-border">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── Tab Content ── */}
+      {activeTab === "whatsapp" ? (
+        <WhatsAppIntegrationPage />
+      ) : (
+        <WidgetTabContent />
+      )}
+    </div>
+  );
+}
+
+/* ────────────── Widget Tab ────────────── */
+
+function WidgetTabContent() {
   const { data: config, isLoading: configLoading } = useGetChatbotConfigQuery();
   const [updateConfig, { isLoading: saving }] = useUpdateChatbotConfigMutation();
   const [regenerateKey, { isLoading: regenerating }] = useRegenerateWidgetKeyMutation();
@@ -64,12 +115,7 @@ export default function ChatbotSettings() {
   const embedSnippet = buildEmbedSnippet(config);
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Bot className="h-6 w-6 text-primary" />
-        <h1 className="text-2xl font-bold">Chatbot Widget</h1>
-      </div>
-
+    <>
       {status === "success" && (
         <div className="flex items-center gap-2 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
           <CheckCircle2 className="h-4 w-4" />
@@ -159,7 +205,7 @@ export default function ChatbotSettings() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }
 

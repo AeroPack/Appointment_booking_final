@@ -1139,6 +1139,12 @@ export function Settings() {
                 <p className="text-sm text-muted-foreground mb-5">
                   Configure WhatsApp messaging for your clinic. This allows you to send appointment reminders, OTP verification, and other notifications via WhatsApp.
                 </p>
+                <a
+                  href="/doctor/chatbot"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  Set up the WhatsApp appointment booking chatbot →
+                </a>
 
                 <div className="space-y-4">
                   {/* Enable/Disable WhatsApp */}

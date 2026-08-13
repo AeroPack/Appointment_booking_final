@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/core/components/ui/card'
 import { Button } from '@/core/components/ui/button'
 import { Input } from '@/core/components/ui/input'
 import { Badge } from '@/core/components/ui/badge'
-import { Loader2, Wifi, WifiOff, Phone } from 'lucide-react'
+import { Loader2, Wifi, WifiOff, Phone, RefreshCw } from 'lucide-react'
 import {
   useGetWhatsAppStatusQuery,
   useConnectWhatsAppMutation,
@@ -11,13 +11,22 @@ import {
   useDisconnectWhatsAppMutation,
 } from '../evolutionApi'
 
+function normalizeQrDataUrl(qrcode?: string): string | undefined {
+  if (!qrcode) return undefined
+  if (qrcode.startsWith('data:')) return qrcode
+  return `data:image/png;base64,${qrcode}`
+}
+
 export function WhatsAppIntegrationPage() {
   const [phoneNumber, setPhoneNumber] = useState('')
-  const { data: status, isLoading: statusLoading } = useGetWhatsAppStatusQuery()
+  const { data: status, isLoading: statusLoading } = useGetWhatsAppStatusQuery(undefined, {
+    pollingInterval: 5000,
+  })
   const [connect, { isLoading: connectLoading }] = useConnectWhatsAppMutation()
   const [disconnect, { isLoading: disconnectLoading }] = useDisconnectWhatsAppMutation()
-  const { data: qrData } = useGetQrCodeQuery(undefined, {
+  const { data: qrData, refetch: refetchQr } = useGetQrCodeQuery(undefined, {
     skip: status?.status !== 'connecting',
+    pollingInterval: 5000,
   })
 
   const isConnected = status?.status === 'connected'
@@ -40,6 +49,8 @@ export function WhatsAppIntegrationPage() {
       </div>
     )
   }
+
+  const qrSrc = normalizeQrDataUrl(qrData?.qrcode)
 
   return (
     <div className="space-y-6">
@@ -88,19 +99,29 @@ export function WhatsAppIntegrationPage() {
             </div>
           )}
 
-          {isConnecting && qrData?.qrcode && (
+          {isConnecting && (
             <div className="flex flex-col items-center gap-4 p-6 border rounded-lg">
               <p className="text-sm text-muted-foreground">
                 Scan this QR code with WhatsApp (Linked Devices)
               </p>
-              <img
-                src={qrData.qrcode}
-                alt="WhatsApp QR Code"
-                className="w-64 h-64 border rounded"
-              />
+              {qrSrc ? (
+                <img
+                  src={qrSrc}
+                  alt="WhatsApp QR Code"
+                  className="w-64 h-64 border rounded"
+                />
+              ) : (
+                <div className="w-64 h-64 border rounded flex items-center justify-center bg-muted/20">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 Open WhatsApp {'>'} Settings {'>'} Linked Devices {'>'} Link a Device
               </p>
+              <Button variant="outline" size="sm" onClick={() => refetchQr()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh QR Code
+              </Button>
             </div>
           )}
 
