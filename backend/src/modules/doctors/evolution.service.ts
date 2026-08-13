@@ -38,72 +38,57 @@ export class EvolutionService {
       return { instanceName: existing.instanceName, status: 'connected' };
     }
 
+    const payload = {
+      instanceName,
+      number: phoneNumber,
+      integration: 'WHATSAPP-BAILEYS',
+      qrcode: true,
+      reject_call: false,
+      always_online: true,
+      webhook: {
+        enabled: true,
+        url: `${process.env['BACKEND_URL'] || 'http://localhost:3000'}/api/webhooks/whatsapp-evolution/${instanceName}`,
+        by_events: false,
+        events: ['messages.upsert'],
+      },
+    };
+
     try {
-      await axios.post(
-        `${apiUrl}/instance/create`,
-        {
-          instanceName,
-          number: phoneNumber,
-          integration: 'WHATSAPP-BAILEYS',
-          qrcode: true,
-          reject_call: false,
-          always_online: true,
-          webhook: {
-            enabled: true,
-            url: `${process.env['BACKEND_URL'] || 'http://localhost:3000'}/api/webhooks/whatsapp-evolution/${instanceName}`,
-            by_events: false,
-            events: ['messages.upsert'],
-          },
-        },
-        { headers: this.headers(apiKey), timeout: 30000 }
-      );
-
-      await this.updateDb(doctorId, instanceName, 'connecting');
-
-      return this.pollForQr(apiUrl, apiKey, instanceName, doctorId);
+      await axios.post(`${apiUrl}/instance/create`, payload, {
+        headers: this.headers(apiKey),
+        timeout: 30000,
+      });
     } catch (error) {
-      console.error('[EvolutionService] Error creating instance:', error);
-      if (error instanceof AxiosError) {
-        const msg = error.response?.data?.message || error.message;
-        throw new AppError(502, 'EVOLUTION_API_ERROR', `Failed to create instance: ${msg}`);
-      }
-      throw error;
-    }
-  }
-
-  private async pollForQr(
-    apiUrl: string,
-    apiKey: string,
-    instanceName: string,
-    doctorId: string,
-    maxAttempts = 30
-  ): Promise<InstanceInfo> {
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-
-      try {
-        const resp = await axios.get(
-          `${apiUrl}/instance/connectionState/${instanceName}`,
-          { headers: this.headers(apiKey), timeout: 10000 }
-        );
-
-        const state = resp.data?.instance?.state;
-        const qrcode = resp.data?.instance?.qrcode;
-
-        if (state === 'open') {
-          await this.updateDb(doctorId, instanceName, 'connected');
-          return { instanceName, status: 'connected' };
+      if (error instanceof AxiosError && error.response?.status === 403) {
+        console.log(`[EvolutionService] Instance ${instanceName} exists, deleting and recreating...`);
+        try {
+          await axios.delete(`${apiUrl}/instance/delete/${instanceName}`, {
+            headers: this.headers(apiKey),
+            timeout: 10000,
+          });
+          await axios.post(`${apiUrl}/instance/create`, payload, {
+            headers: this.headers(apiKey),
+            timeout: 30000,
+          });
+        } catch (retryErr) {
+          console.error('[EvolutionService] Error recreating instance:', retryErr);
+          if (retryErr instanceof AxiosError) {
+            const msg = retryErr.response?.data?.message || retryErr.message;
+            throw new AppError(502, 'EVOLUTION_API_ERROR', `Failed to recreate instance: ${msg}`);
+          }
+          throw retryErr;
         }
-
-        if (qrcode) {
-          const normalized = qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`;
-          return { instanceName, status: 'connecting', qrcode: normalized };
+      } else {
+        console.error('[EvolutionService] Error creating instance:', error);
+        if (error instanceof AxiosError) {
+          const msg = error.response?.data?.message || error.message;
+          throw new AppError(502, 'EVOLUTION_API_ERROR', `Failed to create instance: ${msg}`);
         }
-      } catch {
-        // continue polling
+        throw error;
       }
     }
 
+    await this.updateDb(doctorId, instanceName, 'connecting');
     return { instanceName, status: 'connecting' };
   }
 
@@ -114,6 +99,10 @@ export class EvolutionService {
     const dbStatus = await this.getStatusFromDb(doctorId);
     if (dbStatus?.status === 'connected') {
       return { instanceName, status: 'connected' };
+    }
+
+    if (!dbStatus) {
+      return { instanceName, status: 'disconnected' };
     }
 
     try {
@@ -128,6 +117,12 @@ export class EvolutionService {
       if (state === 'open') {
         await this.updateDb(doctorId, instanceName, 'connected');
         return { instanceName, status: 'connected' };
+      }
+
+      // Instance is closed/disconnected and no QR available - stale state, reset
+      if (state === 'close' && !qrcode) {
+        await this.updateDb(doctorId, instanceName, 'disconnected');
+        return { instanceName, status: 'disconnected' };
       }
 
       const normalized = qrcode
@@ -161,6 +156,33 @@ export class EvolutionService {
         return { instanceName, status: 'disconnected' };
       } catch {
         return { instanceName, status: dbStatus.status as InstanceInfo['status'] };
+      }
+    }
+
+    // If DB says "connecting" but the Evolution instance has no QR / is closed,
+    // the connect flow timed out. Reset to disconnected so the frontend stops
+    // polling the QR endpoint forever.
+    if (dbStatus.status === 'connecting') {
+      try {
+        const resp = await axios.get(
+          `${apiUrl}/instance/connectionState/${instanceName}`,
+          { headers: this.headers(apiKey), timeout: 10000 }
+        );
+        const state = resp.data?.instance?.state;
+        const qrcode = resp.data?.instance?.qrcode;
+        if (state === 'open') {
+          await this.updateDb(doctorId, instanceName, 'connected');
+          return { instanceName, status: 'connected' };
+        }
+        if (!qrcode) {
+          await this.updateDb(doctorId, instanceName, 'disconnected');
+          return { instanceName, status: 'disconnected' };
+        }
+        const normalized = qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`;
+        return { instanceName, status: 'connecting', qrcode: normalized };
+      } catch {
+        await this.updateDb(doctorId, instanceName, 'disconnected');
+        return { instanceName, status: 'disconnected' };
       }
     }
 

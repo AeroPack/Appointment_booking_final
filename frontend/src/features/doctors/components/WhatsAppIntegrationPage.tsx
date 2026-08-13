@@ -102,7 +102,9 @@ export function WhatsAppIntegrationPage() {
           {isConnecting && (
             <div className="flex flex-col items-center gap-4 p-6 border rounded-lg">
               <p className="text-sm text-muted-foreground">
-                Scan this QR code with WhatsApp (Linked Devices)
+                {qrSrc
+                  ? 'Scan this QR code with WhatsApp (Linked Devices)'
+                  : 'Generating QR code...'}
               </p>
               {qrSrc ? (
                 <img
@@ -111,8 +113,11 @@ export function WhatsAppIntegrationPage() {
                   className="w-64 h-64 border rounded"
                 />
               ) : (
-                <div className="w-64 h-64 border rounded flex items-center justify-center bg-muted/20">
+                <div className="w-64 h-64 border rounded flex flex-col items-center justify-center bg-muted/20 gap-3">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground text-center px-4">
+                    Waiting for QR code from WhatsApp...
+                  </p>
                 </div>
               )}
               <p className="text-xs text-muted-foreground">
