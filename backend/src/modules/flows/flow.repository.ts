@@ -58,7 +58,7 @@ export class FlowRepository {
     const result = await pool.query(
       `SELECT id, name, trigger_type, is_active, published_version_id, created_at, updated_at
        FROM flows
-       WHERE doctor_id = $1 AND deleted_at IS NULL
+       WHERE doctor_id = $1
        ORDER BY created_at DESC`,
       [doctorId]
     );
@@ -69,7 +69,7 @@ export class FlowRepository {
     const result = await pool.query(
       `SELECT id, name, trigger_type, is_active, published_version_id, created_at, updated_at
        FROM flows
-       WHERE id = $1 AND doctor_id = $2 AND deleted_at IS NULL`,
+       WHERE id = $1 AND doctor_id = $2`,
       [flowId, doctorId]
     );
     return result.rows[0] || null;
