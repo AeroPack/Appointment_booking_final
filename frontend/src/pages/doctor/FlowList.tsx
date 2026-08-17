@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, Workflow, Calendar, Settings } from 'lucide-react';
+import { Loader2, Plus, Workflow, Calendar, Settings, Repeat, XCircle } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
 import { useGetFlowsQuery, useCreateFlowMutation } from '@/features/flows/flowsApi';
 import type { FlowSummary } from '@/features/flows/flowTypes';
+import { toast } from 'sonner';
 
 const AUTOMATION_TRIGGERS = ['booking_confirmed', 'reminder', 'appointment_cancelled', 'appointment_rescheduled'];
 
@@ -16,6 +17,12 @@ const FLOW_DESCRIPTIONS: Record<string, string> = {
   appointment_rescheduled: 'Notifies the patient when an appointment is rescheduled',
 };
 
+const TRIGGER_OPTIONS = [
+  { value: 'book', label: 'Booking', description: 'Handles new appointment bookings', icon: Workflow },
+  { value: 'reschedule', label: 'Reschedule', description: 'Handles appointment rescheduling', icon: Repeat },
+  { value: 'cancel', label: 'Cancel', description: 'Handles appointment cancellations', icon: XCircle },
+] as const;
+
 export function FlowList() {
   const navigate = useNavigate();
   const { data: flows, isLoading } = useGetFlowsQuery();
@@ -23,17 +30,29 @@ export function FlowList() {
 
   const [showNewModal, setShowNewModal] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
+  const [selectedTrigger, setSelectedTrigger] = useState<string>('book');
 
   const handleCreate = async () => {
     if (!newFlowName.trim()) return;
     try {
-      const result = await createFlow({ name: newFlowName.trim() }).unwrap();
+      const result = await createFlow({ name: newFlowName.trim(), trigger_type: selectedTrigger }).unwrap();
       setShowNewModal(false);
       setNewFlowName('');
+      setSelectedTrigger('book');
       navigate(`/doctor/flows/${result.id}`);
-    } catch {
-      // Error handled by RTK Query
+    } catch (err: any) {
+      if (err?.status === 409) {
+        toast.error('A flow with this trigger type already exists. Choose a different type.');
+      } else {
+        toast.error('Failed to create flow. Please try again.');
+      }
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowNewModal(false);
+    setNewFlowName('');
+    setSelectedTrigger('book');
   };
 
   if (isLoading) {
@@ -196,8 +215,8 @@ export function FlowList() {
       {showNewModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="w-full max-w-md">
-            <CardContent className="p-6 space-y-4">
-              <h2 className="text-lg font-semibold">New Booking Flow</h2>
+            <CardContent className="p-6 space-y-5">
+              <h2 className="text-lg font-semibold">New Flow</h2>
               <Input
                 placeholder="Flow name (e.g., Book Appointment)"
                 value={newFlowName}
@@ -205,8 +224,37 @@ export function FlowList() {
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                 autoFocus
               />
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Trigger Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {TRIGGER_OPTIONS.map((opt) => {
+                    const Icon = opt.icon;
+                    const isSelected = selectedTrigger === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setSelectedTrigger(opt.value)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center ${
+                          isSelected
+                            ? 'border-primary bg-primary/5 text-primary'
+                            : 'border-border hover:border-primary/50 text-muted-foreground'
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span className="text-xs font-medium">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {TRIGGER_OPTIONS.find(o => o.value === selectedTrigger)?.description}
+                </p>
+              </div>
+
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowNewModal(false)}>
+                <Button variant="outline" onClick={handleCloseModal}>
                   Cancel
                 </Button>
                 <Button onClick={handleCreate} disabled={!newFlowName.trim() || isCreating}>
