@@ -41,6 +41,15 @@ export const NODE_DATA_SCHEMAS = {
     value: z.string().max(200).optional(),
   }).strict(),
 
+  delay: z.object({
+    offset_minutes: z.number().int().min(1).max(43200),
+    offset_from: z.enum(['appointment_start', 'appointment_end']).default('appointment_start'),
+  }).strict(),
+
+  template: z.object({
+    template_id: z.string().min(1),
+  }).strict(),
+
   booking_action: z.object({}).strict(),
 
   end: z.object({
@@ -50,6 +59,9 @@ export const NODE_DATA_SCHEMAS = {
 
 export type FlowNodeType = keyof typeof NODE_DATA_SCHEMAS;
 export const FLOW_NODE_TYPES = Object.keys(NODE_DATA_SCHEMAS) as FlowNodeType[];
+
+// Node types that can be used in automation flows (triggered by events)
+export const AUTOMATION_NODE_TYPES: FlowNodeType[] = ['start', 'message', 'template', 'choice', 'delay', 'condition', 'api', 'booking_action', 'end'];
 
 const nodePositionSchema = z.object({
   x: z.number(),

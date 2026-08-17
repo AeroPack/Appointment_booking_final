@@ -1,4 +1,4 @@
-export type FlowNodeType = 'start' | 'message' | 'choice' | 'slot_picker' | 'api' | 'condition' | 'booking_action' | 'end';
+export type FlowNodeType = 'start' | 'message' | 'template' | 'choice' | 'slot_picker' | 'api' | 'condition' | 'delay' | 'booking_action' | 'end';
 
 export interface FlowNode {
   id: string;
@@ -94,13 +94,24 @@ export interface EndNodeData {
   message?: string;
 }
 
+export interface TemplateNodeData {
+  template_id: string;
+}
+
+export interface DelayNodeData {
+  offset_minutes: number;
+  offset_from: 'appointment_start' | 'appointment_end';
+}
+
 export type FlowNodeDataMap = {
   start: StartNodeData;
   message: MessageNodeData;
+  template: TemplateNodeData;
   choice: ChoiceNodeData;
   slot_picker: SlotPickerNodeData;
   api: ApiNodeData;
   condition: ConditionNodeData;
+  delay: DelayNodeData;
   booking_action: BookingActionNodeData;
   end: EndNodeData;
 };

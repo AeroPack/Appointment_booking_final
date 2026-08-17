@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, Workflow, Calendar } from 'lucide-react';
+import { Loader2, Plus, Workflow, Calendar, Settings } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
 import { useGetFlowsQuery, useCreateFlowMutation } from '@/features/flows/flowsApi';
 import type { FlowSummary } from '@/features/flows/flowTypes';
+
+const AUTOMATION_TRIGGERS = ['booking_confirmed', 'reminder', 'appointment_cancelled', 'appointment_rescheduled'];
+
+const FLOW_DESCRIPTIONS: Record<string, string> = {
+  booking_confirmed: 'Sends a confirmation message when an appointment is booked',
+  reminder: 'Sends reminders before the appointment time',
+  appointment_cancelled: 'Notifies the patient when an appointment is cancelled',
+  appointment_rescheduled: 'Notifies the patient when an appointment is rescheduled',
+};
 
 export function FlowList() {
   const navigate = useNavigate();
@@ -62,43 +71,125 @@ export function FlowList() {
       )}
 
       {flows && flows.length > 0 && (
-        <div className="space-y-3">
-          {flows.map((flow: FlowSummary) => (
-            <Card
-              key={flow.id}
-              className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => navigate(`/doctor/flows/${flow.id}`)}
-            >
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Workflow className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{flow.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {flow.trigger_type === 'book' ? 'Booking' : flow.trigger_type === 'reschedule' ? 'Reschedule' : 'Cancel'} flow
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  {flow.published_version_id ? (
-                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                      Published
-                    </span>
-                  ) : (
-                    <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
-                      Draft
-                    </span>
-                  )}
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
-                    {new Date(flow.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="space-y-8">
+          {/* Automation Flows */}
+          {flows.some(f => AUTOMATION_TRIGGERS.includes(f.trigger_type)) && (
+            <div>
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-primary" />
+                  Automation Flows
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  These flows handle appointment notifications. Edit message content in Templates.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {flows
+                  .filter(f => AUTOMATION_TRIGGERS.includes(f.trigger_type))
+                  .map((flow: FlowSummary) => (
+                    <Card
+                      key={flow.id}
+                      className="cursor-pointer hover:bg-accent/50 transition-colors"
+                      onClick={() => navigate(`/doctor/flows/${flow.id}`)}
+                    >
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
+                            <Workflow className="h-5 w-5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{flow.name}</p>
+                              <span className="px-2 py-0.5 text-[10px] font-medium bg-emerald-100 text-emerald-700 rounded-full">
+                                System
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {FLOW_DESCRIPTIONS[flow.trigger_type] || flow.trigger_type}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          {flow.published_version_id ? (
+                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                              Published
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
+                              Draft
+                            </span>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/doctor/settings/templates');
+                            }}
+                          >
+                            <Settings className="h-3.5 w-3.5 mr-1" />
+                            Edit Messages
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom Flows */}
+          {flows.some(f => !AUTOMATION_TRIGGERS.includes(f.trigger_type)) && (
+            <div>
+              <div className="mb-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Workflow className="h-5 w-5 text-primary" />
+                  Custom Flows
+                </h2>
+              </div>
+              <div className="space-y-3">
+                {flows
+                  .filter(f => !AUTOMATION_TRIGGERS.includes(f.trigger_type))
+                  .map((flow: FlowSummary) => (
+                    <Card
+                      key={flow.id}
+                      className="cursor-pointer hover:bg-accent/50 transition-colors"
+                      onClick={() => navigate(`/doctor/flows/${flow.id}`)}
+                    >
+                      <CardContent className="p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Workflow className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{flow.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {flow.trigger_type === 'book' ? 'Booking' : flow.trigger_type === 'reschedule' ? 'Reschedule' : 'Cancel'} flow
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          {flow.published_version_id ? (
+                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                              Published
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
+                              Draft
+                            </span>
+                          )}
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            {new Date(flow.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

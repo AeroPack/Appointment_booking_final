@@ -216,4 +216,46 @@ export class FlowSessionRepository {
     );
     return result.rowCount ?? 0;
   }
+
+  async findTemplateById(templateId: string): Promise<{
+    id: string;
+    content: string;
+    subject: string | null;
+    template_type: string;
+  } | null> {
+    const result = await pool.query(
+      `SELECT id, content, subject, template_type FROM message_templates WHERE id = $1`,
+      [templateId]
+    );
+    return result.rows[0] || null;
+  }
+
+  async insertScheduledExecution(params: {
+    sessionId: string;
+    flowId: string;
+    flowVersionId: string;
+    doctorId: string;
+    patientId: string | null;
+    appointmentId: string | null;
+    currentNodeId: string;
+    context: Record<string, unknown>;
+    executeAt: Date;
+  }): Promise<void> {
+    await pool.query(
+      `INSERT INTO flow_scheduled_executions
+        (session_id, flow_id, flow_version_id, doctor_id, patient_id, appointment_id, current_node_id, context, execute_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        params.sessionId,
+        params.flowId,
+        params.flowVersionId,
+        params.doctorId,
+        params.patientId,
+        params.appointmentId,
+        params.currentNodeId,
+        JSON.stringify(params.context),
+        params.executeAt,
+      ]
+    );
+  }
 }

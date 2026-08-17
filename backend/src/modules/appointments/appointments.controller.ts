@@ -2,11 +2,14 @@ import type { Request, Response, NextFunction } from 'express';
 import { success } from '../../utils/response.js';
 import { AppointmentsService } from './appointments.service.js';
 import { AppointmentsRepository } from './appointments.repository.js';
-import { messagesService } from '../messages/messages.controller.js';
+import { FlowService } from '../flows/flow.service.js';
+import { FlowRepository } from '../flows/flow.repository.js';
+import { flowScheduler } from '../flows/flow.scheduler.js';
 import { tagsService } from '../tags/tags.controller.js';
 
 const repo = new AppointmentsRepository();
 const service = new AppointmentsService(repo);
+const flowService = new FlowService(new FlowRepository());
 
 export async function findSlots(req: Request, res: Response, next: NextFunction) {
   try {
@@ -24,7 +27,17 @@ export async function findSlots(req: Request, res: Response, next: NextFunction)
 export async function bookSlot(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.bookSlot(req.auth!.clinicId, req.auth!.userId, req.body);
-    await messagesService.scheduleReminders(result.id);
+    await flowService.triggerEvent({
+      doctorId: result.doctor_id,
+      patientId: result.patient_id,
+      event: 'booking_confirmed',
+      appointmentId: result.id,
+    });
+    await flowService.scheduleReminders({
+      doctorId: result.doctor_id,
+      patientId: result.patient_id,
+      appointmentId: result.id,
+    });
     await tagsService.evaluateAutoTags(result.patient_id, req.auth!.clinicId);
     res.status(201).json(success(result));
   } catch (err) {
@@ -54,6 +67,7 @@ export async function getAppointment(req: Request, res: Response, next: NextFunc
 export async function cancelAppointment(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.cancelAppointment(req.params.id as string, req.auth!.userId);
+    await flowScheduler.cancelForAppointment(req.params.id as string);
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -72,7 +86,17 @@ export async function updateAppointmentStatus(req: Request, res: Response, next:
 export async function bookOnBehalf(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.bookOnBehalf(req.auth!.clinicId, req.auth!.userId, req.body);
-    await messagesService.scheduleReminders(result.id);
+    await flowService.triggerEvent({
+      doctorId: result.doctor_id,
+      patientId: result.patient_id,
+      event: 'booking_confirmed',
+      appointmentId: result.id,
+    });
+    await flowService.scheduleReminders({
+      doctorId: result.doctor_id,
+      patientId: result.patient_id,
+      appointmentId: result.id,
+    });
     await tagsService.evaluateAutoTags(result.patient_id, req.auth!.clinicId);
     res.status(201).json(success(result));
   } catch (err) {

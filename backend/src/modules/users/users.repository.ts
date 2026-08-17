@@ -52,6 +52,19 @@ export class UsersRepository {
   }
 
   async searchPatients(clinicId: string, query: string): Promise<UserRow[]> {
+    if (!query) {
+      const result = await pool.query(
+        `SELECT ${this.userColumns}
+         FROM users
+         WHERE clinic_id = $1
+           AND role = 'patient'
+           AND deleted_at IS NULL
+         ORDER BY name
+         LIMIT 50`,
+        [clinicId]
+      );
+      return result.rows;
+    }
     const result = await pool.query(
       `SELECT ${this.userColumns}
        FROM users

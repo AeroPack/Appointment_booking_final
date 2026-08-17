@@ -1,19 +1,29 @@
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, AlertCircle, Copy, Bot, RefreshCw, MessageSquare } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Copy, Bot, RefreshCw, MessageSquare, HelpCircle, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
 import { Card, CardContent } from "@/core/components/ui/card";
+import { Input } from "@/core/components/ui/input";
 import { useGetChatbotConfigQuery, useUpdateChatbotConfigMutation, useRegenerateWidgetKeyMutation } from "@/features/doctors/chatbotApi";
 import { WhatsAppIntegrationPage } from "@/features/doctors/components/WhatsAppIntegrationPage";
+import {
+  useGetFaqsQuery,
+  useCreateFaqMutation,
+  useUpdateFaqMutation,
+  useDeleteFaqMutation,
+  type FaqEntry
+} from "@/features/doctors/faqApi";
 import { env } from "@/core/config/env";
+import { toast } from "sonner";
 
 const PUBLIC_API_HOST = env.VITE_PUBLIC_API_URL || window.location.origin;
 
-type TabId = "widget" | "whatsapp";
+type TabId = "widget" | "whatsapp" | "faq";
 
 const TABS: { id: TabId; label: string; icon: typeof Bot }[] = [
   { id: "widget", label: "Web Widget", icon: Bot },
   { id: "whatsapp", label: "WhatsApp Chatbot", icon: MessageSquare },
+  { id: "faq", label: "FAQ", icon: HelpCircle },
 ];
 
 export default function ChatbotSettings() {
@@ -48,11 +58,9 @@ export default function ChatbotSettings() {
       </div>
 
       {/* ── Tab Content ── */}
-      {activeTab === "whatsapp" ? (
-        <WhatsAppIntegrationPage />
-      ) : (
-        <WidgetTabContent />
-      )}
+      {activeTab === "whatsapp" && <WhatsAppIntegrationPage />}
+      {activeTab === "widget" && <WidgetTabContent />}
+      {activeTab === "faq" && <FaqTabContent />}
     </div>
   );
 }
@@ -222,4 +230,149 @@ function buildEmbedSnippet(config?: ChatbotConfig): string {
   const greeting = config.greeting_msg || "Hi! How can I help you today?";
   const position = config.position || "bottom-right";
   return `<script src="${PUBLIC_API_HOST}/chatbot.js" data-widget-key="${config.widget_key}" data-api-host="${PUBLIC_API_HOST}" data-primary-color="${color}" data-greeting="${greeting}" data-position="${position}" async></script>`;
+}
+
+/* ────────────── FAQ Tab ────────────── */
+
+function FaqTabContent() {
+  const { data: faqItems, isLoading } = useGetFaqsQuery();
+  const [createFaq, { isLoading: isCreating }] = useCreateFaqMutation();
+  const [updateFaq] = useUpdateFaqMutation();
+  const [deleteFaq] = useDeleteFaqMutation();
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newQuestion, setNewQuestion] = useState("");
+  const [newAnswer, setNewAnswer] = useState("");
+  const [editQuestion, setEditQuestion] = useState("");
+  const [editAnswer, setEditAnswer] = useState("");
+
+  const handleCreate = async () => {
+    if (!newQuestion.trim() || !newAnswer.trim()) {
+      toast.error("Both question and answer are required");
+      return;
+    }
+    try {
+      await createFaq({ question: newQuestion.trim(), answer: newAnswer.trim() }).unwrap();
+      setNewQuestion("");
+      setNewAnswer("");
+      toast.success("FAQ item created");
+    } catch {
+      toast.error("Failed to create FAQ item");
+    }
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editQuestion.trim() || !editAnswer.trim()) {
+      toast.error("Both question and answer are required");
+      return;
+    }
+    try {
+      await updateFaq({ id, question: editQuestion.trim(), answer: editAnswer.trim() }).unwrap();
+      setEditingId(null);
+      toast.success("FAQ item updated");
+    } catch {
+      toast.error("Failed to update FAQ item");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this FAQ item?")) return;
+    try {
+      await deleteFaq(id).unwrap();
+      toast.success("FAQ item deleted");
+    } catch {
+      toast.error("Failed to delete FAQ item");
+    }
+  };
+
+  const startEdit = (item: FaqEntry) => {
+    setEditingId(item.id);
+    setEditQuestion(item.question);
+    setEditAnswer(item.answer);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Add FAQ Item
+          </h2>
+          <Input
+            placeholder="Question"
+            value={newQuestion}
+            onChange={(e) => setNewQuestion(e.target.value)}
+          />
+          <textarea
+            className="w-full p-3 border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+            placeholder="Answer"
+            rows={3}
+            value={newAnswer}
+            onChange={(e) => setNewAnswer(e.target.value)}
+          />
+          <Button onClick={handleCreate} disabled={isCreating || !newQuestion.trim() || !newAnswer.trim()}>
+            {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+            Add FAQ
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          {faqItems?.length ?? 0} FAQ item{(faqItems?.length ?? 0) !== 1 ? "s" : ""}
+        </h3>
+        {(faqItems ?? []).map((item) => (
+          <Card key={item.id}>
+            <CardContent className="p-4">
+              {editingId === item.id ? (
+                <div className="space-y-3">
+                  <Input
+                    value={editQuestion}
+                    onChange={(e) => setEditQuestion(e.target.value)}
+                    placeholder="Question"
+                  />
+                  <textarea
+                    className="w-full p-3 border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    rows={3}
+                    value={editAnswer}
+                    onChange={(e) => setEditAnswer(e.target.value)}
+                    placeholder="Answer"
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => handleUpdate(item.id)}>Save</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium">{item.question}</p>
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{item.answer}</p>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(item)}>Edit</Button>
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(item.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+        {faqItems?.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">No FAQ items yet. Add your first one above.</p>
+        )}
+      </div>
+    </div>
+  );
 }

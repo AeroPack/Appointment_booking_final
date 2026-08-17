@@ -20,7 +20,7 @@ const TRUNCATE_TABLES = [
   'clinics',
 ];
 
-let pool;
+let pool: pg.Pool;
 
 async function truncateAll() {
   for (const table of TRUNCATE_TABLES) {

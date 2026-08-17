@@ -26,6 +26,8 @@ import {
   usePublishVersionMutation,
   useRollbackToVersionMutation,
 } from '@/features/flows/flowsApi';
+import { useListTemplatesQuery } from '@/features/settings/settingsApi';
+import { useAppSelector } from '@/core/store/hooks';
 import { NODE_TYPE_DEFINITIONS } from '@/features/flows/nodeTypes';
 import type { FlowNodeType, ChoiceOption } from '@/features/flows/flowTypes';
 import { buildNodeTypes, validateConnectionRules, createNodeFromPalette, removeStaleChoiceEdges } from '@/features/flows/graphUtils';
@@ -205,6 +207,71 @@ function BookingActionNodeForm() {
   );
 }
 
+function TemplateNodeForm({ data, onChange }: { data: Record<string, unknown>; onChange: (data: Record<string, unknown>) => void }) {
+  const authUser = useAppSelector(state => state.auth.user);
+  const { data: templates, isLoading } = useListTemplatesQuery(authUser?.id);
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium">Select Template</label>
+      <select
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        value={String(data.template_id || '')}
+        onChange={(e) => onChange({ ...data, template_id: e.target.value })}
+      >
+        <option value="">-- Choose a template --</option>
+        {templates?.map(t => (
+          <option key={t.id} value={t.id}>
+            {t.template_type.replace(/_/g, ' ')}{t.offset_minutes ? ` (${t.offset_minutes}min)` : ''}
+          </option>
+        ))}
+      </select>
+      {isLoading && <p className="text-xs text-muted-foreground">Loading templates...</p>}
+      {Boolean(data.template_id) && (
+        <p className="text-xs text-muted-foreground">
+          Edit message content in <a href="/doctor/settings/templates" className="underline text-primary">Templates</a>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DelayNodeForm({ data, onChange }: { data: Record<string, unknown>; onChange: (data: Record<string, unknown>) => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Delay (minutes)</label>
+        <input
+          type="number"
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={Number(data.offset_minutes || 0)}
+          onChange={(e) => onChange({ ...data, offset_minutes: parseInt(e.target.value) || 0 })}
+          min={1}
+          max={43200}
+        />
+        <p className="text-xs text-muted-foreground">
+          {Number(data.offset_minutes || 0) >= 1440
+            ? `~${Math.round(Number(data.offset_minutes || 0) / 1440)} day(s)`
+            : Number(data.offset_minutes || 0) >= 60
+              ? `~${Math.round(Number(data.offset_minutes || 0) / 60)} hour(s)`
+              : `${Number(data.offset_minutes || 0)} minute(s)`}
+        </p>
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Delay From</label>
+        <select
+          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          value={String(data.offset_from || 'appointment_start')}
+          onChange={(e) => onChange({ ...data, offset_from: e.target.value })}
+        >
+          <option value="appointment_start">Before appointment start</option>
+          <option value="appointment_end">After appointment start</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function EndNodeForm({ data, onChange }: { data: Record<string, unknown>; onChange: (data: Record<string, unknown>) => void }) {
   return (
     <div className="space-y-2">
@@ -216,6 +283,40 @@ function EndNodeForm({ data, onChange }: { data: Record<string, unknown>; onChan
         placeholder="Thank you message..."
         maxLength={500}
       />
+    </div>
+  );
+}
+
+function SlotPickerNodeForm({ data, onChange }: { data: Record<string, unknown>; onChange: (d: Record<string, unknown>) => void }) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Prompt Text</label>
+        <textarea
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm resize-none"
+          rows={3}
+          value={(data.text as string) || ''}
+          onChange={(e) => onChange({ ...data, text: e.target.value })}
+          placeholder="e.g. Please pick a date for your appointment..."
+        />
+        <p className="text-xs text-muted-foreground">
+          Use {'{{variable}}'} for dynamic content. This message is shown when the flow enters the date selection phase.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Days Ahead</label>
+        <input
+          type="number"
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+          value={(data.days_ahead as number) || 14}
+          onChange={(e) => onChange({ ...data, days_ahead: parseInt(e.target.value) || 14 })}
+          min={1}
+          max={30}
+        />
+        <p className="text-xs text-muted-foreground">
+          Number of days to search for available slots (1-30).
+        </p>
+      </div>
     </div>
   );
 }
@@ -254,11 +355,14 @@ function NodeInspector({
       </div>
       {nodeType === 'start' && <StartNodeForm />}
       {nodeType === 'message' && <MessageNodeForm data={selectedNode.data} onChange={handleChange} />}
+      {nodeType === 'template' && <TemplateNodeForm data={selectedNode.data} onChange={handleChange} />}
       {nodeType === 'choice' && <ChoiceNodeForm data={selectedNode.data} onChange={handleChange} />}
       {nodeType === 'api' && <ApiNodeForm data={selectedNode.data} onChange={handleChange} />}
       {nodeType === 'condition' && <ConditionNodeForm data={selectedNode.data} onChange={handleChange} />}
+      {nodeType === 'delay' && <DelayNodeForm data={selectedNode.data} onChange={handleChange} />}
       {nodeType === 'booking_action' && <BookingActionNodeForm />}
       {nodeType === 'end' && <EndNodeForm data={selectedNode.data} onChange={handleChange} />}
+      {nodeType === 'slot_picker' && <SlotPickerNodeForm data={selectedNode.data} onChange={handleChange} />}
     </div>
   );
 }

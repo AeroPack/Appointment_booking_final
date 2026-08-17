@@ -2,21 +2,17 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { z } from 'zod';
 import { authGuard } from '../../middleware/authGuard.js';
 import { requireRole } from '../../middleware/requireRole.js';
 import { validate } from '../../middleware/validate.js';
 import { getMe, updateMe, uploadAvatar, createDependent, getDependents, updateDependent, deleteDependent, searchPatients, createPatient } from './users.controller.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const avatarDir = path.join(__dirname, '../../../uploads/avatars');
+const avatarDir = path.join(process.cwd(), 'uploads/avatars');
 fs.mkdirSync(avatarDir, { recursive: true });
 
 const avatarStorage = multer.diskStorage({
-  destination: path.join(__dirname, '../../../uploads/avatars'),
+  destination: path.join(process.cwd(), 'uploads/avatars'),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${req.auth!.userId}-${Date.now()}${ext}`);
@@ -67,7 +63,7 @@ const updateDependentSchema = z.object({
 });
 
 const searchPatientsSchema = z.object({
-  q: z.string().min(1),
+  q: z.string().optional().default(''),
 });
 
 const createPatientSchema = z.object({

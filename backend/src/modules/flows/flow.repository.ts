@@ -204,4 +204,19 @@ export class FlowRepository {
       client.release();
     }
   }
+
+  async findFlowsByTriggerType(doctorId: string, triggerType: string): Promise<Array<{
+    flow_id: string;
+    version_id: string;
+    name: string;
+  }>> {
+    const result = await pool.query(
+      `SELECT f.id AS flow_id, fv.id AS version_id, f.name
+       FROM flows f
+       JOIN flow_versions fv ON fv.id = f.published_version_id
+       WHERE f.doctor_id = $1 AND f.trigger_type = $2 AND f.is_active = true`,
+      [doctorId, triggerType]
+    );
+    return result.rows;
+  }
 }

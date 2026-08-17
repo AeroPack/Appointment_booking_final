@@ -4,7 +4,7 @@ import { BotRepository } from './bot.repository.js';
 import type { BotSlotsQuery, BotBookBody, BotFaqQuery, BotLookupQuery } from './bot.types.js';
 import axios from 'axios';
 
-const MAX_RANGE_DAYS = 14;
+const MAX_RANGE_DAYS = 30;
 
 export class BotService {
   constructor(private readonly repo: BotRepository) {}
@@ -26,7 +26,7 @@ export class BotService {
 
     const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (diffDays > MAX_RANGE_DAYS) {
-      throw new AppError(400, 'RANGE_TOO_LARGE', 'Date range must not exceed 14 days');
+      throw new AppError(400, 'RANGE_TOO_LARGE', 'Date range must not exceed 30 days');
     }
 
     const today = new Date();

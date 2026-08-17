@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll } from '@jest/globals';
 import { initializeChannels, channelRegistry } from '../utils/channels/index.js';
-import { WhatsAppChannel } from '../utils/channels/whatsapp.js';
+import { WhatsAppEvolutionChannel } from '../utils/channels/whatsapp-evolution.js';
 
 describe('WhatsApp Integration', () => {
   beforeAll(() => {
@@ -21,11 +21,11 @@ describe('WhatsApp Integration', () => {
   it('should get WhatsApp channel instance', () => {
     const channel = channelRegistry.get('whatsapp');
     expect(channel).toBeDefined();
-    expect(channel).toBeInstanceOf(WhatsAppChannel);
+    expect(channel).toBeInstanceOf(WhatsAppEvolutionChannel);
   });
 
   it('should have correct channel type', () => {
-    const channel = channelRegistry.get('whatsapp') as WhatsAppChannel;
+    const channel = channelRegistry.get('whatsapp') as WhatsAppEvolutionChannel;
     expect(channel.channelType).toBe('whatsapp');
   });
 

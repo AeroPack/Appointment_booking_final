@@ -1,5 +1,8 @@
 import { AppError } from '../../utils/response.js';
 import { FlowRepository } from './flow.repository.js';
+import { FlowSessionRepository } from './flow.session-repository.js';
+import { FlowExecutor } from './flow.executor.js';
+import pool from '../../config/db.js';
 import { NODE_DATA_SCHEMAS, flowGraphShapeSchema, type FlowGraph, type FlowNodeType, FLOW_NODE_TYPES } from './flow.node-schemas.js';
 
 export class FlowService {
@@ -99,6 +102,172 @@ export class FlowService {
     await this.repo.rollbackToVersion(flowId, targetVersionId);
     return { success: true };
   }
+
+  async triggerEvent(params: {
+    doctorId: string;
+    patientId: string;
+    event: string;
+    appointmentId: string;
+  }) {
+    const sessionRepo = new FlowSessionRepository();
+    const flow = await sessionRepo.findPublishedFlowForDoctor(params.doctorId, params.event);
+    if (!flow) return;
+
+    const appointmentResult = await pool.query(
+      `SELECT a.*, u.name AS patient_name, d.name AS doctor_name,
+              v.name AS venue_name, c.name AS clinic_name
+       FROM appointments a
+       JOIN users u ON u.id = a.patient_id
+       JOIN users d ON d.id = a.doctor_id
+       LEFT JOIN venues v ON v.id = a.venue_id
+       LEFT JOIN clinics c ON c.id = a.clinic_id
+       WHERE a.id = $1`,
+      [params.appointmentId]
+    );
+    const appt = appointmentResult.rows[0];
+    if (!appt) return;
+
+    const context: Record<string, unknown> = {
+      patient_name: appt.patient_name,
+      doctor_name: appt.doctor_name,
+      slot_time: this.formatSlotTime(appt.scheduled_start),
+      venue: appt.venue_name || 'Unknown',
+      clinic_name: appt.clinic_name,
+      token_number: appt.token_number != null ? String(appt.token_number) : '',
+      appointment: {
+        appointment_id: appt.id,
+        token_number: appt.token_number,
+        scheduled_start: appt.scheduled_start,
+        scheduled_end: appt.scheduled_end,
+      },
+    };
+
+    if (appt.whatsapp_number || appt.mobile_number) {
+      context.patient_phone = appt.whatsapp_number || appt.mobile_number;
+    }
+
+    const session = await sessionRepo.createSession({
+      flowId: flow.flowId,
+      flowVersionId: flow.versionId,
+      doctorId: params.doctorId,
+      patientId: params.patientId,
+      channel: 'whatsapp',
+      channelSessionId: context.patient_phone ? String(context.patient_phone) : params.patientId,
+      context,
+    });
+
+    const updatedSession = await sessionRepo.findSessionById(session.id);
+    if (!updatedSession) return;
+
+    const executor = new FlowExecutor(sessionRepo);
+    await executor.executeTurn(updatedSession, flow.graph);
+  }
+
+  async scheduleReminders(params: {
+    doctorId: string;
+    patientId: string;
+    appointmentId: string;
+  }) {
+    const sessionRepo = new FlowSessionRepository();
+    const reminderFlows = await this.repo.findFlowsByTriggerType(params.doctorId, 'reminder');
+    if (!reminderFlows || reminderFlows.length === 0) return;
+
+    const appointmentResult = await pool.query(
+      `SELECT a.*, u.name AS patient_name, d.name AS doctor_name,
+              v.name AS venue_name, c.name AS clinic_name
+       FROM appointments a
+       JOIN users u ON u.id = a.patient_id
+       JOIN users d ON d.id = a.doctor_id
+       LEFT JOIN venues v ON v.id = a.venue_id
+       LEFT JOIN clinics c ON c.id = a.clinic_id
+       WHERE a.id = $1`,
+      [params.appointmentId]
+    );
+    const appt = appointmentResult.rows[0];
+    if (!appt) return;
+
+    for (const flowRow of reminderFlows) {
+      const graph = await sessionRepo.getFlowGraph(flowRow.version_id);
+      if (!graph) continue;
+
+      const delayNode = graph.nodes.find((n: { type: string }) => n.type === 'delay');
+      if (!delayNode) continue;
+
+      const offsetMinutes = Number(delayNode.data.offset_minutes || 0);
+      const offsetFrom = String(delayNode.data.offset_from || 'appointment_start');
+      const appointmentStart = new Date(appt.scheduled_start);
+      const offsetMs = offsetMinutes * 60 * 1000;
+      const executeAt = offsetFrom === 'appointment_end'
+        ? new Date(appointmentStart.getTime() + offsetMs)
+        : new Date(appointmentStart.getTime() - offsetMs);
+
+      if (executeAt <= new Date()) continue;
+
+      const context: Record<string, unknown> = {
+        patient_name: appt.patient_name,
+        doctor_name: appt.doctor_name,
+        slot_time: this.formatSlotTime(appt.scheduled_start),
+        venue: appt.venue_name || 'Unknown',
+        clinic_name: appt.clinic_name,
+        token_number: appt.token_number != null ? String(appt.token_number) : '',
+        appointment: {
+          appointment_id: appt.id,
+          token_number: appt.token_number,
+          scheduled_start: appt.scheduled_start,
+          scheduled_end: appt.scheduled_end,
+        },
+      };
+
+      if (appt.whatsapp_number || appt.mobile_number) {
+        context.patient_phone = appt.whatsapp_number || appt.mobile_number;
+      }
+
+      const session = await sessionRepo.createSession({
+        flowId: flowRow.flow_id,
+        flowVersionId: flowRow.version_id,
+        doctorId: params.doctorId,
+        patientId: params.patientId,
+        channel: 'whatsapp',
+        channelSessionId: context.patient_phone ? String(context.patient_phone) : params.patientId,
+        context,
+      });
+
+      const nextNodeId = this.findNextNodeAfterDelay(delayNode.id, graph);
+      if (!nextNodeId) continue;
+
+      await sessionRepo.insertScheduledExecution({
+        sessionId: session.id,
+        flowId: flowRow.flow_id,
+        flowVersionId: flowRow.version_id,
+        doctorId: params.doctorId,
+        patientId: params.patientId,
+        appointmentId: params.appointmentId,
+        currentNodeId: nextNodeId,
+        context,
+        executeAt,
+      });
+    }
+  }
+
+  private findNextNodeAfterDelay(delayNodeId: string, graph: FlowGraph): string | null {
+    const edge = graph.edges.find((e: { source: string }) => e.source === delayNodeId);
+    return edge?.target || null;
+  }
+
+  private formatSlotTime(date: Date | string): string {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const offset = 5.5 * 60 * 60 * 1000;
+    const ist = new Date(d.getTime() + offset);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = ist.getUTCDate();
+    const month = months[ist.getUTCMonth()];
+    const year = ist.getUTCFullYear();
+    const hours = ist.getUTCHours();
+    const minutes = String(ist.getUTCMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h12 = hours % 12 || 12;
+    return `${day} ${month} ${year}, ${h12}:${minutes} ${ampm} IST`;
+  }
 }
 
 export function validateGraphForPublish(graph: FlowGraph): string[] {
@@ -153,7 +322,9 @@ export function validateGraphForPublish(graph: FlowGraph): string[] {
   const allowedSourceHandles: Record<string, string[] | null> = {
     start: null,
     message: null,
+    template: null,
     choice: null,
+    delay: null,
     api: ['success', 'error'],
     condition: ['true', 'false'],
     booking_action: null,
@@ -205,6 +376,12 @@ export function validateGraphForPublish(graph: FlowGraph): string[] {
       const outgoing = edges.filter((e: { source: string }) => e.source === node.id);
       if (outgoing.length === 0) {
         errors.push('API node "' + node.id + '" must have at least one outgoing edge');
+      }
+    }
+
+    if (node.type === 'template') {
+      if (!node.data.template_id || typeof node.data.template_id !== 'string') {
+        errors.push('Template node "' + node.id + '" must have a template_id');
       }
     }
   }

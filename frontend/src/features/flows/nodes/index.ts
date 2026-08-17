@@ -1,8 +1,10 @@
 export { StartNode } from './StartNode';
 export { MessageNode } from './MessageNode';
+export { TemplateNode } from './TemplateNode';
 export { ChoiceNode } from './ChoiceNode';
 export { SlotPickerNode } from './SlotPickerNode';
 export { ApiNode } from './ApiNode';
 export { ConditionNode } from './ConditionNode';
+export { DelayNode } from './DelayNode';
 export { BookingActionNode } from './BookingActionNode';
 export { EndNode } from './EndNode';

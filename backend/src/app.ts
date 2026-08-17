@@ -3,7 +3,6 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import authRoutes from './modules/auth/auth.routes.js';
 import userRoutes from './modules/users/users.routes.js';
 import doctorRoutes from './modules/doctors/doctors.routes.js';
@@ -20,6 +19,7 @@ import flowEvolutionWebhookRoutes from './modules/flows/flow.webhook-evolution-r
 import evolutionRoutes from './modules/doctors/evolution.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeChannels } from './utils/channels/index.js';
+import { flowScheduler } from './modules/flows/flow.scheduler.js';
 
 const app = express();
 
@@ -29,8 +29,7 @@ const app = express();
 app.set('trust proxy', 1);
 const port = process.env.PORT || 3000;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const appRoot = path.resolve();
 
 // Initialize message channels (WhatsApp, Email, SMS)
 initializeChannels();
@@ -61,11 +60,11 @@ app.get('/chatbot.js', (_req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 'public, max-age=604800');
-  res.sendFile(path.join(__dirname, '../static/chatbot.js'));
+  res.sendFile(path.join(appRoot, 'static/chatbot.js'));
 });
 
 // Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+  app.use('/uploads', express.static(path.join(appRoot, 'uploads')));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -100,6 +99,7 @@ app.use(errorHandler);
 if (process.env.NODE_ENV !== 'test') {
   app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
+    flowScheduler.start();
   });
 }
 

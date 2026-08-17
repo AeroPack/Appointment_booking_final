@@ -5,7 +5,9 @@ import { NODE_TYPE_DEFINITIONS, NODE_COMPONENTS } from './nodeTypes';
 const ALLOWED_SOURCE_HANDLES: Record<string, string[] | null> = {
   start: null,
   message: null,
+  template: null,
   choice: null,
+  delay: null,
   api: ['success', 'error'],
   condition: ['true', 'false'],
   booking_action: null,
@@ -83,12 +85,17 @@ export function summarizeNode(node: Node): string {
   switch (type) {
     case 'start': return 'Flow start';
     case 'message': return String(data.text || 'Empty message').slice(0, 40);
+    case 'template': return data.template_id ? 'Template message' : 'No template selected';
     case 'choice': {
       const opts = Array.isArray(data.options) ? data.options : [];
       return `${opts.length} options`;
     }
     case 'api': return String(data.url || 'No URL').slice(0, 40);
     case 'condition': return `${data.variable} ${data.operator}`;
+    case 'delay': {
+      const mins = Number(data.offset_minutes || 0);
+      return mins >= 1440 ? `${Math.round(mins / 1440)}d delay` : mins >= 60 ? `${Math.round(mins / 60)}h delay` : `${mins}m delay`;
+    }
     case 'booking_action': return 'Book appointment';
     case 'end': return String(data.message || 'Flow end').slice(0, 40);
     default: return type;

@@ -51,6 +51,9 @@ export const authApi = api.injectEndpoints({
     resetPassword: builder.mutation<ResetPasswordResponse, ResetPasswordRequest>({
       query: (body) => ({ url: '/api/auth/reset-password', method: 'POST', body }),
     }),
+    logout: builder.mutation<void, void>({
+      query: () => ({ url: '/api/auth/logout', method: 'POST' }),
+    }),
   }),
 })
 
@@ -65,4 +68,5 @@ export const {
   useForgotPasswordMutation,
   useVerifyPasswordResetOtpMutation,
   useResetPasswordMutation,
+  useLogoutMutation,
 } = authApi

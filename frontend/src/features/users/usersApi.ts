@@ -54,8 +54,9 @@ export const usersApi = api.injectEndpoints({
       query: (id) => ({ url: `/api/users/dependents/${id}`, method: 'DELETE' }),
       invalidatesTags: ['Dependent'],
     }),
-    searchPatients: builder.query<UserProfile[], { q: string }>({
+    searchPatients: builder.query<UserProfile[], { q?: string }>({
       query: (params) => ({ url: '/api/patients/search', params }),
+      providesTags: ['User'],
     }),
     createPatient: builder.mutation<UserProfile, CreatePatientInput>({
       query: (body) => ({ url: '/api/patients', method: 'POST', body }),
@@ -75,5 +76,6 @@ export const {
   useUpdateDependentMutation,
   useDeleteDependentMutation,
   useSearchPatientsQuery,
+  useLazySearchPatientsQuery,
   useCreatePatientMutation,
 } = usersApi

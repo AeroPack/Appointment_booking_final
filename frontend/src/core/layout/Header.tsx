@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Menu, Bell, Search, User, LogOut } from 'lucide-react'
 import { useAppDispatch } from '@/core/store/hooks'
 import { logout } from '@/features/auth/authSlice'
+import { useLogoutMutation } from '@/features/auth/authApi'
 import { Button } from '@/core/components/ui/button'
 import { SEARCH_FEATURES, CATEGORY_LABELS, type SearchFeature, type Role } from './search.config'
 
@@ -51,6 +52,7 @@ export function Header({ user, onOpenMenu }: HeaderProps) {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const navigate = useNavigate()
   const dispatch = useAppDispatch()
+  const [apiLogout] = useLogoutMutation()
 
   const role = (user?.role ?? 'patient') as Role
 
@@ -100,7 +102,12 @@ export function Header({ user, onOpenMenu }: HeaderProps) {
     setShowLogoutConfirm(true)
   }
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
+    try {
+      await apiLogout().unwrap()
+    } catch {
+      // Ignore API errors - still log out locally
+    }
     dispatch(logout())
     navigate('/login', { replace: true })
   }

@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
-import { Play, MessageSquare, ListChecks, CalendarClock, Globe, GitBranch, CalendarCheck, CircleOff } from 'lucide-react';
+import { Play, MessageSquare, ListChecks, CalendarClock, Globe, GitBranch, CalendarCheck, CircleOff, FileText, Timer } from 'lucide-react';
 import type { FlowNodeType } from './flowTypes';
-import { StartNode, MessageNode, ChoiceNode, SlotPickerNode, ApiNode, ConditionNode, BookingActionNode, EndNode } from './nodes';
+import { StartNode, MessageNode, ChoiceNode, SlotPickerNode, ApiNode, ConditionNode, BookingActionNode, EndNode, TemplateNode, DelayNode } from './nodes';
 
 export interface NodeTypeDefinition {
   type: FlowNodeType;
@@ -67,6 +67,22 @@ export const NODE_TYPE_DEFINITIONS: Record<FlowNodeType, NodeTypeDefinition> = {
     bgColor: '#fdf2f8',
     defaultData: { variable: '', operator: 'equals', value: '' },
   },
+  delay: {
+    type: 'delay',
+    label: 'Delay',
+    icon: Timer,
+    color: '#f97316',
+    bgColor: '#fff7ed',
+    defaultData: { offset_minutes: 60, offset_from: 'appointment_start' },
+  },
+  template: {
+    type: 'template',
+    label: 'Template Message',
+    icon: FileText,
+    color: '#059669',
+    bgColor: '#ecfdf5',
+    defaultData: { template_id: '' },
+  },
   booking_action: {
     type: 'booking_action',
     label: 'Book Appointment',
@@ -88,10 +104,12 @@ export const NODE_TYPE_DEFINITIONS: Record<FlowNodeType, NodeTypeDefinition> = {
 export const NODE_COMPONENTS: Record<FlowNodeType, React.ComponentType<any>> = {
   start: StartNode,
   message: MessageNode,
+  template: TemplateNode,
   choice: ChoiceNode,
   slot_picker: SlotPickerNode,
   api: ApiNode,
   condition: ConditionNode,
+  delay: DelayNode,
   booking_action: BookingActionNode,
   end: EndNode,
 };

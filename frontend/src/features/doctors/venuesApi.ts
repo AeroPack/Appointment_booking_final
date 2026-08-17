@@ -13,7 +13,7 @@ export const venuesApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getVenues: builder.query<Venue[], void>({
       query: () => '/api/venues',
-      providesTags: ['Doctor'],
+      providesTags: ['Venue'],
     }),
     createVenue: builder.mutation<Venue, Partial<Venue>>({
       query: (body) => ({
@@ -21,7 +21,7 @@ export const venuesApi = api.injectEndpoints({
         method: 'POST',
         body,
       }),
-      invalidatesTags: ['Doctor'],
+      invalidatesTags: ['Venue'],
     }),
     updateVenue: builder.mutation<Venue, Partial<Venue> & { id: string }>({
       query: ({ id, ...body }) => ({
@@ -29,7 +29,7 @@ export const venuesApi = api.injectEndpoints({
         method: 'PATCH',
         body,
       }),
-      invalidatesTags: ['Doctor'],
+      invalidatesTags: ['Venue'],
     }),
   }),
 })

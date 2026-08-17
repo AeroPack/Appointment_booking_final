@@ -21,6 +21,20 @@ const SLOT_ID_PREFIX = 'slot:';
 /** Row id that pages the slot list forward. */
 const SLOT_MORE_ID = 'slots:more';
 
+/** Row id prefix for a selectable date; the remainder is YYYY-MM-DD. */
+const DATE_ID_PREFIX = 'date:';
+
+/** Row id that navigates back from time picker to date picker. */
+const SLOT_BACK_ID = 'slots:back';
+
+/** Replace {{variable}} placeholders with values from session context. */
+function interpolate(text: string, context: Record<string, unknown>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+    const val = context[key];
+    return val !== undefined && val !== null ? String(val) : `{{${key}}}`;
+  });
+}
+
 const botService = new BotService(new BotRepository());
 
 export type NodeResult =
@@ -173,17 +187,10 @@ export class FlowExecutor {
     }
 
     if (node.type === 'slot_picker') {
-      // Re-read the schedule rather than trusting the offered list: minutes may
-      // have passed since it was sent, and another patient may have taken the
-      // slot. booking_action re-checks capacity too, but failing here means a
-      // fresh picker instead of a dead-ended session.
       const daysAhead = Number(node.data.days_ahead ?? 7);
       const slots = await this.fetchSlots(session.doctor_id, daysAhead);
       const page = Number(session.context.slot_page ?? 0);
-      const start = page * SLOT_PAGE_SIZE < slots.length ? page * SLOT_PAGE_SIZE : 0;
-      const offered = slots.slice(start, start + SLOT_PAGE_SIZE);
-
-      const resolved = this.resolveSlotInput(input, slots, offered);
+      const phase = session.context.slot_picker_phase || 'date';
 
       await this.sessionRepo.addMessage({
         sessionId: session.id,
@@ -193,22 +200,60 @@ export class FlowExecutor {
         messageType: 'text',
       });
 
+      // Phase 1: Date selection
+      if (phase === 'date') {
+        const dates = this.extractAvailableDates(slots);
+        const weeks = this.groupDatesByWeek(dates);
+        const allDateRows = weeks.flatMap(w => w.rows);
+        const start = page * SLOT_PAGE_SIZE < allDateRows.length ? page * SLOT_PAGE_SIZE : 0;
+        const offeredDateRows = allDateRows.slice(start, start + SLOT_PAGE_SIZE);
+        const offeredDates = offeredDateRows.map(r => {
+          const date = r.id.startsWith(DATE_ID_PREFIX) ? r.id.slice(DATE_ID_PREFIX.length) : '';
+          return { date };
+        });
+        const resolved = this.resolveDateInput(input, dates, offeredDates);
+        if (!resolved) {
+          await this.sendOutbound(session, 'Sorry, I did not recognise that date. Please pick one of the options.', 'text', node.id);
+          return this.executeTurn(session, graph);
+        }
+        if (resolved.kind === 'more') {
+          session.context = { ...session.context, slot_page: page + 1 };
+          await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
+          return this.executeTurn(session, graph);
+        }
+        session.context = {
+          ...session.context,
+          slot_picker_phase: 'time',
+          slot_selected_date: resolved.date,
+          slot_page: 0,
+        };
+        await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
+        return this.executeTurn(session, graph);
+      }
+
+      // Phase 2: Time selection
+      const selectedDate = String(session.context.slot_selected_date || '');
+      const dateSlots = slots.filter(s => s.date === selectedDate);
+      const TIME_PAGE_SIZE = 8;
+      const timeStart = page * TIME_PAGE_SIZE < dateSlots.length ? page * TIME_PAGE_SIZE : 0;
+      const offeredSlots = dateSlots.slice(timeStart, timeStart + TIME_PAGE_SIZE);
+      const trimmed = input.trim();
+
+      if (trimmed === SLOT_BACK_ID || trimmed.toLowerCase() === 'back') {
+        session.context = { ...session.context, slot_picker_phase: 'date', slot_page: 0 };
+        await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
+        return this.executeTurn(session, graph);
+      }
+
+      const resolved = this.resolveSlotInput(input, dateSlots, offeredSlots);
       if (!resolved) {
-        await this.sendOutbound(
-          session,
-          'Sorry, I did not recognise that time. Please pick one of the options.',
-          'text',
-          node.id,
-        );
-        // Re-render the same node so the patient always has a live list.
+        await this.sendOutbound(session, 'Sorry, I did not recognise that time. Please pick one of the options.', 'text', node.id);
         return this.executeTurn(session, graph);
       }
 
       if (resolved.kind === 'more') {
         session.context = { ...session.context, slot_page: page + 1 };
-        await this.sessionRepo.updateSessionStatus(session.id, 'running', {
-          context: session.context,
-        });
+        await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
         return this.executeTurn(session, graph);
       }
 
@@ -221,7 +266,7 @@ export class FlowExecutor {
       }
 
       session.current_node_id = edge.target;
-      session.context = { ...session.context, slot_start: resolved.start, slot_page: 0 };
+      session.context = { ...session.context, slot_start: resolved.start, slot_page: 0, slot_picker_phase: undefined, slot_selected_date: undefined };
       session.step_count = await this.sessionRepo.incrementStepCount(session.id);
       return this.executeTurn(session, graph);
     }
@@ -319,6 +364,10 @@ export class FlowExecutor {
         return this.handleSlotPicker(node, context, session);
       case 'condition':
         return this.handleCondition(node, edges, context);
+      case 'delay':
+        return this.handleDelayNode(node, edges, session);
+      case 'template':
+        return this.handleTemplateNode(node, edges, session);
       case 'api':
         return this.handleApi(node, edges, session);
       case 'booking_action':
@@ -344,7 +393,7 @@ export class FlowExecutor {
     edges: FlowGraph['edges'],
     session: FlowSessionRow,
   ): Promise<NodeResult> {
-    const text = String(node.data.text || '');
+    const text = interpolate(String(node.data.text || ''), session.context);
     await this.sendOutbound(session, text, 'text', node.id);
     const edge = edges.find(e => e.source === node.id);
     if (!edge) return { action: 'complete' };
@@ -355,7 +404,7 @@ export class FlowExecutor {
     node: { id: string; data: Record<string, unknown> },
     session: FlowSessionRow,
   ): Promise<NodeResult> {
-    const text = String(node.data.text || '');
+    const text = interpolate(String(node.data.text || ''), session.context);
     await this.sendOutbound(session, text, 'text', node.id);
     return { action: 'wait' };
   }
@@ -364,7 +413,7 @@ export class FlowExecutor {
     node: { id: string; data: Record<string, unknown> },
     session: FlowSessionRow,
   ): Promise<NodeResult> {
-    const text = String(node.data.text || '');
+    const text = interpolate(String(node.data.text || ''), session.context);
     const options = (node.data.options as Array<{ id: string; label: string; value: string }>) || [];
     const numbered = options.map((o, i) => `${i + 1}. ${o.label}`).join('\n');
     const fullText = `${text}\n\n${numbered}`;
@@ -401,9 +450,10 @@ export class FlowExecutor {
     context: Record<string, unknown>,
     session: FlowSessionRow,
   ): Promise<NodeResult> {
-    const prompt = String(node.data.text || 'Please choose a time:');
+    const prompt = interpolate(String(node.data.text || 'Please choose a time:'), session.context);
     const daysAhead = Number(node.data.days_ahead ?? 7);
     const page = Number(context.slot_page ?? 0);
+    const phase = context.slot_picker_phase || 'date';
 
     let slots: SlotOption[];
     try {
@@ -424,30 +474,73 @@ export class FlowExecutor {
       return { action: 'complete' };
     }
 
-    // Paging past the end wraps to the start rather than dead-ending.
-    const start = page * SLOT_PAGE_SIZE < slots.length ? page * SLOT_PAGE_SIZE : 0;
-    const pageSlots = slots.slice(start, start + SLOT_PAGE_SIZE);
-    const hasMore = slots.length > start + pageSlots.length;
-
-    const sections = this.groupSlotsByDate(pageSlots);
-    if (hasMore) {
-      sections.push({ rows: [{ id: SLOT_MORE_ID, title: 'Show more times' }] });
+    // Phase 1: Date picker
+    if (phase === 'date') {
+      const dates = this.extractAvailableDates(slots);
+      const weeks = this.groupDatesByWeek(dates);
+      const allDateRows = weeks.flatMap(w => w.rows);
+      const start = page * SLOT_PAGE_SIZE < allDateRows.length ? page * SLOT_PAGE_SIZE : 0;
+      const pageRows = allDateRows.slice(start, start + SLOT_PAGE_SIZE);
+      const hasMore = allDateRows.length > start + pageRows.length;
+      const sections: Array<{ title?: string; rows: Array<{ id: string; title: string; description?: string }> }> = [];
+      for (const week of weeks) {
+        const weekRows = pageRows.filter(r => week.rows.some(wr => wr.id === r.id));
+        if (weekRows.length > 0) {
+          sections.push({ title: week.title, rows: weekRows });
+        }
+      }
+      if (hasMore) {
+        sections.push({ rows: [{ id: SLOT_MORE_ID, title: 'Show more days' }] });
+      }
+      const numbered = pageRows.map((r, i) => `${i + 1}. ${r.title} -- ${r.description}`).join('\n');
+      const fallback = hasMore
+        ? `${prompt}\n\n${numbered}\n\nReply with a number, or MORE for more dates.`
+        : `${prompt}\n\n${numbered}\n\nReply with a number.`;
+      await this.sendOutbound(session, fallback, 'choice', node.id, {
+        kind: 'list',
+        body: prompt,
+        button: 'Choose a day',
+        sections,
+      });
+      return { action: 'wait' };
     }
 
-    const numbered = pageSlots
-      .map((s, i) => `${i + 1}. ${s.dateLabel}, ${s.timeLabel}`)
-      .join('\n');
-    const fallback = hasMore
-      ? `${prompt}\n\n${numbered}\n\nReply with a number, or MORE for later times.`
-      : `${prompt}\n\n${numbered}\n\nReply with a number.`;
-
+    // Phase 2: Time picker for selected date
+    const selectedDate = String(context.slot_selected_date || '');
+    const dateSlots = slots.filter(s => s.date === selectedDate);
+    if (dateSlots.length === 0) {
+      context.slot_picker_phase = 'date';
+      context.slot_selected_date = undefined;
+      context.slot_page = 0;
+      await this.sendOutbound(session, 'Sorry, no times are left for that day. Please pick another date.', 'text', node.id);
+      return { action: 'wait' };
+    }
+    const dateLabel = dateSlots[0].dateLabel;
+    const timePrompt = `Available times for ${dateLabel}:`;
+    const TIME_PAGE_SIZE = 8;
+    const timeStart = page * TIME_PAGE_SIZE < dateSlots.length ? page * TIME_PAGE_SIZE : 0;
+    const pageSlots = dateSlots.slice(timeStart, timeStart + TIME_PAGE_SIZE);
+    const hasMore = dateSlots.length > timeStart + pageSlots.length;
+    const timeRows = pageSlots.map(s => ({
+      id: `${SLOT_ID_PREFIX}${s.start}`,
+      title: s.timeLabel,
+      ...(s.venue ? { description: s.venue } : {}),
+    }));
+    if (hasMore) {
+      timeRows.push({ id: SLOT_MORE_ID, title: 'Show more times' });
+    } else {
+      timeRows.push({ id: SLOT_BACK_ID, title: 'Back to dates' });
+    }
+    const sections = [{ rows: timeRows }];
+    const numbered = pageSlots.map((s, i) => `${i + 1}. ${s.timeLabel}`).join('\n');
+    const moreOrBack = hasMore ? 'MORE for more times' : 'BACK to choose a different date';
+    const fallback = `${timePrompt}\n\n${numbered}\n\nReply with a number, or ${moreOrBack}.`;
     await this.sendOutbound(session, fallback, 'choice', node.id, {
       kind: 'list',
-      body: prompt,
+      body: timePrompt,
       button: 'View times',
       sections,
     });
-
     return { action: 'wait' };
   }
 
@@ -541,6 +634,85 @@ export class FlowExecutor {
       return { kind: 'slot', start: offered[num - 1].start };
     }
 
+    return null;
+  }
+
+  /**
+   * Extract unique dates from a flat slot list, counting free slots per day.
+   */
+  extractAvailableDates(slots: SlotOption[]) {
+    const map = new Map<string, { dateLabel: string; count: number }>();
+    for (const slot of slots) {
+      const existing = map.get(slot.date);
+      if (existing) {
+        existing.count++;
+      } else {
+        map.set(slot.date, { dateLabel: slot.dateLabel, count: 1 });
+      }
+    }
+    return Array.from(map.entries()).map(([date, { dateLabel, count }]) => ({
+      date,
+      dateLabel,
+      slotCount: count,
+    }));
+  }
+
+  /**
+   * Group dates into week sections like "1 week (14 Aug to 16 Aug)".
+   */
+  groupDatesByWeek(dates: Array<{ date: string; dateLabel: string; slotCount: number }>) {
+    if (dates.length === 0) return [];
+    const weeks: Array<{ title: string; rows: Array<{ id: string; title: string; description?: string }> }> = [];
+    let currentWeek: { title: string; rows: Array<{ id: string; title: string; description?: string }> } | null = null;
+    let weekNum = 0;
+    let lastMonday: Date | null = null;
+    for (const d of dates) {
+      const dateObj = new Date(`${d.date}T00:00:00+05:30`);
+      const day = dateObj.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const monday = new Date(dateObj);
+      monday.setDate(monday.getDate() + diff);
+      if (!lastMonday || monday.getTime() !== lastMonday.getTime()) {
+        weekNum++;
+        const sunday = new Date(monday);
+        sunday.setDate(sunday.getDate() + 6);
+        const fmtShort = (dt: Date) => dt.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
+        currentWeek = {
+          title: `${weekNum} week (${fmtShort(monday)} to ${fmtShort(sunday)})`,
+          rows: [],
+        };
+        weeks.push(currentWeek);
+        lastMonday = monday;
+      }
+      currentWeek!.rows.push({
+        id: `${DATE_ID_PREFIX}${d.date}`,
+        title: d.dateLabel,
+        description: `${d.slotCount} slot${d.slotCount > 1 ? 's' : ''}`,
+      });
+    }
+    return weeks;
+  }
+
+  /**
+   * Resolve a reply to the date picker into either a chosen date or a page turn.
+   */
+  resolveDateInput(
+    input: string,
+    availableDates: Array<{ date: string; dateLabel: string; slotCount: number }>,
+    offeredDates: Array<{ date: string }>,
+  ): { kind: 'date'; date: string } | { kind: 'more' } | null {
+    const trimmed = input.trim();
+    if (trimmed === SLOT_MORE_ID || trimmed.toLowerCase() === 'more') {
+      return { kind: 'more' };
+    }
+    if (trimmed.startsWith(DATE_ID_PREFIX)) {
+      const date = trimmed.slice(DATE_ID_PREFIX.length);
+      return availableDates.some(d => d.date === date) ? { kind: 'date', date } : null;
+    }
+    const num = parseInt(trimmed, 10);
+    if (!isNaN(num) && num >= 1 && num <= offeredDates.length) {
+      return { kind: 'date', date: offeredDates[num - 1].date };
+    }
     return null;
   }
 
@@ -824,7 +996,8 @@ export class FlowExecutor {
     session: FlowSessionRow,
   ): Promise<NodeResult> {
     if (node.data.message) {
-      await this.sendOutbound(session, String(node.data.message), 'text', node.id);
+      const text = interpolate(String(node.data.message), session.context);
+      await this.sendOutbound(session, text, 'text', node.id);
     }
     return { action: 'complete' };
   }
@@ -842,6 +1015,99 @@ export class FlowExecutor {
       case 'exists': return actual !== undefined && actual !== null && actual !== '';
       default: return false;
     }
+  }
+
+  private async handleTemplateNode(
+    node: { id: string; data: Record<string, unknown> },
+    edges: FlowGraph['edges'],
+    session: FlowSessionRow,
+  ): Promise<NodeResult> {
+    const templateId = String(node.data.template_id || '');
+    if (!templateId) {
+      return { action: 'error', message: 'Template node has no template_id' };
+    }
+
+    const template = await this.sessionRepo.findTemplateById(templateId);
+    if (!template) {
+      return { action: 'error', message: `Template "${templateId}" not found` };
+    }
+
+    const text = this.renderTemplateContent(template.content, session.context);
+    await this.sendOutbound(session, text, 'text', node.id);
+
+    const edge = edges.find(e => e.source === node.id);
+    if (!edge) return { action: 'complete' };
+    return { action: 'advance', nextNodeId: edge.target };
+  }
+
+  private async handleDelayNode(
+    node: { id: string; data: Record<string, unknown> },
+    edges: FlowGraph['edges'],
+    session: FlowSessionRow,
+  ): Promise<NodeResult> {
+    const offsetMinutes = Number(node.data.offset_minutes || 0);
+    const offsetFrom = String(node.data.offset_from || 'appointment_start');
+
+    const appointmentStart = session.context.appointment
+      ? new Date(String((session.context.appointment as Record<string, unknown>).scheduled_start))
+      : null;
+
+    if (!appointmentStart || isNaN(appointmentStart.getTime())) {
+      return { action: 'error', message: 'Delay node requires a booked appointment with scheduled_start in context' };
+    }
+
+    const offsetMs = offsetMinutes * 60 * 1000;
+    const executeAt = offsetFrom === 'appointment_end'
+      ? new Date(appointmentStart.getTime() + offsetMs)
+      : new Date(appointmentStart.getTime() - offsetMs);
+
+    if (executeAt <= new Date()) {
+      const edge = edges.find(e => e.source === node.id);
+      if (!edge) return { action: 'complete' };
+      return { action: 'advance', nextNodeId: edge.target };
+    }
+
+    const edge = edges.find(e => e.source === node.id);
+    const nextNodeId = edge?.target;
+
+    if (!nextNodeId) {
+      return { action: 'error', message: 'Delay node has no outgoing edge' };
+    }
+
+    await this.sessionRepo.insertScheduledExecution({
+      sessionId: session.id,
+      flowId: session.flow_id,
+      flowVersionId: session.flow_version_id,
+      doctorId: session.doctor_id,
+      patientId: session.patient_id,
+      appointmentId: session.context.appointment
+        ? String((session.context.appointment as Record<string, unknown>).appointment_id)
+        : null,
+      currentNodeId: nextNodeId,
+      context: session.context,
+      executeAt,
+    });
+
+    await this.sendOutbound(
+      session,
+      `[Flow paused - will resume at ${executeAt.toLocaleString()}]`,
+      'text',
+      node.id,
+    );
+
+    return { action: 'complete' };
+  }
+
+  private renderTemplateContent(content: string, context: Record<string, unknown>): string {
+    return content.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
+      const val = context[key];
+      if (val !== undefined && val !== null) return String(val);
+      if (context.appointment) {
+        const appt = context.appointment as Record<string, unknown>;
+        if (appt[key] !== undefined && appt[key] !== null) return String(appt[key]);
+      }
+      return `{{${key}}}`;
+    });
   }
 
   private resolveChoiceInput(
