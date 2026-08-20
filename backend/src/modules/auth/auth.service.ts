@@ -24,7 +24,7 @@ import type {
 } from './auth.types.js';
 import { AuthRepository } from './auth.repository.js';
 
-const OTP_EXPIRY_MS = 5 * 60 * 1000;
+const OTP_EXPIRY_MS = 10 * 60 * 1000;
 const OTP_EXPIRY_SECONDS = OTP_EXPIRY_MS / 1000;
 const ACCESS_TOKEN_EXPIRY = '15m';
 const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;

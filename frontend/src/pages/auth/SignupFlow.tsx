@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppDispatch } from '@/core/store/hooks'
 import { useRegisterMutation, useVerifyRegistrationOtpMutation, useUpdateProfileMutation, useSetupWhatsAppMutation } from '@/features/auth/authApi'
@@ -43,11 +43,54 @@ export function SignupFlow() {
   const [userId, setUserId] = useState<string | null>(null)
   const [error, setError] = useState<string>()
   const [secondsLeft, setSecondsLeft] = useState(0)
+  const [resendCount, setResendCount] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const MAX_RESENDS = 5
 
   const [register, { isLoading: isRegistering }] = useRegisterMutation()
   const [verifyRegistrationOtp, { isLoading: isVerifyingOtp }] = useVerifyRegistrationOtpMutation()
   const [updateProfile, { isLoading: isUpdatingProfile }] = useUpdateProfileMutation()
   const [setupWhatsApp, { isLoading: isSettingUpWhatsApp }] = useSetupWhatsAppMutation()
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      return
+    }
+
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current)
+            timerRef.current = null
+          }
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [secondsLeft > 0])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [])
 
   const handleBasicInfoSubmit = useCallback(
     async (data: SignupData) => {
@@ -111,17 +154,16 @@ export function SignupFlow() {
   }, [navigate])
 
   const handleResendOtp = useCallback(async () => {
-    if (!signupData) return
+    if (!signupData || resendCount >= MAX_RESENDS) return
     setError(undefined)
     try {
       const result = await register(signupData).unwrap()
       setSecondsLeft(result.expires_in)
+      setResendCount((prev) => prev + 1)
     } catch (err: unknown) {
-      // A resend that silently does nothing leaves the user waiting on a code
-      // that was never sent (e.g. the gateway is down), with no way to tell.
       setError(extractErrorMessage(err, 'Failed to resend code'))
     }
-  }, [register, signupData])
+  }, [register, signupData, resendCount, MAX_RESENDS])
 
   if (step === 'otp' && signupData) {
     return (
@@ -134,6 +176,7 @@ export function SignupFlow() {
         onBack={() => setStep('basic')}
         isLoading={isVerifyingOtp}
         error={error}
+        canResend={resendCount < MAX_RESENDS}
       />
     )
   }

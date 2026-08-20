@@ -54,4 +54,17 @@ export interface AppointmentRow {
   patient_name: string;
   doctor_mobile: string | null;
   notes: string | null;
+  clinical_notes: string | null;
+}
+
+export interface AppointmentHistoryRow {
+  id: string;
+  doctor_name: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  appointment_status: string;
+  appointment_type: string;
+  token_number: number | null;
+  clinical_notes: string | null;
+  venue_name: string | null;
 }

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/core/components/ui/card'
 import { Button } from '@/core/components/ui/button'
 import { Input } from '@/core/components/ui/input'
 import { Badge } from '@/core/components/ui/badge'
-import { Loader2, Wifi, WifiOff, Phone, RefreshCw } from 'lucide-react'
+import { Loader2, Wifi, WifiOff, Phone, RefreshCw, ArrowLeft } from 'lucide-react'
 import {
   useGetWhatsAppStatusQuery,
   useConnectWhatsAppMutation,
@@ -123,10 +123,16 @@ export function WhatsAppIntegrationPage() {
               <p className="text-xs text-muted-foreground">
                 Open WhatsApp {'>'} Settings {'>'} Linked Devices {'>'} Link a Device
               </p>
-              <Button variant="outline" size="sm" onClick={() => refetchQr()}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh QR Code
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => refetchQr()}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh QR Code
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={disconnectLoading}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+              </div>
             </div>
           )}
 

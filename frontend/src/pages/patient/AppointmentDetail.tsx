@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Calendar, Clock, MapPin, Ticket } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, MapPin, Ticket, FileText } from 'lucide-react'
 import { Button } from '@/core/components/ui/button'
 import { StatusPill } from '@/core/components/common/StatusPill'
 import { useGetAppointmentQuery, useCancelAppointmentMutation } from '@/features/appointments/appointmentsApi'
@@ -71,6 +71,18 @@ export function AppointmentDetail() {
               </div>
             </div>
           </div>
+
+          {(appt.notes || appt.clinical_notes) && (
+            <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="w-5 h-5 text-[#005c55]" />
+                <h3 className="font-semibold text-[#0F172A]">Clinical Notes</h3>
+              </div>
+              <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap">
+                {appt.clinical_notes || appt.notes}
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-end gap-4">
             <Button

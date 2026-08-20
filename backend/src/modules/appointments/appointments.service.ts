@@ -390,7 +390,7 @@ export class AppointmentsService {
 
   async updateStatus(appointmentId: string, userId: string, newStatus: string, notes?: string) {
     const validTransitions: Record<string, string[]> = {
-      booked: ['finished', 'no_show'],
+      booked: ['finished', 'no_show', 'cancelled'],
     };
 
     const appointment = await this.repo.findAppointmentById(appointmentId);
@@ -414,6 +414,22 @@ export class AppointmentsService {
     });
 
     return { message: `Appointment status updated to '${newStatus}'` };
+  }
+
+  async updateNotes(appointmentId: string, userId: string, notes: string) {
+    const appointment = await this.repo.findAppointmentById(appointmentId);
+    if (!appointment) throw new AppError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found');
+
+    if (appointment.doctor_id !== userId) {
+      throw new AppError(403, 'FORBIDDEN', 'Only the assigned doctor can update clinical notes');
+    }
+
+    await this.repo.updateAppointmentNotes(appointmentId, notes);
+    return { message: 'Clinical notes updated' };
+  }
+
+  async getAppointmentHistory(userId: string) {
+    return this.repo.findAppointmentHistory(userId);
   }
 
   private async checkDoctorClinic(doctorId: string, clinicId: string): Promise<boolean> {

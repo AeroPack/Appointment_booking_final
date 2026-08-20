@@ -16,13 +16,15 @@ import {
   Info,
   Plus,
   Printer,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/core/components/ui/avatar';
 import { Badge } from '@/core/components/ui/badge';
 import { Textarea } from '@/core/components/ui/textarea';
-import { useGetAppointmentQuery, useUpdateAppointmentStatusMutation } from '@/features/appointments/appointmentsApi';
+import { useGetAppointmentQuery, useUpdateAppointmentStatusMutation, useUpdateAppointmentNotesMutation } from '@/features/appointments/appointmentsApi';
 //ok
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -38,10 +40,14 @@ export const AppointmentDetail: React.FC = () => {
 
   const { data: appointment, isLoading } = useGetAppointmentQuery(id!, { skip: !id });
   const [updateStatus, { isLoading: isUpdating }] = useUpdateAppointmentStatusMutation();
+  const [updateNotes] = useUpdateAppointmentNotesMutation();
 
   const [notes, setNotes] = useState('');
   const [isFinished, setIsFinished] = useState(false);
   const [notesSaveStatus, setNotesSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [statusNotes, setStatusNotes] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('finished');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedRef = useRef(false);
 
@@ -53,20 +59,16 @@ export const AppointmentDetail: React.FC = () => {
   }, [appointment]);
 
   const saveNotes = useCallback(async (notesToSave: string) => {
-    if (!id || !appointment) return;
+    if (!id) return;
     setNotesSaveStatus('saving');
     try {
-      await updateStatus({
-        id,
-        status: appointment.appointment_status,
-        notes: notesToSave,
-      }).unwrap();
+      await updateNotes({ id, notes: notesToSave }).unwrap();
       setNotesSaveStatus('saved');
       setTimeout(() => setNotesSaveStatus('idle'), 2000);
     } catch {
       setNotesSaveStatus('idle');
     }
-  }, [id, appointment, updateStatus]);
+  }, [id, updateNotes]);
 
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -96,6 +98,17 @@ export const AppointmentDetail: React.FC = () => {
   const handleNoShow = async () => {
     if (!id) return;
     await updateStatus({ id, status: 'no_show' });
+  };
+
+  const handleModalStatusChange = async () => {
+    if (!id) return;
+    await updateStatus({ id, status: selectedStatus, notes: statusNotes || undefined });
+    setStatusModalOpen(false);
+    setStatusNotes('');
+    if (selectedStatus === 'finished') {
+      setIsFinished(true);
+      setTimeout(() => setIsFinished(false), 3000);
+    }
   };
 
   if (isLoading) {
@@ -317,16 +330,27 @@ export const AppointmentDetail: React.FC = () => {
                   </>
                 )}
               </Button>
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <Button
                   onClick={handleNoShow}
                   disabled={isUpdating}
                   variant="outline"
                   className="h-[48px] border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20 font-semibold rounded-xl"
                 >
-                  <UserX className="w-4 h-4 mr-2" /> Mark No-show
+                  <UserX className="w-4 h-4 mr-2" /> No-show
                 </Button>
-                {/* Cancel button intentionally hidden — doctor-initiated cancel is out of scope */}
+                <Button
+                  onClick={() => {
+                    setSelectedStatus('finished');
+                    setStatusNotes('');
+                    setStatusModalOpen(true);
+                  }}
+                  disabled={isUpdating}
+                  variant="outline"
+                  className="h-[48px] border-[#bdc9c6] text-[#3e4947] hover:bg-[#eceef0] font-semibold rounded-xl"
+                >
+                  Manage Status
+                </Button>
               </div>
             </div>
 
@@ -412,6 +436,19 @@ export const AppointmentDetail: React.FC = () => {
                 <UserX className="w-4 h-4 mr-2" /> Mark No-show
               </Button>
 
+              <Button
+                onClick={() => {
+                  setSelectedStatus('finished');
+                  setStatusNotes('');
+                  setStatusModalOpen(true);
+                }}
+                disabled={isUpdating}
+                variant="outline"
+                className="w-full h-[48px] rounded-full border-[#bdc9c6] text-[#3e4947] hover:bg-[#eceef0] font-semibold"
+              >
+                Manage Status
+              </Button>
+
               <div className="pt-4 border-t border-[#e0e3e5]">
                 <Button variant="ghost" className="w-full py-3 text-[#64748B] hover:text-[#191c1e] font-semibold hover:bg-transparent">
                   <Printer className="w-5 h-5 mr-2" /> Print Prescription
@@ -444,6 +481,109 @@ export const AppointmentDetail: React.FC = () => {
       >
         <Plus className="w-6 h-6" />
       </button>
+
+      {/* ─── Status Change Modal ─── */}
+      {statusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card w-full max-w-md rounded-xl shadow-lg p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">Update Status</h3>
+              <button
+                onClick={() => setStatusModalOpen(false)}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Current status: <span className="font-medium text-foreground">{statusDisplay}</span>
+            </p>
+
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">New Status</p>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => setSelectedStatus('finished')}
+                  disabled={isUpdating}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                    selectedStatus === 'finished'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/30'
+                      : 'border-border bg-card hover:bg-accent/50'
+                  }`}
+                >
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Finished</p>
+                    <p className="text-xs text-muted-foreground">Consultation completed</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setSelectedStatus('no_show')}
+                  disabled={isUpdating}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                    selectedStatus === 'no_show'
+                      ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30'
+                      : 'border-border bg-card hover:bg-accent/50'
+                  }`}
+                >
+                  <UserX className="h-5 w-5 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">No-show</p>
+                    <p className="text-xs text-muted-foreground">Patient did not attend</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setSelectedStatus('cancelled')}
+                  disabled={isUpdating}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                    selectedStatus === 'cancelled'
+                      ? 'border-red-500 bg-red-50 dark:bg-red-950/30'
+                      : 'border-border bg-card hover:bg-accent/50'
+                  }`}
+                >
+                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Cancelled</p>
+                    <p className="text-xs text-muted-foreground">Appointment cancelled</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
+              <textarea
+                value={statusNotes}
+                onChange={(e) => setStatusNotes(e.target.value)}
+                placeholder="Add a note about this status change..."
+                rows={2}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStatusModalOpen(false)}
+                disabled={isUpdating}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleModalStatusChange}
+                disabled={isUpdating}
+                className="gap-2"
+              >
+                {isUpdating && <Loader2 className="h-4 w-4 animate-spin" />}
+                Confirm
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

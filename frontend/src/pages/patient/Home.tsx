@@ -7,8 +7,6 @@ import {
   ChevronRight, 
   ArrowRight,
   ClipboardList,
-  ShieldCheck, 
-  FolderOpen, 
   Lightbulb,
   Leaf,
   Clock,
@@ -18,7 +16,7 @@ import { Card, CardContent } from '@/core/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/core/components/ui/avatar';
 import { Badge } from '@/core/components/ui/badge';
 import { useGetMeQuery } from '@/features/users/usersApi';
-import { useGetMyAppointmentsQuery } from '@/features/appointments/appointmentsApi';
+import { useGetMyAppointmentsQuery, useGetAppointmentHistoryQuery } from '@/features/appointments/appointmentsApi';
 import { useGetDependentsQuery } from '@/features/users/usersApi';
 
 // --- Component ---
@@ -28,6 +26,7 @@ export const Home: React.FC = () => {
   const { data: user } = useGetMeQuery();
   const { data: appointments } = useGetMyAppointmentsQuery({ status: 'booked' });
   const { data: dependents } = useGetDependentsQuery();
+  const { data: historyAppointments } = useGetAppointmentHistoryQuery();
 
   const upcomingAppointment = appointments?.[0] ? {
     id: appointments[0].id,
@@ -244,42 +243,52 @@ export const Home: React.FC = () => {
           {/* Secondary Column: Quick Info Cards */}
           <div className="md:col-span-4 w-full flex flex-row md:flex-col gap-4 md:gap-8">
             
-            {/* Last Checkup Card */}
-            <Card className="flex-1 md:w-full rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border border-surface-container group hover:border-[#005c55]/30 md:hover:border-outline-variant/30 transition-colors cursor-pointer md:cursor-default">
-              <CardContent className="p-4 md:p-6 flex flex-col h-full">
-                <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-1 md:mb-4">
+            {/* Visit History Card */}
+            <Card className="flex-1 md:w-full rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border border-surface-container">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-surface-container md:bg-primary-fixed text-[#005c55] md:text-on-primary-fixed-variant flex items-center justify-center">
-                    {window?.innerWidth < 768 ? <ClipboardList className="w-5 h-5" /> : <ShieldCheck className="w-6 h-6" />}
+                    <ClipboardList className="w-5 h-5 md:w-6 md:h-6" />
                   </div>
-                  <h3 className="text-[14px] font-semibold text-on-surface md:text-[20px] md:font-semibold">Last checkup</h3>
+                  <h3 className="text-[14px] font-semibold text-on-surface md:text-[20px] md:font-semibold">Visit History</h3>
                 </div>
                 
-                <div className="md:space-y-4 mt-auto md:mt-0">
-                  <div>
-                    <p className="hidden md:block text-[12px] font-medium text-text-secondary">Date</p>
-                    <p className="text-[12px] md:text-[14px] font-medium md:font-semibold text-text-secondary md:text-on-surface">
-                      No recent checkups
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Health Records Card */}
-            <Card className="flex-1 md:w-full rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border border-surface-container group hover:border-[#005c55]/30 md:hover:border-outline-variant/30 transition-colors cursor-pointer md:cursor-default">
-              <CardContent className="p-4 md:p-6 flex flex-col h-full">
-                <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-1 md:mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-surface-container md:bg-secondary-fixed text-[#005c55] md:text-on-secondary-fixed-variant flex items-center justify-center">
-                    <FolderOpen className="w-5 h-5 md:w-6 md:h-6 fill-current md:fill-none" />
-                  </div>
-                  <h3 className="text-[14px] font-semibold text-on-surface md:text-[20px] md:font-semibold">Health records</h3>
-                </div>
-                
-                <div className="mt-auto">
+                {(!historyAppointments || historyAppointments.length === 0) ? (
                   <p className="text-[12px] md:text-[14px] font-medium text-text-secondary">
-                    Coming soon
+                    No visits recorded yet
                   </p>
-                </div>
+                ) : (
+                  <div className="space-y-3">
+                    {historyAppointments.slice(0, 5).map((appt) => (
+                      <div key={appt.id} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="text-[13px] font-semibold text-[#0F172A]">{appt.doctor_name}</p>
+                            <p className="text-[11px] text-slate-500">
+                              {new Date(appt.scheduled_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          </div>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                            appt.appointment_status === 'finished' ? 'bg-green-100 text-green-700' :
+                            appt.appointment_status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                            appt.appointment_status === 'no_show' ? 'bg-amber-100 text-amber-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {appt.appointment_status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        {appt.clinical_notes && (
+                          <p className="text-[11px] text-slate-500 line-clamp-2 mt-1">{appt.clinical_notes}</p>
+                        )}
+                      </div>
+                    ))}
+                    {historyAppointments.length > 5 && (
+                      <p className="text-[11px] text-center text-[#005c55] font-medium">
+                        +{historyAppointments.length - 5} more visits
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

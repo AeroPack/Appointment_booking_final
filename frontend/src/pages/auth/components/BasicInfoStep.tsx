@@ -22,6 +22,7 @@ interface OtpModeProps {
   onBack?: () => void
   isLoading: boolean
   error?: string
+  canResend?: boolean
 }
 
 type BasicInfoStepProps = SignupModeProps | OtpModeProps
@@ -156,13 +157,17 @@ export function BasicInfoStep(props: BasicInfoStepProps) {
                   <p className="text-[14px] text-on-surface-variant">
                     Resend in {Math.floor(props.secondsLeft / 60)}:{(props.secondsLeft % 60).toString().padStart(2, '0')}
                   </p>
-                ) : (
+                ) : props.canResend !== false ? (
                   <button
                     onClick={props.onResend}
                     className="text-[14px] font-semibold text-primary hover:underline"
                   >
                     Resend code
                   </button>
+                ) : (
+                  <p className="text-[14px] text-muted-foreground">
+                    Maximum resend attempts reached
+                  </p>
                 )}
               </div>
 

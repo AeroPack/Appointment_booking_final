@@ -27,6 +27,12 @@ const DATE_ID_PREFIX = 'date:';
 /** Row id that navigates back from time picker to date picker. */
 const SLOT_BACK_ID = 'slots:back';
 
+/** Row id prefix for a selectable venue; the remainder is the venue id. */
+const VENUE_ID_PREFIX = 'venue:';
+
+/** Row id that navigates back from date picker to venue picker. */
+const VENUE_BACK_ID = 'venues:back';
+
 /** Replace {{variable}} placeholders with values from session context. */
 function interpolate(text: string, context: Record<string, unknown>): string {
   return text.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
@@ -190,7 +196,7 @@ export class FlowExecutor {
       const daysAhead = Number(node.data.days_ahead ?? 7);
       const slots = await this.fetchSlots(session.doctor_id, daysAhead);
       const page = Number(session.context.slot_page ?? 0);
-      const phase = session.context.slot_picker_phase || 'date';
+      const phase = session.context.slot_picker_phase || 'venue';
 
       await this.sessionRepo.addMessage({
         sessionId: session.id,
@@ -200,9 +206,75 @@ export class FlowExecutor {
         messageType: 'text',
       });
 
+      // Extract unique venues
+      const venueMap = new Map<string, { id: string; name: string }>();
+      for (const slot of slots) {
+        if (slot.venue && !venueMap.has(slot.venue)) {
+          venueMap.set(slot.venue, { id: slot.venue, name: slot.venue });
+        }
+      }
+      const uniqueVenues = Array.from(venueMap.values());
+
+      // If only one venue, skip to date phase
+      if (uniqueVenues.length <= 1 && session.context.slot_picker_phase === undefined) {
+        session.context = {
+          ...session.context,
+          slot_picker_phase: 'date',
+          slot_selected_venue: uniqueVenues[0]?.id || null,
+        };
+        await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
+        return this.executeTurn(session, graph);
+      }
+
+      // Phase 0: Venue selection
+      if (phase === 'venue' && uniqueVenues.length > 1) {
+        const trimmed = input.trim();
+
+        if (trimmed === VENUE_BACK_ID || trimmed.toLowerCase() === 'back') {
+          // Should not happen at top-level, but handle gracefully
+          await this.sendOutbound(session, 'Please select a location from the list.', 'text', node.id);
+          return this.executeTurn(session, graph);
+        }
+
+        // Try to parse as number (1-indexed)
+        const num = parseInt(trimmed, 10);
+        let selectedVenueId: string | null = null;
+
+        if (!isNaN(num) && num >= 1 && num <= uniqueVenues.length) {
+          selectedVenueId = uniqueVenues[num - 1].id;
+        } else {
+          // Try to match by venue id directly
+          const matched = uniqueVenues.find(v => v.id === trimmed || v.name.toLowerCase() === trimmed.toLowerCase());
+          if (matched) {
+            selectedVenueId = matched.id;
+          }
+        }
+
+        if (!selectedVenueId) {
+          await this.sendOutbound(session, 'Sorry, I did not recognise that location. Please pick one of the options.', 'text', node.id);
+          return this.executeTurn(session, graph);
+        }
+
+        session.context = {
+          ...session.context,
+          slot_picker_phase: 'date',
+          slot_selected_venue: selectedVenueId,
+          slot_page: 0,
+        };
+        await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
+        return this.executeTurn(session, graph);
+      }
+
+      // Filter slots by selected venue
+      const selectedVenue = session.context.slot_selected_venue as string | null;
+      let filteredSlots = slots;
+      if (selectedVenue) {
+        filteredSlots = slots.filter(s => !s.venue || s.venue === selectedVenue);
+      }
+
       // Phase 1: Date selection
       if (phase === 'date') {
-        const dates = this.extractAvailableDates(slots);
+        const dates = this.extractAvailableDates(filteredSlots);
         const weeks = this.groupDatesByWeek(dates);
         const allDateRows = weeks.flatMap(w => w.rows);
         const start = page * SLOT_PAGE_SIZE < allDateRows.length ? page * SLOT_PAGE_SIZE : 0;
@@ -216,6 +288,20 @@ export class FlowExecutor {
           await this.sendOutbound(session, 'Sorry, I did not recognise that date. Please pick one of the options.', 'text', node.id);
           return this.executeTurn(session, graph);
         }
+
+        const trimmed = input.trim();
+        // Check for back to venues
+        if (trimmed === VENUE_BACK_ID && uniqueVenues.length > 1) {
+          session.context = {
+            ...session.context,
+            slot_picker_phase: 'venue',
+            slot_selected_date: undefined,
+            slot_page: 0,
+          };
+          await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
+          return this.executeTurn(session, graph);
+        }
+
         if (resolved.kind === 'more') {
           session.context = { ...session.context, slot_page: page + 1 };
           await this.sessionRepo.updateSessionStatus(session.id, 'running', { context: session.context });
@@ -233,7 +319,7 @@ export class FlowExecutor {
 
       // Phase 2: Time selection
       const selectedDate = String(session.context.slot_selected_date || '');
-      const dateSlots = slots.filter(s => s.date === selectedDate);
+      const dateSlots = filteredSlots.filter(s => s.date === selectedDate);
       const TIME_PAGE_SIZE = 8;
       const timeStart = page * TIME_PAGE_SIZE < dateSlots.length ? page * TIME_PAGE_SIZE : 0;
       const offeredSlots = dateSlots.slice(timeStart, timeStart + TIME_PAGE_SIZE);
@@ -266,7 +352,7 @@ export class FlowExecutor {
       }
 
       session.current_node_id = edge.target;
-      session.context = { ...session.context, slot_start: resolved.start, slot_page: 0, slot_picker_phase: undefined, slot_selected_date: undefined };
+      session.context = { ...session.context, slot_start: resolved.start, slot_page: 0, slot_picker_phase: undefined, slot_selected_date: undefined, slot_selected_venue: undefined };
       session.step_count = await this.sessionRepo.incrementStepCount(session.id);
       return this.executeTurn(session, graph);
     }
@@ -453,7 +539,7 @@ export class FlowExecutor {
     const prompt = interpolate(String(node.data.text || 'Please choose a time:'), session.context);
     const daysAhead = Number(node.data.days_ahead ?? 7);
     const page = Number(context.slot_page ?? 0);
-    const phase = context.slot_picker_phase || 'date';
+    const phase = context.slot_picker_phase || 'venue';
 
     let slots: SlotOption[];
     try {
@@ -474,9 +560,68 @@ export class FlowExecutor {
       return { action: 'complete' };
     }
 
+    // Extract unique venues from slots
+    const venueMap = new Map<string, { id: string; name: string }>();
+    for (const slot of slots) {
+      if (slot.venue && !venueMap.has(slot.venue)) {
+        venueMap.set(slot.venue, { id: slot.venue, name: slot.venue });
+      }
+    }
+    const uniqueVenues = Array.from(venueMap.values());
+
+    // If only one venue (or no venue info), skip venue selection
+    if (uniqueVenues.length <= 1) {
+      context.slot_picker_phase = 'date';
+      context.slot_selected_venue = uniqueVenues[0]?.id || null;
+    }
+
+    // Phase 0: Venue picker (only if multiple venues exist)
+    if (phase === 'venue' && uniqueVenues.length > 1) {
+      const venueRows = uniqueVenues.map(v => ({
+        id: `${VENUE_ID_PREFIX}${v.id}`,
+        title: v.name,
+      }));
+
+      const numbered = uniqueVenues.map((v, i) => `${i + 1}. ${v.name}`).join('\n');
+      const fallback = `${prompt}\n\nWhich location would you like to visit?\n\n${numbered}\n\nReply with a number.`;
+      await this.sendOutbound(session, fallback, 'choice', node.id, {
+        kind: 'list',
+        body: `${prompt}\n\nWhich location would you like to visit?`,
+        button: 'Choose location',
+        sections: [{ title: 'Available locations', rows: venueRows }],
+      });
+      return { action: 'wait' };
+    }
+
+    // Filter slots by selected venue if one was chosen
+    const selectedVenue = context.slot_selected_venue as string | null;
+    let filteredSlots = slots;
+    if (selectedVenue) {
+      filteredSlots = slots.filter(s => !s.venue || s.venue === selectedVenue);
+    }
+
+    if (filteredSlots.length === 0) {
+      // No slots for selected venue, reset to venue selection
+      if (uniqueVenues.length > 1) {
+        context.slot_picker_phase = 'venue';
+        context.slot_selected_venue = undefined;
+        context.slot_selected_date = undefined;
+        context.slot_page = 0;
+        await this.sendOutbound(session, 'Sorry, there are no available times at that location. Please choose another location.', 'text', node.id);
+        return { action: 'wait' };
+      }
+      await this.sendOutbound(
+        session,
+        `Sorry, there are no free appointments in the next ${daysAhead} days. Please try again later.`,
+        'text',
+        node.id,
+      );
+      return { action: 'complete' };
+    }
+
     // Phase 1: Date picker
     if (phase === 'date') {
-      const dates = this.extractAvailableDates(slots);
+      const dates = this.extractAvailableDates(filteredSlots);
       const weeks = this.groupDatesByWeek(dates);
       const allDateRows = weeks.flatMap(w => w.rows);
       const start = page * SLOT_PAGE_SIZE < allDateRows.length ? page * SLOT_PAGE_SIZE : 0;
@@ -489,8 +634,12 @@ export class FlowExecutor {
           sections.push({ title: week.title, rows: weekRows });
         }
       }
-      if (hasMore) {
-        sections.push({ rows: [{ id: SLOT_MORE_ID, title: 'Show more days' }] });
+        if (hasMore) {
+        sections.push({ title: 'More dates', rows: [{ id: SLOT_MORE_ID, title: 'Show more days' }] });
+      }
+      // Add back to venues option if multiple venues
+      if (uniqueVenues.length > 1) {
+        sections.push({ rows: [{ id: VENUE_BACK_ID, title: 'Back to locations' }] });
       }
       const numbered = pageRows.map((r, i) => `${i + 1}. ${r.title} -- ${r.description}`).join('\n');
       const fallback = hasMore
@@ -507,7 +656,7 @@ export class FlowExecutor {
 
     // Phase 2: Time picker for selected date
     const selectedDate = String(context.slot_selected_date || '');
-    const dateSlots = slots.filter(s => s.date === selectedDate);
+    const dateSlots = filteredSlots.filter(s => s.date === selectedDate);
     if (dateSlots.length === 0) {
       context.slot_picker_phase = 'date';
       context.slot_selected_date = undefined;
@@ -531,7 +680,7 @@ export class FlowExecutor {
     } else {
       timeRows.push({ id: SLOT_BACK_ID, title: 'Back to dates' });
     }
-    const sections = [{ rows: timeRows }];
+    const sections = [{ title: 'Available times', rows: timeRows }];
     const numbered = pageSlots.map((s, i) => `${i + 1}. ${s.timeLabel}`).join('\n');
     const moreOrBack = hasMore ? 'MORE for more times' : 'BACK to choose a different date';
     const fallback = `${timePrompt}\n\n${numbered}\n\nReply with a number, or ${moreOrBack}.`;
@@ -856,14 +1005,24 @@ export class FlowExecutor {
       const ist = this.toIST(scheduledStart);
       const slotMin = ist.hours * 60 + ist.minutes;
 
-      const settingsResult = await pool.query(
-        `SELECT s.*, v.name AS venue_name
-         FROM appointment_settings s
-         LEFT JOIN venues v ON v.id = s.venue_id
-         WHERE s.doctor_id = $1 AND s.day_of_week = $2 AND s.is_active = true
-         ORDER BY s.start_time`,
-        [doctorId, ist.dayOfWeek]
-      );
+      // Build query with optional venue filter
+      const selectedVenueId = context.slot_selected_venue as string | null;
+      let settingsQuery = `
+        SELECT s.*, v.name AS venue_name
+        FROM appointment_settings s
+        LEFT JOIN venues v ON v.id = s.venue_id
+        WHERE s.doctor_id = $1 AND s.day_of_week = $2 AND s.is_active = true
+      `;
+      const params: unknown[] = [doctorId, ist.dayOfWeek];
+      
+      if (selectedVenueId) {
+        settingsQuery += ` AND s.venue_id = $3`;
+        params.push(selectedVenueId);
+      }
+      
+      settingsQuery += ` ORDER BY s.start_time`;
+      
+      const settingsResult = await pool.query(settingsQuery, params);
       const periods = settingsResult.rows;
       if (periods.length === 0) throw new Error('Doctor has no active settings for this day');
 

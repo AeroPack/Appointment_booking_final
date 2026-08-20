@@ -139,7 +139,18 @@ export class WhatsAppEvolutionChannel implements MessageChannel {
     fallback: string
   ): Promise<MessageResult> {
     if (interactive.kind === 'list') {
-      return this.sendList(credentials, instanceName, to, interactive);
+      try {
+        return await this.sendList(credentials, instanceName, to, interactive);
+      } catch (err) {
+        console.error('[WhatsAppEvolutionChannel] List send failed, falling back to text:', err);
+        const allRows = interactive.sections.flatMap(s => s.rows);
+        const numbered = allRows
+          .filter(r => !r.id.includes('more'))
+          .map((r, i) => `${i + 1}. ${r.title}`)
+          .join('\n');
+        const text = `${interactive.body}\n\n${numbered}\n\nReply with a number.`;
+        return this.sendText(credentials, instanceName, to, text);
+      }
     }
 
     const numbered = interactive.buttons

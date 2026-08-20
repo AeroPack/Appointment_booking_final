@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ArrowLeft, Lock, Loader2, Mail, Phone, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/core/components/ui/button';
@@ -29,6 +29,9 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const [identifier, setLocalIdentifier] = useState('');
   const [verifiedOtp, setVerifiedOtp] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [resendCount, setResendCount] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const MAX_RESENDS = 5;
   const [error, setError] = useState<string>();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,6 +39,46 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   const [forgotPassword, { isLoading: isRequesting }] = useForgotPasswordMutation();
   const [verifyOtp, { isLoading: isVerifying }] = useVerifyPasswordResetOtpMutation();
   const [resetPassword, { isLoading: isResetting }] = useResetPasswordMutation();
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (secondsLeft <= 0) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [secondsLeft > 0]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
 
   const identifierData = contactMode === 'phone'
     ? { mobile_number: value }
@@ -73,15 +116,17 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
   }, [verifyOtp, identifierData]);
 
   const handleResend = useCallback(async () => {
+    if (resendCount >= MAX_RESENDS) return;
     setError(undefined);
     try {
       const result = await forgotPassword(identifierData).unwrap();
       setSecondsLeft(result.expires_in);
+      setResendCount((prev) => prev + 1);
     } catch (err: unknown) {
       const msg = extractErrorMessage(err, 'Failed to resend code');
       toast.error(msg);
     }
-  }, [forgotPassword, identifierData]);
+  }, [forgotPassword, identifierData, resendCount, MAX_RESENDS]);
 
   const handleChangeIdentifier = useCallback(() => {
     setStep('identifier');
@@ -142,6 +187,7 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
         isLoading={isVerifying}
         isResending={isRequesting}
         error={error}
+        canResend={resendCount < MAX_RESENDS}
       />
     );
   }

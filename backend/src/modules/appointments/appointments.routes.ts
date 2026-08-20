@@ -10,6 +10,8 @@ import {
   getAppointment,
   cancelAppointment,
   updateAppointmentStatus,
+  updateAppointmentNotes,
+  getAppointmentHistory,
   bookOnBehalf,
   rescheduleAppointment,
 } from './appointments.controller.js';
@@ -33,7 +35,7 @@ const bookSlotSchema = z.object({
 });
 
 const statusSchema = z.object({
-  status: z.enum(['finished', 'no_show']),
+  status: z.enum(['finished', 'no_show', 'cancelled']),
   notes: z.string().optional(),
 });
 
@@ -44,6 +46,10 @@ const bookOnBehalfSchema = z.object({
   idempotency_key: z.string().min(1).max(255),
   appointment_type: z.enum(APPOINTMENT_TYPES).optional(),
   notes: z.string().optional(),
+});
+
+const notesSchema = z.object({
+  notes: z.string(),
 });
 
 const rescheduleSchema = z.object({
@@ -57,8 +63,10 @@ router.get('/patient/find-slots', authGuard, validate(findSlotsSchema, 'query'),
 router.post('/patient/book-slot', authGuard, requireRole('patient'), validate(bookSlotSchema), bookSlot);
 router.get('/patient/appointments', authGuard, listAppointments);
 router.get('/patient/appointments/:id', authGuard, getAppointment);
+router.get('/patient/appointment-history', authGuard, getAppointmentHistory);
 router.patch('/patient/appointments/:id/cancel', authGuard, cancelAppointment);
 router.patch('/appointments/:id/status', authGuard, requireRole('doctor', 'staff'), validate(statusSchema), updateAppointmentStatus);
+router.patch('/appointments/:id/notes', authGuard, requireRole('doctor', 'staff'), validate(notesSchema), updateAppointmentNotes);
 router.patch('/appointments/:id/reschedule', authGuard, requireRole('doctor', 'staff'), validate(rescheduleSchema), rescheduleAppointment);
 router.post('/appointments/book', authGuard, requireRole('doctor', 'staff'), validate(bookOnBehalfSchema), bookOnBehalf);
 

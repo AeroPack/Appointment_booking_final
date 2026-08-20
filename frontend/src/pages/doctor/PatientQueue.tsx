@@ -28,6 +28,9 @@ import {
   Calendar,
   Plus,
   Pencil,
+  Tag,
+  UserX,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Input } from "@/core/components/ui/input";
@@ -42,6 +45,7 @@ import {
 } from "@/core/components/ui/table";
 import { useGetDoctorPatientsQuery } from "@/features/doctors/doctorDashboardApi";
 import { useGetMeQuery } from "@/features/users/usersApi";
+import { useUpdateAppointmentStatusMutation } from "@/features/appointments/appointmentsApi";
 import { AddAppointmentModal, APPT_CONFIG, type AppointmentType, type EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { DayPicker } from "react-day-picker";
 import { format, isToday } from "date-fns";
@@ -57,7 +61,6 @@ interface PatientRow {
   token: number;
   name: string;
   phone: string;
-  age: number;
   gender: string;
   reason: string;
   appointmentType: string;
@@ -174,6 +177,11 @@ export function PatientQueue() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
 
+  // ─── Status Modal State ───
+  const [statusModal, setStatusModal] = useState<{ appointmentId: string; patientName: string; currentStatus: Status } | null>(null);
+  const [statusNotes, setStatusNotes] = useState("");
+  const [updateStatus, { isLoading: isUpdatingStatus }] = useUpdateAppointmentStatusMutation();
+
   useEffect(() => {
     if (!calendarOpen) return;
     function handleClickOutside(e: MouseEvent) {
@@ -204,7 +212,6 @@ export function PatientQueue() {
         token: p.token_number,
         name: p.patient_name,
         phone: p.phone || "—",
-        age: p.age ?? 0,
         gender: p.gender || "Other",
         reason: p.reason || "—",
         appointmentType: p.appointment_type || "",
@@ -254,6 +261,16 @@ export function PatientQueue() {
     });
   }, []);
 
+  const handleStatusChange = useCallback(async (appointmentId: string, newStatus: string) => {
+    try {
+      await updateStatus({ id: appointmentId, status: newStatus, notes: statusNotes || undefined }).unwrap();
+      setStatusModal(null);
+      setStatusNotes("");
+    } catch {
+      // Error handled by RTK Query
+    }
+  }, [updateStatus, statusNotes]);
+
   const venueOptions = useMemo(() => {
     const unique = Array.from(new Set(patients.map((p) => p.venue).filter(Boolean)));
     return [{ value: "all", label: "All venues" }, ...unique.map((v) => ({ value: v, label: v }))];
@@ -295,7 +312,7 @@ export function PatientQueue() {
             <div className="min-w-0">
               <p className="font-semibold text-sm text-foreground truncate">{row.original.name}</p>
               <p className="text-xs text-muted-foreground">
-                {row.original.age} yrs · {row.original.gender}
+                {row.original.gender}
               </p>
             </div>
           </div>
@@ -351,6 +368,25 @@ export function PatientQueue() {
         header: "Status",
         cell: ({ row }) => {
           const meta = STATUS_META[row.original.status];
+          const isBooked = row.original.status === "booked";
+          if (isBooked) {
+            return (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStatusModal({
+                    appointmentId: row.original.id,
+                    patientName: row.original.name,
+                    currentStatus: row.original.status,
+                  });
+                  setStatusNotes("");
+                }}
+                className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${meta.pill}`}
+              >
+                {meta.label}
+              </button>
+            );
+          }
           return (
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.pill}`}>
               {meta.label}
@@ -386,15 +422,6 @@ export function PatientQueue() {
             >
               <FileText className="h-4 w-4" />
             </button>
-            {row.original.status === "booked" && (
-              <button
-                onClick={(e) => e.stopPropagation()}
-                aria-label="Mark finished"
-                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-              </button>
-            )}
           </div>
         ),
       },
@@ -427,6 +454,15 @@ export function PatientQueue() {
               {filtered.length} of {patients.length} patient{patients.length !== 1 ? "s" : ""}
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            onClick={() => navigate('/doctor/tags')}
+          >
+            <Tag className="h-4 w-4" />
+            <span className="hidden sm:inline">Manage Tags</span>
+          </Button>
           <Button size="sm" className="gap-1.5 shrink-0" onClick={() => setIsAddModalOpen(true)}>
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">New Booking</span>
@@ -622,9 +658,26 @@ export function PatientQueue() {
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-semibold text-sm text-foreground truncate">{p.name}</p>
                           <div className="flex items-center gap-1 shrink-0">
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.pill}`}>
-                              {meta.label}
-                            </span>
+                            {p.status === "booked" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStatusModal({
+                                    appointmentId: p.id,
+                                    patientName: p.name,
+                                    currentStatus: p.status,
+                                  });
+                                  setStatusNotes("");
+                                }}
+                                className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${meta.pill}`}
+                              >
+                                {meta.label}
+                              </button>
+                            ) : (
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.pill}`}>
+                                {meta.label}
+                              </span>
+                            )}
                             {isEditable(p) && (
                               <button
                                 onClick={(e) => {
@@ -640,7 +693,7 @@ export function PatientQueue() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5 text-xs text-muted-foreground">
-                          <span>{p.age} yrs · {p.gender}</span>
+                          <span>{p.gender}</span>
                           <span className="flex items-center gap-1">
                             <Phone className="h-3 w-3 shrink-0" /> {p.phone}
                           </span>
@@ -698,6 +751,97 @@ export function PatientQueue() {
           doctorId={doctorId}
           editData={editData ?? undefined}
         />
+      )}
+
+      {/* ─── Status Change Modal ─── */}
+      {statusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card w-full max-w-md rounded-xl shadow-lg p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">Update Status</h3>
+              <button
+                onClick={() => setStatusModal(null)}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Change status for <span className="font-medium text-foreground">{statusModal.patientName}</span>
+            </p>
+
+            <div className="space-y-3">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">New Status</p>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  onClick={() => {
+                    setStatusNotes("");
+                    handleStatusChange(statusModal.appointmentId, "finished");
+                  }}
+                  disabled={isUpdatingStatus}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-left"
+                >
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Finished</p>
+                    <p className="text-xs text-muted-foreground">Consultation completed</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setStatusNotes("");
+                    handleStatusChange(statusModal.appointmentId, "no_show");
+                  }}
+                  disabled={isUpdatingStatus}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-left"
+                >
+                  <UserX className="h-5 w-5 text-amber-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">No-show</p>
+                    <p className="text-xs text-muted-foreground">Patient did not attend</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setStatusNotes("");
+                    handleStatusChange(statusModal.appointmentId, "cancelled");
+                  }}
+                  disabled={isUpdatingStatus}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-left"
+                >
+                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Cancelled</p>
+                    <p className="text-xs text-muted-foreground">Appointment cancelled</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
+              <textarea
+                value={statusNotes}
+                onChange={(e) => setStatusNotes(e.target.value)}
+                placeholder="Add a note about this status change..."
+                rows={2}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStatusModal(null)}
+                disabled={isUpdatingStatus}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

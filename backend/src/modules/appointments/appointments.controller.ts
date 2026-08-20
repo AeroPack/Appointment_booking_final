@@ -83,6 +83,24 @@ export async function updateAppointmentStatus(req: Request, res: Response, next:
   }
 }
 
+export async function updateAppointmentNotes(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.updateNotes(req.params.id as string, req.auth!.userId, req.body.notes);
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getAppointmentHistory(req: Request, res: Response, next: NextFunction) {
+  try {
+    const history = await service.getAppointmentHistory(req.auth!.userId);
+    res.json(success(history));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function bookOnBehalf(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.bookOnBehalf(req.auth!.clinicId, req.auth!.userId, req.body);

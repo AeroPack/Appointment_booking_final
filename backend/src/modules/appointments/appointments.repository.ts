@@ -278,4 +278,32 @@ export class AppointmentsRepository {
     );
     return result.rows;
   }
+
+  async findAppointmentHistory(userId: string): Promise<Array<{
+    id: string;
+    doctor_name: string;
+    scheduled_start: Date;
+    scheduled_end: Date;
+    appointment_status: string;
+    appointment_type: string;
+    token_number: number | null;
+    clinical_notes: string | null;
+    venue_name: string | null;
+  }>> {
+    const result = await pool.query(
+      `SELECT a.id, doc.name AS doctor_name,
+              a.scheduled_start, a.scheduled_end,
+              a.appointment_status, a.appointment_type,
+              a.token_number, a.clinical_notes,
+              v.name AS venue_name
+       FROM appointments a
+       JOIN users doc ON doc.id = a.doctor_id
+       LEFT JOIN venues v ON v.id = a.venue_id
+       WHERE a.deleted_at IS NULL
+         AND (a.patient_id = $1 OR a.patient_id IN (SELECT id FROM users WHERE parent_user_id = $1))
+       ORDER BY a.scheduled_start DESC`,
+      [userId]
+    );
+    return result.rows;
+  }
 }

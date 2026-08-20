@@ -5,6 +5,7 @@ import type {
   BookSlotBody,
   BookingResponse,
   AppointmentRow,
+  AppointmentHistoryRow,
 } from './types'
 
 interface FindSlotsResult {
@@ -38,7 +39,15 @@ export const appointmentsApi = api.injectEndpoints({
     }),
     updateAppointmentStatus: builder.mutation<{ message: string }, { id: string; status: string; notes?: string }>({
       query: ({ id, status, notes }) => ({ url: `/api/appointments/${id}/status`, method: 'PATCH', body: { status, notes } }),
+      invalidatesTags: ['Appointment', 'Doctor'],
+    }),
+    updateAppointmentNotes: builder.mutation<{ message: string }, { id: string; notes: string }>({
+      query: ({ id, notes }) => ({ url: `/api/appointments/${id}/notes`, method: 'PATCH', body: { notes } }),
       invalidatesTags: ['Appointment'],
+    }),
+    getAppointmentHistory: builder.query<AppointmentHistoryRow[], void>({
+      query: () => ({ url: '/api/patient/appointment-history' }),
+      providesTags: ['Appointment'],
     }),
     bookOnBehalf: builder.mutation<BookingResponse, {
       doctor_id: string;
@@ -75,6 +84,8 @@ export const {
   useGetAppointmentQuery,
   useCancelAppointmentMutation,
   useUpdateAppointmentStatusMutation,
+  useUpdateAppointmentNotesMutation,
+  useGetAppointmentHistoryQuery,
   useBookOnBehalfMutation,
   useRescheduleAppointmentMutation,
 } = appointmentsApi

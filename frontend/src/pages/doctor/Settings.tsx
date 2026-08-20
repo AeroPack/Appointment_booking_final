@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   Settings as SettingsIcon,
@@ -29,26 +28,18 @@ import {
   Bell,
   FileText,
   Sparkles,
-  MessageCircle,
-  Key,
-  Phone,
   XCircle,
-  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Switch } from "@/core/components/ui/switch";
-import { Input } from "@/core/components/ui/input";
 import {
   useGetBookingPoliciesQuery,
   useUpdateBookingPoliciesMutation,
   useGetLeavesQuery,
   useCreateLeaveMutation,
   useDeleteLeaveMutation,
-  useGetWhatsAppConfigQuery,
-  useUpdateWhatsAppConfigMutation,
-  useRegenerateWhatsAppWebhookSecretMutation,
 } from "@/features/doctors/doctorSettingsApi";
-import type { BookingPolicies, DoctorLeave, WhatsAppConfig } from "@/features/doctors/doctorSettingsApi";
+import type { BookingPolicies, DoctorLeave } from "@/features/doctors/doctorSettingsApi";
 import {
   useGetAppointmentSettingsQuery,
   useUpdateAppointmentSettingsMutation,
@@ -266,15 +257,23 @@ function findTemplate(templates: MessageTemplateRow[] | undefined, type: string,
 
 // ─── General Settings Helpers ────────────────────────────────────────────────
 
-function formatDateReadable(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+function parseLeaveDate(dateStr: string): Date {
+  const part = dateStr.slice(0, 10);
+  const parts = part.split('-').map(Number);
+  const y = parts[0] ?? 0;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
+  return new Date(y, m - 1, d);
+}
+
+function formatDateReadable(dateStr: string): string {
+  return parseLeaveDate(dateStr).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 function isLeaveInPast(endDate: string): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return new Date(endDate + "T00:00:00") < today;
+  return parseLeaveDate(endDate) < today;
 }
 
 type SaveStatus = "idle" | "saving" | "success" | "error";
@@ -454,10 +453,37 @@ function LeaveItem({
   onDelete: (id: string) => void;
   isPast?: boolean;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const startStr = formatDateReadable(leave.start_date);
   const endStr = formatDateReadable(leave.end_date);
   const isSingleDay = leave.start_date === leave.end_date;
   const dateLabel = isSingleDay ? startStr : `${startStr} - ${endStr}`;
+
+  if (confirmDelete) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/50 p-3">
+        <p className="text-sm text-red-600 dark:text-red-400">Delete this leave?</p>
+        <div className="flex gap-2 shrink-0">
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => onDelete(leave.id)}
+            className="h-7 px-2 text-xs"
+          >
+            Yes, delete
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setConfirmDelete(false)}
+            className="h-7 px-2 text-xs"
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -479,7 +505,7 @@ function LeaveItem({
         </div>
       </div>
       <button
-        onClick={() => onDelete(leave.id)}
+        onClick={() => setConfirmDelete(true)}
         className="h-8 w-8 shrink-0 flex items-center justify-center text-muted-foreground hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
         aria-label="Delete leave"
       >
@@ -503,7 +529,6 @@ export function Settings() {
 
   // ─── Availability Queries ───
   const authUser = useAppSelector((state) => state.auth.user);
-  const navigate = useNavigate();
   const doctorId = authUser?.id ?? "";
   const { data: settings, isLoading: settingsLoading } = useGetAppointmentSettingsQuery(doctorId, { skip: !doctorId });
   const [updateSettings, { isLoading: isSavingAvailability }] = useUpdateAppointmentSettingsMutation();
@@ -569,20 +594,6 @@ export function Settings() {
     }
   };
 
-  // ─── WhatsApp Configuration State ───
-  const { data: whatsappConfig } = useGetWhatsAppConfigQuery();
-  const [updateWhatsAppConfig, { isLoading: isSavingWhatsApp }] = useUpdateWhatsAppConfigMutation();
-  const [regenerateWebhookSecret, { isLoading: isRegeneratingSecret }] = useRegenerateWhatsAppWebhookSecretMutation();
-  const [whatsappLocal, setWhatsappLocal] = useState<WhatsAppConfig>({
-    ultramsg_instance_id: '',
-    ultramsg_token: '',
-    whatsapp_number: '',
-    whatsapp_enabled: false,
-    whatsapp_webhook_secret: null,
-  });
-  const [sendFromOwnNumber, setSendFromOwnNumber] = useState(false);
-  const [webhookCopied, setWebhookCopied] = useState(false);
-
   // ─── Sync Policies from Server ───
   useEffect(() => {
     if (policies) {
@@ -634,58 +645,6 @@ export function Settings() {
     try {
       await deleteLeave(id).unwrap();
     } catch {}
-  };
-
-  // ─── WhatsApp Configuration Handlers ───
-  const whatsappLoadedRef = useRef(false);
-  useEffect(() => {
-    // Only hydrate from the server once - the 'Doctor' tag is shared with booking
-    // policies/leaves, so unrelated saves elsewhere refetch this query and would
-    // otherwise stomp on in-progress, unsaved edits here.
-    if (whatsappConfig && !whatsappLoadedRef.current) {
-      setWhatsappLocal(whatsappConfig);
-      setSendFromOwnNumber(!!(whatsappConfig.ultramsg_instance_id || whatsappConfig.ultramsg_token));
-      whatsappLoadedRef.current = true;
-    }
-  }, [whatsappConfig]);
-
-  const handleWhatsAppConfigChange = (field: keyof WhatsAppConfig, value: string | boolean) => {
-    setWhatsappLocal((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSaveWhatsAppConfig = async () => {
-    try {
-      await updateWhatsAppConfig({
-        whatsapp_enabled: whatsappLocal.whatsapp_enabled,
-        ultramsg_instance_id: sendFromOwnNumber ? (whatsappLocal.ultramsg_instance_id ?? '') : '',
-        ultramsg_token: sendFromOwnNumber ? (whatsappLocal.ultramsg_token ?? '') : '',
-        whatsapp_number: sendFromOwnNumber ? (whatsappLocal.whatsapp_number ?? '') : '',
-      }).unwrap();
-      toast.success("WhatsApp settings saved");
-    } catch {
-      toast.error("Failed to save WhatsApp settings");
-    }
-  };
-
-  const webhookUrl = authUser?.clinic_id && whatsappLocal.whatsapp_webhook_secret
-    ? `${window.location.origin}/api/webhooks/whatsapp/${authUser.clinic_id}?key=${whatsappLocal.whatsapp_webhook_secret}`
-    : '';
-
-  const handleCopyWebhookUrl = () => {
-    if (!webhookUrl) return;
-    navigator.clipboard.writeText(webhookUrl);
-    setWebhookCopied(true);
-    setTimeout(() => setWebhookCopied(false), 2000);
-  };
-
-  const handleRegenerateWebhookSecret = async () => {
-    try {
-      const result = await regenerateWebhookSecret().unwrap();
-      setWhatsappLocal((prev) => ({ ...prev, whatsapp_webhook_secret: result.whatsapp_webhook_secret }));
-      toast.success("Webhook secret regenerated. Update your UltraMsg webhook URL.");
-    } catch {
-      toast.error("Failed to regenerate webhook secret");
-    }
   };
 
   // ─── Sync Availability from Server ───
@@ -1130,186 +1089,6 @@ export function Settings() {
                 </div>
               </section>
 
-              {/* ────────────── WHATSAPP CONFIGURATION ────────────── */}
-              <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
-                <div className="flex items-center gap-2 mb-1">
-                  <MessageCircle className="h-5 w-5 text-primary" />
-                  <h3 className="text-base font-semibold text-foreground">WhatsApp Configuration</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-5">
-                  Configure WhatsApp messaging for your clinic. This allows you to send appointment reminders, OTP verification, and other notifications via WhatsApp.
-                </p>
-                <a
-                  href="/doctor/chatbot"
-                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-                >
-                  Set up the WhatsApp appointment booking chatbot →
-                </a>
-
-                <div className="space-y-4">
-                  {/* Enable/Disable WhatsApp */}
-                  <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Zap className="h-4 w-4 text-primary" />
-                        <p className="text-sm font-medium text-foreground">Enable WhatsApp Messaging</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        When enabled, your clinic can send messages via WhatsApp using UltraMsg API.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={whatsappLocal.whatsapp_enabled}
-                      onCheckedChange={(c) => handleWhatsAppConfigChange('whatsapp_enabled', c)}
-                      aria-label="Enable WhatsApp messaging"
-                    />
-                  </div>
-
-                  {/* Send from own number toggle */}
-                  <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-muted/20 p-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Phone className="h-4 w-4 text-primary" />
-                        <p className="text-sm font-medium text-foreground">Send messages from your own number</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        By default, messages are sent from our shared WhatsApp number. Turn this on to use your own
-                        UltraMsg account and number instead.
-                      </p>
-                    </div>
-                    <Switch
-                      checked={sendFromOwnNumber}
-                      onCheckedChange={(c) => {
-                        setSendFromOwnNumber(c);
-                        if (!c) {
-                          setWhatsappLocal((prev) => ({
-                            ...prev,
-                            ultramsg_instance_id: '',
-                            ultramsg_token: '',
-                            whatsapp_number: '',
-                          }));
-                        }
-                      }}
-                      aria-label="Send WhatsApp messages from your own number"
-                    />
-                  </div>
-
-                  {sendFromOwnNumber && (
-                    <>
-                      {/* UltraMsg Instance ID */}
-                      <div className="flex flex-col gap-2">
-                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Key className="h-4 w-4 text-muted-foreground" />
-                          UltraMsg Instance ID
-                        </label>
-                        <Input
-                          value={whatsappLocal.ultramsg_instance_id ?? ''}
-                          onChange={(e) => handleWhatsAppConfigChange('ultramsg_instance_id', e.target.value)}
-                          placeholder="e.g., instance123456"
-                          className="h-10"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Your UltraMsg instance ID from <a href="https://ultramsg.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">ultramsg.com</a>
-                        </p>
-                      </div>
-
-                      {/* UltraMsg Token */}
-                      <div className="flex flex-col gap-2">
-                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Key className="h-4 w-4 text-muted-foreground" />
-                          UltraMsg Token
-                        </label>
-                        <Input
-                          type="password"
-                          value={whatsappLocal.ultramsg_token ?? ''}
-                          onChange={(e) => handleWhatsAppConfigChange('ultramsg_token', e.target.value)}
-                          placeholder="Your UltraMsg API token"
-                          className="h-10"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Your UltraMsg API token for authentication
-                        </p>
-                      </div>
-
-                      {/* WhatsApp Number */}
-                      <div className="flex flex-col gap-2">
-                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Phone className="h-4 w-4 text-muted-foreground" />
-                          Clinic WhatsApp Number
-                        </label>
-                        <Input
-                          value={whatsappLocal.whatsapp_number ?? ''}
-                          onChange={(e) => handleWhatsAppConfigChange('whatsapp_number', e.target.value)}
-                          placeholder="e.g., +1234567890"
-                          className="h-10"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          The WhatsApp number associated with your clinic (with country code)
-                        </p>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Webhook URL */}
-                  <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Key className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-medium text-foreground">Webhook URL</p>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Configure this URL in your UltraMsg dashboard to receive inbound WhatsApp messages.
-                    </p>
-                    {webhookUrl ? (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <code className="flex-1 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded text-xs font-mono break-all">
-                            {webhookUrl}
-                          </code>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={handleCopyWebhookUrl}
-                          >
-                            {webhookCopied ? <CheckCircle2 className="h-3 w-3 mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
-                            {webhookCopied ? "Copied" : "Copy"}
-                          </Button>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleRegenerateWebhookSecret}
-                            disabled={isRegeneratingSecret}
-                          >
-                            <RefreshCw className={`h-4 w-4 mr-1 ${isRegeneratingSecret ? 'animate-spin' : ''}`} />
-                            Regenerate Secret
-                          </Button>
-                          <p className="text-xs text-muted-foreground">
-                            Regenerate if the secret is compromised. The old key stops working immediately.
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Save your WhatsApp configuration first to generate a webhook URL.
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Save button */}
-                  <div className="flex justify-end pt-2">
-                    <Button 
-                      onClick={handleSaveWhatsAppConfig} 
-                      disabled={isSavingWhatsApp} 
-                      className="gap-2"
-                    >
-                      {isSavingWhatsApp ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      {isSavingWhatsApp ? "Saving..." : "Save WhatsApp Config"}
-                    </Button>
-                  </div>
-                </div>
-              </section>
-
               {/* ────────────── TIME OFF / VACATION ────────────── */}
               <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
                 <div className="flex items-center justify-between mb-1">
@@ -1411,26 +1190,6 @@ export function Settings() {
                     ))}
                   </div>
                 )}
-              </section>
-
-              {/* ────────────── TAG MANAGEMENT ────────────── */}
-              <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-semibold text-foreground">Tags</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Organize patients with tags and automation rules.
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/doctor/tags')}
-                    className="shrink-0"
-                  >
-                    Manage Tags
-                  </Button>
-                </div>
               </section>
 
               {/* ────────────── INFO CARD ────────────── */}

@@ -16,14 +16,6 @@ export interface DoctorLeave {
   created_at: string
 }
 
-export interface WhatsAppConfig {
-  ultramsg_instance_id: string | null
-  ultramsg_token: string | null
-  whatsapp_number: string | null
-  whatsapp_enabled: boolean
-  whatsapp_webhook_secret: string | null
-}
-
 export const doctorSettingsApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getBookingPolicies: builder.query<BookingPolicies, void>({
@@ -57,25 +49,6 @@ export const doctorSettingsApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Doctor'],
     }),
-    getWhatsAppConfig: builder.query<WhatsAppConfig, void>({
-      query: () => '/api/clinic/whatsapp-config',
-      providesTags: ['Doctor'],
-    }),
-    updateWhatsAppConfig: builder.mutation<WhatsAppConfig, Partial<WhatsAppConfig>>({
-      query: (body) => ({
-        url: '/api/clinic/whatsapp-config',
-        method: 'PATCH',
-        body,
-      }),
-      invalidatesTags: ['Doctor'],
-    }),
-    regenerateWhatsAppWebhookSecret: builder.mutation<{ whatsapp_webhook_secret: string }, void>({
-      query: () => ({
-        url: '/api/clinic/whatsapp-config/regenerate-webhook-secret',
-        method: 'POST',
-      }),
-      invalidatesTags: ['Doctor'],
-    }),
   }),
 })
 
@@ -85,7 +58,4 @@ export const {
   useGetLeavesQuery,
   useCreateLeaveMutation,
   useDeleteLeaveMutation,
-  useGetWhatsAppConfigQuery,
-  useUpdateWhatsAppConfigMutation,
-  useRegenerateWhatsAppWebhookSecretMutation,
 } = doctorSettingsApi

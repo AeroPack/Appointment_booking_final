@@ -12,6 +12,7 @@ export interface OtpFormProps {
   isLoading: boolean;
   isResending?: boolean;
   error?: string;
+  canResend?: boolean;
 }
 
 export const OtpForm: React.FC<OtpFormProps> = ({
@@ -22,7 +23,8 @@ export const OtpForm: React.FC<OtpFormProps> = ({
   onChangeNumber,
   isLoading,
   isResending = false,
-  error
+  error,
+  canResend = true,
 }) => {
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -196,7 +198,7 @@ export const OtpForm: React.FC<OtpFormProps> = ({
                   <span>Resend in</span>
                   <span className="text-[#005c55]">{formatTime(secondsLeft)}</span>
                 </div>
-              ) : (
+              ) : canResend ? (
                 <button
                   onClick={onResend}
                   type="button"
@@ -205,6 +207,10 @@ export const OtpForm: React.FC<OtpFormProps> = ({
                 >
                   {isResending ? 'Sending…' : 'Resend code'}
                 </button>
+              ) : (
+                <span className="text-[14px] font-semibold leading-[20px] text-muted-foreground">
+                  Maximum resend attempts reached
+                </span>
               )}
 
               <button
