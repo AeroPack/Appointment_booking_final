@@ -637,7 +637,7 @@ export const CalendarPage = () => {
 
   const { data: todayPatients, isLoading: loadingPatients } = useGetDoctorPatientsQuery(
     dateRange,
-    { skip: !doctorId, refetchOnMountOrArgChange: true, refetchOnFocus: true }
+    { skip: !doctorId, refetchOnMountOrArgChange: true, refetchOnFocus: true, pollingInterval: 10000 }
   );
 
   const appointments = useMemo(() => {

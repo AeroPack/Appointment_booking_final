@@ -409,7 +409,7 @@ export function Dashboard() {
     data: patients,
     isLoading: patientsLoading,
     error: patientsError,
-  } = useGetDoctorPatientsQuery(dateRange, { refetchOnMountOrArgChange: true, refetchOnFocus: true });
+  } = useGetDoctorPatientsQuery(dateRange, { refetchOnMountOrArgChange: true, refetchOnFocus: true, pollingInterval: 10000 });
 
   const {
     data: venueStats,

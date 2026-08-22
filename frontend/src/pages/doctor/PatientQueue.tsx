@@ -167,7 +167,7 @@ export function PatientQueue() {
   const dateStr = format(selectedDate, "yyyy-MM-dd");
   const { data: apiPatients, isLoading, isError } = useGetDoctorPatientsQuery(
     { from: dateStr, to: dateStr },
-    { refetchOnMountOrArgChange: true, refetchOnFocus: true }
+    { refetchOnMountOrArgChange: true, refetchOnFocus: true, pollingInterval: 10000 }
   );
 
   const { data: me } = useGetMeQuery();
