@@ -13,14 +13,16 @@ import {
   List,
   Calendar,
   Settings,
-  ArrowUpRight
+  ArrowUpRight,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Switch } from '@/core/components/ui/switch';
 import { Input } from '@/core/components/ui/input';
 import { useAppSelector } from '@/core/store/hooks';
-import { useListTemplatesQuery, useUpdateTemplateMutation } from '@/features/settings/settingsApi';
+import { useListTemplatesQuery, useUpdateTemplateMutation, useCreateTemplateMutation, useDeleteTemplateMutation } from '@/features/settings/settingsApi';
 import type { MessageTemplateRow } from '@/core/types/generated/settings';
 
 function findTemplate(templates: MessageTemplateRow[] | undefined, type: string, offset?: number): MessageTemplateRow | undefined {
@@ -31,14 +33,32 @@ function findTemplate(templates: MessageTemplateRow[] | undefined, type: string,
   });
 }
 
+function findAllTemplates(templates: MessageTemplateRow[] | undefined, type: string): MessageTemplateRow[] {
+  return templates?.filter(t => t.template_type === type) ?? [];
+}
+
+interface CancelTemplateLocal {
+  tempId: string;
+  serverId?: string;
+  subject: string;
+  content: string;
+  active: boolean;
+}
+
 export function Templates() {
   const authUser = useAppSelector(state => state.auth.user);
   const doctorId = authUser?.id ?? '';
 
   const { data: templates, isLoading } = useListTemplatesQuery(doctorId);
-  const [updateTemplate, { isLoading: isSaving }] = useUpdateTemplateMutation();
+  const [updateTemplate, { isLoading: isSavingUpdate }] = useUpdateTemplateMutation();
+  const [createTemplate, { isLoading: isSavingCreate }] = useCreateTemplateMutation();
+  const [deleteTemplate, { isLoading: isDeleting }] = useDeleteTemplateMutation();
+
+  const isSaving = isSavingUpdate || isSavingCreate || isDeleting;
 
   const [localTemplates, setLocalTemplates] = useState<Record<string, { subject: string; content: string; active: boolean }>>({});
+  const [cancelTemplates, setCancelTemplates] = useState<CancelTemplateLocal[]>([]);
+  const [deletedCancelIds, setDeletedCancelIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!templates) return;
@@ -54,10 +74,16 @@ export function Templates() {
     const t15 = findTemplate(templates, 'reminder', 15);
     if (t15) map['15m'] = { subject: t15.subject ?? '', content: t15.content, active: t15.is_active };
 
-    const cancel = findTemplate(templates, 'appointment_cancelled');
-    if (cancel) map['cancellation'] = { subject: cancel.subject ?? '', content: cancel.content, active: cancel.is_active };
-
     setLocalTemplates(map);
+
+    const cancelTemps = findAllTemplates(templates, 'appointment_cancelled');
+    setCancelTemplates(cancelTemps.map(t => ({
+      tempId: t.id,
+      serverId: t.id,
+      subject: t.subject ?? '',
+      content: t.content,
+      active: t.is_active,
+    })));
   }, [templates]);
 
   const handleToggle = (key: string, checked: boolean) => {
@@ -74,8 +100,39 @@ export function Templates() {
     });
   };
 
+  const handleCancelToggle = (tempId: string, checked: boolean) => {
+    setCancelTemplates(prev => prev.map(t =>
+      t.tempId === tempId ? { ...t, active: checked } : t
+    ));
+  };
+
+  const handleCancelChange = (tempId: string, field: 'subject' | 'content', value: string) => {
+    setCancelTemplates(prev => prev.map(t =>
+      t.tempId === tempId ? { ...t, [field]: value } : t
+    ));
+  };
+
+  const addCancelTemplate = () => {
+    const newTemp: CancelTemplateLocal = {
+      tempId: `new_${Date.now()}`,
+      subject: '',
+      content: '',
+      active: true,
+    };
+    setCancelTemplates(prev => [...prev, newTemp]);
+  };
+
+  const removeCancelTemplate = (tempId: string) => {
+    const temp = cancelTemplates.find(t => t.tempId === tempId);
+    if (temp?.serverId) {
+      setDeletedCancelIds(prev => [...prev, temp.serverId!]);
+    }
+    setCancelTemplates(prev => prev.filter(t => t.tempId !== tempId));
+  };
+
   const handleSaveAll = async () => {
     if (!templates) return;
+
     for (const [key, data] of Object.entries(localTemplates)) {
       let type: string;
       let offset: number | undefined;
@@ -98,6 +155,34 @@ export function Templates() {
         });
       }
     }
+
+    for (const deletedId of deletedCancelIds) {
+      await deleteTemplate(deletedId);
+    }
+
+    for (const ct of cancelTemplates) {
+      if (ct.serverId) {
+        await updateTemplate({
+          id: ct.serverId,
+          data: {
+            content: ct.content,
+            subject: ct.subject || undefined,
+            is_active: ct.active,
+            template_type: 'appointment_cancelled',
+          },
+        });
+      } else {
+        await createTemplate({
+          doctor_id: doctorId,
+          template_type: 'appointment_cancelled',
+          content: ct.content,
+          subject: ct.subject || undefined,
+          channel: 'whatsapp',
+        });
+      }
+    }
+
+    setDeletedCancelIds([]);
   };
 
   const getContent = (key: string, field: 'subject' | 'content'): string => {
@@ -368,70 +453,135 @@ export function Templates() {
 
         {/* CANCELLATION SECTION */}
         <section>
-          <div className="flex items-center gap-2 mb-4 md:mb-6">
-            <XCircle className="w-6 h-6 text-error" />
-            <h2 className="font-headline-md text-headline-md text-text-main md:text-on-surface">
-              <span className="md:hidden">Cancellation message</span>
-              <span className="hidden md:inline">Cancellation Policy Notice</span>
-            </h2>
+          <div className="flex items-center justify-between mb-4 md:mb-6">
+            <div className="flex items-center gap-2">
+              <XCircle className="w-6 h-6 text-error" />
+              <h2 className="font-headline-md text-headline-md text-text-main md:text-on-surface">
+                Cancellation Templates
+              </h2>
+            </div>
+            <Button
+              onClick={addCancelTemplate}
+              variant="outline"
+              size="sm"
+              className="gap-2 border-error/30 text-error hover:bg-error/5"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden md:inline">Add Template</span>
+            </Button>
           </div>
 
-          <Card className="rounded-xl overflow-hidden shadow-sm border border-error/20 md:border-transparent md:hover:border-error/30 transition-colors">
-            <CardContent className="p-5 md:p-8 flex flex-col lg:flex-row gap-6 md:gap-10">
+          {cancelTemplates.length === 0 ? (
+            <Card className="rounded-xl border border-dashed border-error/30">
+              <CardContent className="p-8 text-center">
+                <XCircle className="w-10 h-10 text-error/40 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-4">No cancellation templates yet.</p>
+                <Button onClick={addCancelTemplate} variant="outline" size="sm" className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Create Cancellation Template
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {cancelTemplates.map((ct, index) => (
+                <Card key={ct.tempId} className="rounded-xl overflow-hidden shadow-sm border border-error/20 md:border-transparent md:hover:border-error/30 transition-colors">
+                  <CardContent className="p-5 md:p-8 flex flex-col lg:flex-row gap-6 md:gap-10">
+                    <div className="hidden lg:block lg:w-1/3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-label-bold text-base text-on-surface">
+                          Cancellation Template {index + 1}
+                        </h3>
+                        <Switch
+                          checked={ct.active}
+                          onCheckedChange={(c) => handleCancelToggle(ct.tempId, c)}
+                          className="data-[state=checked]:bg-error"
+                        />
+                      </div>
+                      <p className="font-body-base text-on-surface-variant mb-4 text-sm">
+                        Sent when a patient or admin cancels an appointment slot.
+                      </p>
+                      <div className="p-4 bg-error-container/20 border border-error-container/50 rounded-lg">
+                        <div className="flex items-center gap-2 text-error mb-2">
+                          <Info className="w-4 h-4" />
+                          <span className="font-label-bold text-[11px] uppercase tracking-wider">Compliance Tip</span>
+                        </div>
+                        <p className="text-[12px] text-error leading-relaxed">
+                          Ensure you mention if any cancellation fees were applied as per clinic policy.
+                        </p>
+                      </div>
+                    </div>
 
-              <div className="hidden lg:block lg:w-1/3">
-                <h3 className="font-label-bold text-base text-on-surface mb-2">Cancellation Confirmation</h3>
-                <p className="font-body-base text-on-surface-variant mb-6 text-sm">
-                  This message is triggered when a patient or admin cancels an existing appointment slot.
-                </p>
-                <div className="p-4 bg-error-container/20 border border-error-container/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-error mb-2">
-                    <Info className="w-4 h-4" />
-                    <span className="font-label-bold text-[11px] uppercase tracking-wider">Compliance Tip</span>
-                  </div>
-                  <p className="text-[12px] text-error leading-relaxed">
-                    Ensure you mention if any cancellation fees were applied as per clinic policy.
-                  </p>
-                </div>
-              </div>
+                    <div className="lg:w-2/3 space-y-4 md:space-y-6">
+                      <div className="flex md:hidden justify-between items-center">
+                        <span className="px-3 py-1.5 rounded-lg bg-error/10 text-error font-label-bold text-[12px] flex items-center gap-1.5">
+                          <XCircle className="w-4 h-4" />
+                          Cancellation {index + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={ct.active}
+                            onCheckedChange={(c) => handleCancelToggle(ct.tempId, c)}
+                            className="data-[state=checked]:bg-error"
+                          />
+                          <span className="text-[12px] font-label-bold text-on-surface-variant">Active</span>
+                        </div>
+                      </div>
 
-              <div className="lg:w-2/3 space-y-4 md:space-y-6">
-                <div className="flex flex-col gap-2">
-                  <label className="text-[13px] md:text-[11px] font-label-bold text-on-surface-variant md:uppercase tracking-wider">
-                    <span className="md:hidden">Subject</span>
-                    <span className="hidden md:inline">SUBJECT LINE</span>
-                  </label>
-                  <Input
-                    value={getContent('cancellation', 'subject')}
-                    onChange={(e) => handleContentChange('cancellation', 'subject', e.target.value)}
-                    className="h-12 border-outline-variant md:bg-surface-bright focus-visible:ring-primary text-body-base"
-                  />
-                </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[13px] md:text-[11px] font-label-bold text-on-surface-variant md:uppercase tracking-wider">
+                          <span className="md:hidden">Subject</span>
+                          <span className="hidden md:inline">SUBJECT LINE</span>
+                        </label>
+                        <Input
+                          value={ct.subject}
+                          onChange={(e) => handleCancelChange(ct.tempId, 'subject', e.target.value)}
+                          className="h-12 border-outline-variant md:bg-surface-bright focus-visible:ring-primary text-body-base"
+                        />
+                      </div>
 
-                <div className="flex flex-col gap-2">
-                  <label className="text-[13px] md:text-[11px] font-label-bold text-on-surface-variant md:uppercase tracking-wider">
-                    <span className="md:hidden">Cancellation Message Body</span>
-                    <span className="hidden md:inline">MESSAGE CONTENT</span>
-                  </label>
-                  <textarea
-                    value={getContent('cancellation', 'content')}
-                    onChange={(e) => handleContentChange('cancellation', 'content', e.target.value)}
-                    rows={4}
-                    className="w-full p-4 rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary md:bg-surface-bright text-body-base resize-none outline-none"
-                  />
-                </div>
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[13px] md:text-[11px] font-label-bold text-on-surface-variant md:uppercase tracking-wider">
+                          <span className="md:hidden">Cancellation Message Body</span>
+                          <span className="hidden md:inline">MESSAGE CONTENT</span>
+                        </label>
+                        <textarea
+                          value={ct.content}
+                          onChange={(e) => handleCancelChange(ct.tempId, 'content', e.target.value)}
+                          rows={4}
+                          className="w-full p-4 rounded-lg border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary md:bg-surface-bright text-body-base resize-none outline-none"
+                        />
+                      </div>
 
-                <div className="md:hidden flex items-center justify-between p-4 bg-error-container/20 rounded-xl mt-2">
-                  <span className="text-[13px] text-error font-label-bold">Auto-notify patient on system cancellation</span>
-                  <Switch
-                    checked={isActive('cancellation')}
-                    onCheckedChange={(c) => handleToggle('cancellation', c)}
-                    className="data-[state=checked]:bg-error"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                      <div className="hidden md:block pt-2">
+                        <p className="text-[11px] font-label-bold text-on-surface-variant uppercase tracking-wider mb-3">
+                          DYNAMIC PLACEHOLDERS
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[12px] font-medium bg-surface-container-high text-on-surface">{'{patient_name}'}</span>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[12px] font-medium bg-surface-container-high text-on-surface">{'{doctor_name}'}</span>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[12px] font-medium bg-surface-container-high text-on-surface">{'{slot_time}'}</span>
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-[12px] font-medium bg-surface-container-high text-on-surface">{'{clinic_name}'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          onClick={() => removeCancelTemplate(ct.tempId)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-error hover:text-error hover:bg-error/10 gap-1.5"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* DESKTOP HELP BANNER */}

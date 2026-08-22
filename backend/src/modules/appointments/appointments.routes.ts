@@ -14,6 +14,7 @@ import {
   getAppointmentHistory,
   bookOnBehalf,
   rescheduleAppointment,
+  bulkSendMessage,
 } from './appointments.controller.js';
 
 const router = Router();
@@ -37,6 +38,16 @@ const bookSlotSchema = z.object({
 const statusSchema = z.object({
   status: z.enum(['finished', 'no_show', 'cancelled']),
   notes: z.string().optional(),
+  template_id: z.string().uuid().optional(),
+});
+
+const cancelSchema = z.object({
+  template_id: z.string().uuid().optional(),
+});
+
+const bulkSendSchema = z.object({
+  appointment_ids: z.array(z.string().uuid()).min(1).max(50),
+  template_id: z.string().uuid(),
 });
 
 const bookOnBehalfSchema = z.object({
@@ -64,10 +75,11 @@ router.post('/patient/book-slot', authGuard, requireRole('patient'), validate(bo
 router.get('/patient/appointments', authGuard, listAppointments);
 router.get('/patient/appointments/:id', authGuard, getAppointment);
 router.get('/patient/appointment-history', authGuard, getAppointmentHistory);
-router.patch('/patient/appointments/:id/cancel', authGuard, cancelAppointment);
+router.patch('/patient/appointments/:id/cancel', authGuard, validate(cancelSchema), cancelAppointment);
 router.patch('/appointments/:id/status', authGuard, requireRole('doctor', 'staff'), validate(statusSchema), updateAppointmentStatus);
 router.patch('/appointments/:id/notes', authGuard, requireRole('doctor', 'staff'), validate(notesSchema), updateAppointmentNotes);
 router.patch('/appointments/:id/reschedule', authGuard, requireRole('doctor', 'staff'), validate(rescheduleSchema), rescheduleAppointment);
 router.post('/appointments/book', authGuard, requireRole('doctor', 'staff'), validate(bookOnBehalfSchema), bookOnBehalf);
+router.post('/appointments/bulk-send-message', authGuard, requireRole('doctor', 'staff'), validate(bulkSendSchema), bulkSendMessage);
 
 export default router;

@@ -6,10 +6,13 @@ import { FlowService } from '../flows/flow.service.js';
 import { FlowRepository } from '../flows/flow.repository.js';
 import { flowScheduler } from '../flows/flow.scheduler.js';
 import { tagsService } from '../tags/tags.controller.js';
+import { MessagesService } from '../messages/messages.service.js';
+import { MessagesRepository } from '../messages/messages.repository.js';
 
 const repo = new AppointmentsRepository();
 const service = new AppointmentsService(repo);
 const flowService = new FlowService(new FlowRepository());
+const messagesService = new MessagesService(new MessagesRepository());
 
 export async function findSlots(req: Request, res: Response, next: NextFunction) {
   try {
@@ -68,6 +71,19 @@ export async function cancelAppointment(req: Request, res: Response, next: NextF
   try {
     const result = await service.cancelAppointment(req.params.id as string, req.auth!.userId);
     await flowScheduler.cancelForAppointment(req.params.id as string);
+
+    if (req.body.template_id) {
+      await messagesService.sendImmediate(
+        req.auth!.clinicId,
+        req.auth!.userId,
+        {
+          template_id: req.body.template_id,
+          receiver_id: result.appointment.patient_id,
+          appointment_id: result.appointment.id,
+        }
+      );
+    }
+
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -77,6 +93,19 @@ export async function cancelAppointment(req: Request, res: Response, next: NextF
 export async function updateAppointmentStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.updateStatus(req.params.id as string, req.auth!.userId, req.body.status, req.body.notes);
+
+    if (req.body.status === 'cancelled' && req.body.template_id) {
+      await messagesService.sendImmediate(
+        req.auth!.clinicId,
+        req.auth!.userId,
+        {
+          template_id: req.body.template_id,
+          receiver_id: result.appointment.patient_id,
+          appointment_id: result.appointment.id,
+        }
+      );
+    }
+
     res.json(success(result));
   } catch (err) {
     next(err);
@@ -131,6 +160,39 @@ export async function rescheduleAppointment(req: Request, res: Response, next: N
       req.body
     );
     res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bulkSendMessage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { appointment_ids, template_id } = req.body;
+    const result = await service.bulkSendMessage(req.auth!.clinicId, req.auth!.userId, appointment_ids, template_id);
+
+    let sent = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < result.appointmentIds.length; i++) {
+      const sendResult = await messagesService.sendImmediate(
+        req.auth!.clinicId,
+        req.auth!.userId,
+        {
+          template_id,
+          receiver_id: result.patientIds[i],
+          appointment_id: result.appointmentIds[i],
+        }
+      );
+      if (sendResult.success) {
+        sent++;
+      } else {
+        failed++;
+        errors.push(`Appointment ${result.appointmentIds[i]}: ${sendResult.error}`);
+      }
+    }
+
+    res.json(success({ sent, failed, errors }));
   } catch (err) {
     next(err);
   }

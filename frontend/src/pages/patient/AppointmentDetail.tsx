@@ -20,7 +20,7 @@ export function AppointmentDetail() {
 
   const handleCancel = async () => {
     if (window.confirm('Are you sure you want to cancel this appointment?')) {
-      await cancelAppointment(id!)
+      await cancelAppointment({ id: id! })
     }
   }
 

@@ -385,7 +385,16 @@ export class AppointmentsService {
       [appointmentId]
     );
 
-    return { message: 'Appointment cancelled' };
+    return {
+      message: 'Appointment cancelled',
+      appointment: {
+        id: appointment.id,
+        doctor_id: appointment.doctor_id,
+        patient_id: appointment.patient_id,
+        clinic_id: appointment.clinic_id,
+        patient_name: appointment.patient_name,
+      },
+    };
   }
 
   async updateStatus(appointmentId: string, userId: string, newStatus: string, notes?: string) {
@@ -413,7 +422,16 @@ export class AppointmentsService {
       changed_by: userId,
     });
 
-    return { message: `Appointment status updated to '${newStatus}'` };
+    return {
+      message: `Appointment status updated to '${newStatus}'`,
+      appointment: {
+        id: appointment.id,
+        doctor_id: appointment.doctor_id,
+        patient_id: appointment.patient_id,
+        clinic_id: appointment.clinic_id,
+        patient_name: appointment.patient_name,
+      },
+    };
   }
 
   async updateNotes(appointmentId: string, userId: string, notes: string) {
@@ -430,6 +448,30 @@ export class AppointmentsService {
 
   async getAppointmentHistory(userId: string) {
     return this.repo.findAppointmentHistory(userId);
+  }
+
+  async bulkSendMessage(clinicId: string, doctorId: string, appointmentIds: string[], templateId: string) {
+    const { default: pool } = await import('../../config/db.js');
+    const result = await pool.query(
+      `SELECT id, doctor_id, patient_id, clinic_id
+       FROM appointments
+       WHERE id = ANY($1::uuid[])
+         AND doctor_id = $2
+         AND deleted_at IS NULL`,
+      [appointmentIds, doctorId]
+    );
+
+    const appointments = result.rows;
+    if (appointments.length === 0) {
+      throw new AppError(404, 'NO_APPOINTMENTS', 'No valid appointments found');
+    }
+
+    return {
+      total: appointments.length,
+      appointmentIds: appointments.map((a: any) => a.id),
+      patientIds: appointments.map((a: any) => a.patient_id),
+      clinicId,
+    };
   }
 
   private async checkDoctorClinic(doctorId: string, clinicId: string): Promise<boolean> {

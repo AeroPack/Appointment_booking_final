@@ -90,6 +90,61 @@ export class MessagesService {
     }
   }
 
+  async sendImmediate(
+    clinicId: string,
+    senderId: string | null,
+    body: { template_id: string; receiver_id: string; appointment_id?: string }
+  ): Promise<{ success: boolean; error?: string }> {
+    const template = await this.repo.findTemplateById(body.template_id);
+    if (!template) {
+      return { success: false, error: 'Template not found' };
+    }
+
+    let appointmentData: Awaited<ReturnType<typeof this.repo.findAppointmentForRender>> = null;
+    if (body.appointment_id) {
+      appointmentData = await this.repo.findAppointmentForRender(body.appointment_id);
+    }
+
+    const placeholderData: Record<string, string> = {};
+    if (appointmentData) {
+      placeholderData.patient_name = appointmentData.patient_name;
+      placeholderData.doctor_name = appointmentData.doctor_name;
+      placeholderData.slot_time = formatSlotTime(appointmentData.scheduled_start);
+      placeholderData.venue = appointmentData.venue_name || 'Unknown';
+      placeholderData.clinic_name = appointmentData.clinic_name;
+      placeholderData.token_number = appointmentData.token_number != null ? String(appointmentData.token_number) : '';
+    }
+
+    const rendered = renderTemplate(template.content, placeholderData);
+    const subject = template.subject ? renderTemplate(template.subject, placeholderData) : null;
+
+    const { id: msgId } = await this.repo.insertMessage({
+      appointment_id: body.appointment_id || null,
+      template_id: template.id,
+      sender_id: senderId,
+      receiver_id: body.receiver_id,
+      message_name: subject,
+      content: rendered,
+      channel: template.channel,
+      schedule_for: new Date(),
+    });
+
+    try {
+      await this.deliver({
+        id: msgId,
+        content: rendered,
+        channel: template.channel,
+        receiver_id: body.receiver_id,
+        clinic_id: clinicId,
+      });
+      await this.repo.markSent(msgId);
+      return { success: true };
+    } catch (err) {
+      await this.repo.markFailed(msgId);
+      return { success: false, error: err instanceof Error ? err.message : 'Delivery failed' };
+    }
+  }
+
   async cancelReminders(appointmentId: string): Promise<void> {
     await this.repo.cancelPendingByAppointment(appointmentId);
   }

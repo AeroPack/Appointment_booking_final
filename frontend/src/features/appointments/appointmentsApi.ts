@@ -33,12 +33,16 @@ export const appointmentsApi = api.injectEndpoints({
       query: (id) => ({ url: `/api/patient/appointments/${id}` }),
       providesTags: (_result, _error, id) => [{ type: 'Appointment' as const, id }],
     }),
-    cancelAppointment: builder.mutation<{ message: string }, string>({
-      query: (id) => ({ url: `/api/patient/appointments/${id}/cancel`, method: 'PATCH' }),
+    cancelAppointment: builder.mutation<{ message: string }, { id: string; template_id?: string }>({
+      query: ({ id, template_id }) => ({
+        url: `/api/patient/appointments/${id}/cancel`,
+        method: 'PATCH',
+        body: { template_id },
+      }),
       invalidatesTags: ['Appointment'],
     }),
-    updateAppointmentStatus: builder.mutation<{ message: string }, { id: string; status: string; notes?: string }>({
-      query: ({ id, status, notes }) => ({ url: `/api/appointments/${id}/status`, method: 'PATCH', body: { status, notes } }),
+    updateAppointmentStatus: builder.mutation<{ message: string }, { id: string; status: string; notes?: string; template_id?: string }>({
+      query: ({ id, status, notes, template_id }) => ({ url: `/api/appointments/${id}/status`, method: 'PATCH', body: { status, notes, template_id } }),
       invalidatesTags: ['Appointment', 'Doctor'],
     }),
     updateAppointmentNotes: builder.mutation<{ message: string }, { id: string; notes: string }>({
@@ -74,6 +78,12 @@ export const appointmentsApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Appointment', 'Doctor'],
     }),
+    bulkSendMessage: builder.mutation<{ sent: number; failed: number; errors: string[] }, {
+      appointment_ids: string[];
+      template_id: string;
+    }>({
+      query: (body) => ({ url: '/api/appointments/bulk-send-message', method: 'POST', body }),
+    }),
   }),
 })
 
@@ -88,4 +98,5 @@ export const {
   useGetAppointmentHistoryQuery,
   useBookOnBehalfMutation,
   useRescheduleAppointmentMutation,
+  useBulkSendMessageMutation,
 } = appointmentsApi

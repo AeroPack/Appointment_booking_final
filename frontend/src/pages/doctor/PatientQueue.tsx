@@ -31,6 +31,8 @@ import {
   Tag,
   UserX,
   AlertTriangle,
+  Send,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Input } from "@/core/components/ui/input";
@@ -45,7 +47,8 @@ import {
 } from "@/core/components/ui/table";
 import { useGetDoctorPatientsQuery } from "@/features/doctors/doctorDashboardApi";
 import { useGetMeQuery } from "@/features/users/usersApi";
-import { useUpdateAppointmentStatusMutation } from "@/features/appointments/appointmentsApi";
+import { useUpdateAppointmentStatusMutation, useBulkSendMessageMutation } from "@/features/appointments/appointmentsApi";
+import { useListTemplatesQuery } from "@/features/settings/settingsApi";
 import { AddAppointmentModal, APPT_CONFIG, type AppointmentType, type EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { DayPicker } from "react-day-picker";
 import { format, isToday } from "date-fns";
@@ -182,6 +185,29 @@ export function PatientQueue() {
   const [statusNotes, setStatusNotes] = useState("");
   const [updateStatus, { isLoading: isUpdatingStatus }] = useUpdateAppointmentStatusMutation();
 
+  // ─── Cancel Template State ───
+  const [cancelTemplateId, setCancelTemplateId] = useState<string>("");
+  const [pendingCancel, setPendingCancel] = useState(false);
+
+  // ─── Bulk Selection State ───
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+
+  // ─── Bulk Send Modal State ───
+  const [bulkSendModal, setBulkSendModal] = useState(false);
+  const [bulkTemplateId, setBulkTemplateId] = useState<string>("");
+  const [bulkSend, { isLoading: isBulkSending }] = useBulkSendMessageMutation();
+
+  // ─── Templates ───
+  const { data: templates } = useListTemplatesQuery(doctorId);
+  const cancelTemplates = useMemo(
+    () => templates?.filter((t) => t.template_type === "appointment_cancelled" && t.is_active) ?? [],
+    [templates]
+  );
+  const allTemplates = useMemo(
+    () => templates?.filter((t) => t.is_active) ?? [],
+    [templates]
+  );
+
   useEffect(() => {
     if (!calendarOpen) return;
     function handleClickOutside(e: MouseEvent) {
@@ -261,11 +287,55 @@ export function PatientQueue() {
     });
   }, []);
 
-  const handleStatusChange = useCallback(async (appointmentId: string, newStatus: string) => {
+  // ─── Selection helpers ───
+  const selectedCount = Object.values(selectedRows).filter(Boolean).length;
+
+  const toggleRow = useCallback((id: string) => {
+    setSelectedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    const allSelected = filtered.length > 0 && filtered.every((p) => selectedRows[p.id]);
+    if (allSelected) {
+      setSelectedRows({});
+    } else {
+      const next: Record<string, boolean> = {};
+      for (const p of filtered) next[p.id] = true;
+      setSelectedRows(next);
+    }
+  }, [filtered, selectedRows]);
+
+  const clearSelection = useCallback(() => setSelectedRows({}), []);
+
+  const handleBulkSend = useCallback(async () => {
+    if (!bulkTemplateId) return;
+    const ids = Object.entries(selectedRows)
+      .filter(([, v]) => v)
+      .map(([k]) => k);
+    if (ids.length === 0) return;
+
     try {
-      await updateStatus({ id: appointmentId, status: newStatus, notes: statusNotes || undefined }).unwrap();
+      await bulkSend({ appointment_ids: ids, template_id: bulkTemplateId }).unwrap();
+      setBulkSendModal(false);
+      setBulkTemplateId("");
+      setSelectedRows({});
+    } catch {
+      // Error handled by RTK Query
+    }
+  }, [bulkSend, bulkTemplateId, selectedRows]);
+
+  const handleStatusChange = useCallback(async (appointmentId: string, newStatus: string, templateId?: string) => {
+    try {
+      await updateStatus({
+        id: appointmentId,
+        status: newStatus,
+        notes: statusNotes || undefined,
+        template_id: templateId || undefined,
+      }).unwrap();
       setStatusModal(null);
       setStatusNotes("");
+      setCancelTemplateId("");
+      setPendingCancel(false);
     } catch {
       // Error handled by RTK Query
     }
@@ -283,6 +353,29 @@ export function PatientQueue() {
 
   const columns = useMemo<ColumnDef<PatientRow>[]>(
     () => [
+      {
+        id: "select",
+        header: () => (
+          <input
+            type="checkbox"
+            checked={filtered.length > 0 && filtered.every((p) => selectedRows[p.id])}
+            onChange={toggleAll}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={!!selectedRows[row.original.id]}
+            onChange={() => toggleRow(row.original.id)}
+            onClick={(e) => e.stopPropagation()}
+            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+          />
+        ),
+        size: 40,
+        enableSorting: false,
+        enableHiding: false,
+      },
       {
         accessorKey: "token",
         header: "Token",
@@ -380,6 +473,8 @@ export function PatientQueue() {
                     currentStatus: row.original.status,
                   });
                   setStatusNotes("");
+                  setCancelTemplateId("");
+                  setPendingCancel(false);
                 }}
                 className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${meta.pill}`}
               >
@@ -426,7 +521,7 @@ export function PatientQueue() {
         ),
       },
     ],
-    [navigate, openEdit]
+    [navigate, openEdit, selectedRows, filtered, toggleAll, toggleRow]
   );
 
   const table = useReactTable({
@@ -549,6 +644,34 @@ export function PatientQueue() {
         </div>
       </div>
 
+      {/* Bulk Action Toolbar */}
+      {selectedCount > 0 && (
+        <div className="bg-primary/5 border-b border-primary/20 px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-medium text-foreground">
+              {selectedCount} patient{selectedCount !== 1 ? "s" : ""} selected
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSelection}
+                className="gap-1 text-muted-foreground"
+              >
+                <X className="h-4 w-4" /> Clear
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setBulkSendModal(true)}
+                className="gap-1.5"
+              >
+                <Send className="h-4 w-4" /> Send Template
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-6">
         {isLoading ? (
@@ -668,6 +791,8 @@ export function PatientQueue() {
                                     currentStatus: p.status,
                                   });
                                   setStatusNotes("");
+                                  setCancelTemplateId("");
+                                  setPendingCancel(false);
                                 }}
                                 className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${meta.pill}`}
                               >
@@ -760,7 +885,7 @@ export function PatientQueue() {
             <div className="flex items-center justify-between">
               <h3 className="text-base font-semibold text-foreground">Update Status</h3>
               <button
-                onClick={() => setStatusModal(null)}
+                onClick={() => { setStatusModal(null); setCancelTemplateId(""); setPendingCancel(false); }}
                 className="p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -777,6 +902,7 @@ export function PatientQueue() {
                 <button
                   onClick={() => {
                     setStatusNotes("");
+                    setCancelTemplateId("");
                     handleStatusChange(statusModal.appointmentId, "finished");
                   }}
                   disabled={isUpdatingStatus}
@@ -791,6 +917,7 @@ export function PatientQueue() {
                 <button
                   onClick={() => {
                     setStatusNotes("");
+                    setCancelTemplateId("");
                     handleStatusChange(statusModal.appointmentId, "no_show");
                   }}
                   disabled={isUpdatingStatus}
@@ -805,10 +932,15 @@ export function PatientQueue() {
                 <button
                   onClick={() => {
                     setStatusNotes("");
-                    handleStatusChange(statusModal.appointmentId, "cancelled");
+                    setCancelTemplateId("");
+                    setPendingCancel(true);
                   }}
                   disabled={isUpdatingStatus}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-left"
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                    pendingCancel
+                      ? "border-red-300 bg-red-50"
+                      : "border-border bg-card hover:bg-accent/50"
+                  }`}
                 >
                   <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
                   <div>
@@ -818,6 +950,36 @@ export function PatientQueue() {
                 </button>
               </div>
             </div>
+
+            {/* Cancel template selector - only shown when pending cancel */}
+            {pendingCancel && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" />
+                  Send WhatsApp message (optional)
+                </label>
+                <select
+                  value={cancelTemplateId}
+                  onChange={(e) => setCancelTemplateId(e.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring px-3"
+                >
+                  <option value="">No message</option>
+                  {cancelTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.subject || t.content.slice(0, 50)}
+                    </option>
+                  ))}
+                </select>
+                {cancelTemplateId && (
+                  <div className="p-3 rounded-md bg-muted/50 border border-border">
+                    <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                    <p className="text-sm text-foreground">
+                      {cancelTemplates.find((t) => t.id === cancelTemplateId)?.content ?? ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
@@ -831,13 +993,102 @@ export function PatientQueue() {
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
+              {pendingCancel && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (statusModal) {
+                      handleStatusChange(statusModal.appointmentId, "cancelled", cancelTemplateId || undefined);
+                    }
+                    setPendingCancel(false);
+                  }}
+                  disabled={isUpdatingStatus}
+                  className="gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {isUpdatingStatus ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4" />
+                  )}
+                  Confirm Cancel
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setStatusModal(null)}
+                onClick={() => { setStatusModal(null); setCancelTemplateId(""); setPendingCancel(false); }}
                 disabled={isUpdatingStatus}
               >
                 Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Bulk Send Modal ─── */}
+      {bulkSendModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-card w-full max-w-md rounded-xl shadow-lg p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">Send Template Message</h3>
+              <button
+                onClick={() => { setBulkSendModal(false); setBulkTemplateId(""); }}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Send a message to <span className="font-medium text-foreground">{selectedCount} patient{selectedCount !== 1 ? "s" : ""}</span>
+            </p>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Select Template</label>
+              <select
+                value={bulkTemplateId}
+                onChange={(e) => setBulkTemplateId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring px-3"
+              >
+                <option value="">Choose a template...</option>
+                {allTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    [{t.template_type}] {t.subject || t.content.slice(0, 50)}
+                  </option>
+                ))}
+              </select>
+              {bulkTemplateId && (
+                <div className="p-3 rounded-md bg-muted/50 border border-border">
+                  <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                  <p className="text-sm text-foreground">
+                    {allTemplates.find((t) => t.id === bulkTemplateId)?.content ?? ""}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setBulkSendModal(false); setBulkTemplateId(""); }}
+                disabled={isBulkSending}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleBulkSend}
+                disabled={!bulkTemplateId || isBulkSending}
+                className="gap-1.5"
+              >
+                {isBulkSending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                {isBulkSending ? "Sending..." : `Send to ${selectedCount} patient${selectedCount !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>

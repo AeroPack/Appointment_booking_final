@@ -12,6 +12,7 @@ import {
 import { Button } from "@/core/components/ui/button";
 import { useGetMeQuery } from "@/features/users/usersApi";
 import { useGetDoctorPatientsQuery } from "@/features/doctors/doctorDashboardApi";
+import { useGetAppointmentSettingsQuery } from "@/features/settings/settingsApi";
 import { AddAppointmentModal } from "@/features/appointments/AddAppointmentModal";
 import type { AppointmentType, EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { APPT_CONFIG } from "@/features/appointments/AddAppointmentModal";
@@ -60,6 +61,62 @@ function formatTime12(time: string) {
   const ampm = h >= 12 ? "PM" : "AM";
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+
+interface Period {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
+const DEFAULT_DAY_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+
+function jsDayToApiDay(jsDay: number): number {
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+function computeHoursForDate(periods: Period[], date: Date): number[] {
+  const apiDay = jsDayToApiDay(date.getDay());
+  const dayPeriods = periods.filter((p) => p.day_of_week === apiDay);
+  if (dayPeriods.length === 0) return DEFAULT_DAY_HOURS;
+
+  let minHour = 24;
+  let maxHour = 0;
+  for (const p of dayPeriods) {
+    const startH = parseInt(p.start_time.split(":")[0] ?? "0", 10);
+    const endH = parseInt(p.end_time.split(":")[0] ?? "0", 10);
+    if (startH < minHour) minHour = startH;
+    if (endH > maxHour) maxHour = endH;
+  }
+
+  if (minHour >= maxHour) return DEFAULT_DAY_HOURS;
+
+  const hours: number[] = [];
+  for (let h = minHour; h < maxHour; h++) hours.push(h);
+  return hours;
+}
+
+function computeWeekHours(periods: Period[], weekStart: Date): number[] {
+  const allHours = new Set<number>();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    for (const h of computeHoursForDate(periods, d)) allHours.add(h);
+  }
+  const sorted = Array.from(allHours).sort((a, b) => a - b);
+  return sorted.length > 0 ? sorted : DEFAULT_DAY_HOURS;
+}
+
+function isHourInGap(periods: Period[], date: Date, hour: number): boolean {
+  const apiDay = jsDayToApiDay(date.getDay());
+  const dayPeriods = periods.filter((p) => p.day_of_week === apiDay);
+  if (dayPeriods.length === 0) return false;
+  for (const p of dayPeriods) {
+    const startH = parseInt(p.start_time.split(":")[0] ?? "0", 10);
+    const endH = parseInt(p.end_time.split(":")[0] ?? "0", 10);
+    if (hour >= startH && hour < endH) return false;
+  }
+  return true;
 }
 
 // ─── View Switcher ────────────────────────────────────────────────────────────
@@ -343,9 +400,7 @@ function MonthView({
 
 // ─── Week View ────────────────────────────────────────────────────────────────
 
-const WEEK_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-
-function WeekView({ currentDate, appointments, onEditAppointment, selectedType }: { currentDate: Date; appointments: Record<string, Appointment[]>; onEditAppointment: (appt: Appointment) => void; selectedType: AppointmentType | null }) {
+function WeekView({ currentDate, appointments, onEditAppointment, selectedType, hours, periods }: { currentDate: Date; appointments: Record<string, Appointment[]>; onEditAppointment: (appt: Appointment) => void; selectedType: AppointmentType | null; hours: number[]; periods: Period[] }) {
   const today = new Date();
 
   const weekStart = useMemo(() => {
@@ -390,29 +445,29 @@ function WeekView({ currentDate, appointments, onEditAppointment, selectedType }
         </div>
 
         {/* Time rows */}
-        {WEEK_HOURS.map((hour) => {
-          const isLunch = hour === 12;
+        {hours.map((hour) => {
           const timeLabel = hour < 12 ? `${hour}:00 AM` : hour === 12 ? "12:00 PM" : `${hour - 12}:00 PM`;
           return (
-            <div key={hour} className={`flex border-b border-border ${isLunch ? "bg-muted/20" : ""}`}>
+            <div key={hour} className="flex border-b border-border">
               <div className="w-12 sm:w-20 shrink-0 border-r border-border py-3 pr-2 flex justify-end">
                 <span className="text-xs text-muted-foreground">{timeLabel}</span>
               </div>
-              {days.map(({ key, isToday }) => {
+              {days.map(({ date, key, isToday }) => {
                 const appts = (appointments[key] ?? []).filter(
                   (a) => parseInt(a.time.split(":")[0] ?? "0") === hour &&
                     (selectedType === null || a.type === selectedType)
                 );
+                const inGap = isHourInGap(periods, date, hour);
                 return (
                   <div
                     key={key}
                     className={`flex-1 min-h-[60px] border-r border-border last:border-r-0 p-1 ${
-                      isToday ? "bg-primary/5" : isLunch ? "bg-muted/20" : "hover:bg-accent/20 transition-colors"
+                      isToday ? "bg-primary/5" : inGap ? "bg-muted/10" : "hover:bg-accent/20 transition-colors"
                     }`}
                   >
-                    {isLunch && appts.length === 0 && isToday && (
+                    {inGap && appts.length === 0 && isToday && (
                       <div className="flex items-center justify-center h-full">
-                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground/50 flex items-center gap-1">
                           <Coffee className="h-3 w-3" /> Break
                         </span>
                       </div>
@@ -435,9 +490,7 @@ function WeekView({ currentDate, appointments, onEditAppointment, selectedType }
 
 // ─── Day View ─────────────────────────────────────────────────────────────────
 
-const DAY_HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
-
-function DayView({ currentDate, appointments, onAddAppointment, onEditAppointment, selectedType }: { currentDate: Date; appointments: Record<string, Appointment[]>; onAddAppointment: () => void; onEditAppointment: (appt: Appointment) => void; selectedType: AppointmentType | null }) {
+function DayView({ currentDate, appointments, onAddAppointment, onEditAppointment, selectedType, hours, periods }: { currentDate: Date; appointments: Record<string, Appointment[]>; onAddAppointment: () => void; onEditAppointment: (appt: Appointment) => void; selectedType: AppointmentType | null; hours: number[]; periods: Period[] }) {
   const today = new Date();
   const key = toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
   const allAppts = appointments[key] ?? [];
@@ -470,7 +523,20 @@ function DayView({ currentDate, appointments, onAddAppointment, onEditAppointmen
       </div>
 
       {/* Empty state */}
-      {appts.length === 0 && (
+      {appts.length === 0 && hours.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <CalendarDays className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground mb-1">No availability set</h3>
+          <p className="text-sm text-muted-foreground mb-4 max-w-xs">
+            You have no availability configured for this day. Set your hours in Availability settings.
+          </p>
+        </div>
+      )}
+
+      {/* Empty state - no appointments but has hours */}
+      {appts.length === 0 && hours.length > 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-4">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
             <CalendarDays className="h-8 w-8 text-muted-foreground" />
@@ -486,12 +552,12 @@ function DayView({ currentDate, appointments, onAddAppointment, onEditAppointmen
       )}
 
       {/* Timeline */}
-      {appts.length > 0 && (
+      {hours.length > 0 && (
         <div className="px-4 sm:px-6 py-4">
-          {DAY_HOURS.map((hour) => {
-            const isLunch = hour === 12;
+          {hours.map((hour) => {
             const timeLabel = hour < 12 ? `${hour}:00 AM` : hour === 12 ? "12:00 PM" : `${hour - 12}:00 PM`;
             const hourAppts = appts.filter((a) => parseInt(a.time.split(":")[0] ?? "0") === hour);
+            const inGap = isHourInGap(periods, currentDate, hour);
 
             return (
               <div key={hour} className="flex gap-3 sm:gap-6 min-h-[64px]">
@@ -500,13 +566,13 @@ function DayView({ currentDate, appointments, onAddAppointment, onEditAppointmen
                 </div>
                 <div
                   className={`flex-1 border-t border-border pb-3 pt-1 ${
-                    isLunch ? "bg-muted/20 rounded-lg px-3" : ""
+                    inGap ? "bg-muted/10" : ""
                   }`}
                 >
-                  {isLunch && hourAppts.length === 0 && (
+                  {inGap && hourAppts.length === 0 && (
                     <div className="flex items-center gap-2 py-1">
-                      <Coffee className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground font-medium">Lunch Break</span>
+                      <Coffee className="h-4 w-4 text-muted-foreground/50" />
+                      <span className="text-sm text-muted-foreground/50 font-medium">Break</span>
                     </div>
                   )}
                   <div className="flex flex-col gap-2">
@@ -514,7 +580,7 @@ function DayView({ currentDate, appointments, onAddAppointment, onEditAppointmen
                       <ApptCard key={appt.id} appt={appt} onClick={() => onEditAppointment(appt)} />
                     ))}
                   </div>
-                  {hourAppts.length === 0 && !isLunch && (
+                  {hourAppts.length === 0 && !inGap && (
                     <button className="w-full text-left group py-1" onClick={onAddAppointment}>
                       <span className="text-xs text-muted-foreground/40 group-hover:text-muted-foreground transition-colors flex items-center gap-1">
                         <Plus className="h-3 w-3" /> Add appointment
@@ -543,6 +609,9 @@ export const CalendarPage = () => {
   const { data: me } = useGetMeQuery();
   const doctorId = me?.id;
 
+  const { data: settings } = useGetAppointmentSettingsQuery(doctorId!, { skip: !doctorId });
+  const periods: Period[] = settings?.periods ?? [];
+
   const { data: todayPatients, isLoading: loadingPatients } = useGetDoctorPatientsQuery(
     { from: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()), to: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()) },
     { skip: !doctorId }
@@ -568,6 +637,16 @@ export const CalendarPage = () => {
       }),
     };
   }, [todayPatients, currentDate]);
+
+  const dayHours = useMemo(() => computeHoursForDate(periods, currentDate), [periods, currentDate]);
+
+  const weekStart = useMemo(() => {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  }, [currentDate]);
+
+  const weekHours = useMemo(() => computeWeekHours(periods, weekStart), [periods, weekStart]);
 
   const label = useMemo(() => {
     if (view === "month") {
@@ -666,8 +745,8 @@ export const CalendarPage = () => {
                 appointments={appointments}
               />
             )}
-            {view === "week" && <WeekView currentDate={currentDate} appointments={appointments} onEditAppointment={handleEditAppointment} selectedType={selectedType} />}
-            {view === "day" && <DayView currentDate={currentDate} appointments={appointments} onAddAppointment={handleAddAppointment} onEditAppointment={handleEditAppointment} selectedType={selectedType} />}
+            {view === "week" && <WeekView currentDate={currentDate} appointments={appointments} onEditAppointment={handleEditAppointment} selectedType={selectedType} hours={weekHours} periods={periods} />}
+            {view === "day" && <DayView currentDate={currentDate} appointments={appointments} onAddAppointment={handleAddAppointment} onEditAppointment={handleEditAppointment} selectedType={selectedType} hours={dayHours} periods={periods} />}
           </>
         )}
       </div>
