@@ -317,7 +317,7 @@ export function Availability() {
         };
       });
       const isActive = (venue as any).is_active !== false;
-      return { venueId: venue.id, venueName: venue.name, expanded: isActive, isActive, days };
+      return { venueId: venue.id, venueName: venue.name, expanded: false, isActive, days };
     });
 
     setSchedule(newSchedule);
@@ -454,6 +454,11 @@ export function Availability() {
     if (!editVenueName.trim()) return;
     try {
       await updateVenue({ id, name: editVenueName }).unwrap();
+      setSchedule((prev) =>
+        prev.map((v) =>
+          v.venueId === id ? { ...v, venueName: editVenueName } : v
+        )
+      );
       setEditingVenueId(null);
     } catch {}
   };
@@ -461,6 +466,11 @@ export function Availability() {
   const handleToggleVenueActive = async (id: string, currentStatus: boolean) => {
     try {
       await updateVenue({ id, is_active: !currentStatus }).unwrap();
+      setSchedule((prev) =>
+        prev.map((v) =>
+          v.venueId === id ? { ...v, isActive: !currentStatus, expanded: false } : v
+        )
+      );
       setMenuOpenVenueId(null);
     } catch {}
   };
@@ -657,19 +667,17 @@ export function Availability() {
                             Inactive
                           </span>
                         )}
-                        {venueData.isActive && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditVenueName(venueData.venueName);
-                              setEditingVenueId(venueData.venueId);
-                            }}
-                            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
-                            aria-label="Rename venue"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditVenueName(venueData.venueName);
+                            setEditingVenueId(venueData.venueId);
+                          }}
+                          className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent shrink-0"
+                          aria-label="Rename venue"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
                       </>
                     )}
                   </div>

@@ -165,7 +165,10 @@ export function PatientQueue() {
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const dateStr = format(selectedDate, "yyyy-MM-dd");
-  const { data: apiPatients, isLoading, isError } = useGetDoctorPatientsQuery({ from: dateStr, to: dateStr });
+  const { data: apiPatients, isLoading, isError } = useGetDoctorPatientsQuery(
+    { from: dateStr, to: dateStr },
+    { refetchOnMountOrArgChange: true, refetchOnFocus: true }
+  );
 
   const { data: me } = useGetMeQuery();
   const doctorId = me?.id;

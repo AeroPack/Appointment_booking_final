@@ -612,31 +612,57 @@ export const CalendarPage = () => {
   const { data: settings } = useGetAppointmentSettingsQuery(doctorId!, { skip: !doctorId });
   const periods: Period[] = settings?.periods ?? [];
 
+  const dateRange = useMemo(() => {
+    if (view === "week") {
+      const ws = new Date(currentDate);
+      ws.setDate(currentDate.getDate() - currentDate.getDay());
+      const we = new Date(ws);
+      we.setDate(ws.getDate() + 6);
+      return {
+        from: toDateKey(ws.getFullYear(), ws.getMonth(), ws.getDate()),
+        to: toDateKey(we.getFullYear(), we.getMonth(), we.getDate()),
+      };
+    }
+    if (view === "month") {
+      const first = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      const last = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      return {
+        from: toDateKey(first.getFullYear(), first.getMonth(), first.getDate()),
+        to: toDateKey(last.getFullYear(), last.getMonth(), last.getDate()),
+      };
+    }
+    const key = toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    return { from: key, to: key };
+  }, [view, currentDate]);
+
   const { data: todayPatients, isLoading: loadingPatients } = useGetDoctorPatientsQuery(
-    { from: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()), to: toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()) },
-    { skip: !doctorId }
+    dateRange,
+    { skip: !doctorId, refetchOnMountOrArgChange: true, refetchOnFocus: true }
   );
 
   const appointments = useMemo(() => {
     if (!todayPatients) return {};
-    const key = toDateKey(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-    return {
-      [key]: todayPatients.map((p) => {
-        const raw = p.scheduled_start ?? '';
-        const timePart = raw.includes('T') ? raw.split('T')[1] : raw.split(' ')[1];
-        return {
-          id: p.id,
-          time: timePart?.slice(0, 5) ?? '',
-          endTime: "",
-          patient: p.patient_name,
-          type: (p.appointment_type || 'checkup') as AppointmentType,
-          patientId: p.patient_id,
-          scheduledStart: p.scheduled_start,
-          phone: p.phone ?? undefined,
-        };
-      }),
-    };
-  }, [todayPatients, currentDate]);
+    const map: Record<string, Appointment[]> = {};
+    for (const p of todayPatients) {
+      const raw = p.scheduled_start ?? '';
+      const datePart = raw.includes('T') ? raw.split('T')[0] : raw.split(' ')[0];
+      if (!datePart) continue;
+      const timePart = raw.includes('T') ? raw.split('T')[1] : raw.split(' ')[1];
+      const appt: Appointment = {
+        id: p.id,
+        time: timePart?.slice(0, 5) ?? '',
+        endTime: "",
+        patient: p.patient_name,
+        type: (p.appointment_type || 'checkup') as AppointmentType,
+        patientId: p.patient_id,
+        scheduledStart: p.scheduled_start,
+        phone: p.phone ?? undefined,
+      };
+      if (!map[datePart]) map[datePart] = [];
+      map[datePart].push(appt);
+    }
+    return map;
+  }, [todayPatients]);
 
   const dayHours = useMemo(() => computeHoursForDate(periods, currentDate), [periods, currentDate]);
 
