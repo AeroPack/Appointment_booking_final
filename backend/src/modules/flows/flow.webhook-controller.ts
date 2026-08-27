@@ -231,32 +231,42 @@ async function sendDoctorPicker(
 async function handleSessionFlow(doctorId: string, phone: string, input: string) {
   const activeSession = await repo.findActiveSession(doctorId, phone);
 
-  if (!activeSession) {
+  if (activeSession) {
+    if (activeSession.status === 'completed' || activeSession.status === 'error') {
+      // Previous session finished - try to start a new one based on keyword
+      const matchedFlow = await repo.findFlowByKeyword(doctorId, input);
+      if (matchedFlow) {
+        await service.startSession({
+          doctorId,
+          patientId: null,
+          channel: 'whatsapp',
+          channelSessionId: phone,
+          triggerType: matchedFlow.triggerType,
+        });
+      }
+      // If no keyword match, do nothing
+      return;
+    }
+    // Active session in progress - resume with patient input
+    await service.resumeSession({
+      sessionId: activeSession.id,
+      doctorId,
+      channelSessionId: phone,
+      input,
+    });
+    return;
+  }
+
+  // No active session - try to start a new one based on keyword
+  const matchedFlow = await repo.findFlowByKeyword(doctorId, input);
+  if (matchedFlow) {
     await service.startSession({
       doctorId,
       patientId: null,
       channel: 'whatsapp',
       channelSessionId: phone,
-      triggerType: 'book',
+      triggerType: matchedFlow.triggerType,
     });
-    return;
   }
-
-  if (activeSession.status === 'completed' || activeSession.status === 'error') {
-    await service.startSession({
-      doctorId,
-      patientId: null,
-      channel: 'whatsapp',
-      channelSessionId: phone,
-      triggerType: 'book',
-    });
-    return;
-  }
-
-  await service.resumeSession({
-    sessionId: activeSession.id,
-    doctorId,
-    channelSessionId: phone,
-    input,
-  });
+  // If no keyword match, do nothing
 }

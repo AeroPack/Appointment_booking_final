@@ -16,7 +16,8 @@ export async function createFlow(req: Request, res: Response, next: NextFunction
     const result = await service.createFlow(
       req.auth!.userId,
       req.body.name,
-      req.body.trigger_type
+      req.body.trigger_type,
+      req.body.keywords
     );
     res.status(201).json(success(result));
   } catch (err) {

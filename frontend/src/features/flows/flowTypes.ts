@@ -43,6 +43,7 @@ export interface FlowSummary {
   id: string;
   name: string;
   trigger_type: string;
+  keywords: string[];
   is_active: boolean;
   published_version_id: string | null;
   created_at: string;

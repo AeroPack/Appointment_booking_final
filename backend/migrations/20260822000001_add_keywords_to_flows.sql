@@ -1,0 +1,3 @@
+ALTER TABLE flows ADD COLUMN IF NOT EXISTS keywords TEXT[] NOT NULL DEFAULT '{}';
+
+CREATE INDEX IF NOT EXISTS idx_flows_keywords ON flows USING GIN (keywords);

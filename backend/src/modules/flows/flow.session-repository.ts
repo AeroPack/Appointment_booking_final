@@ -160,6 +160,27 @@ export class FlowSessionRepository {
     return result.rows[0] || null;
   }
 
+  async findFlowByKeyword(doctorId: string, keyword: string): Promise<{
+    flowId: string;
+    flowName: string;
+    versionId: string;
+    graph: FlowGraph;
+    triggerType: string;
+  } | null> {
+    const normalizedKeyword = keyword.toLowerCase().trim();
+    const result = await pool.query(
+      `SELECT f.id AS "flowId", f.name AS "flowName", fv.id AS "versionId", fv.graph, f.trigger_type AS "triggerType"
+       FROM flows f
+       JOIN flow_versions fv ON fv.id = f.published_version_id
+       WHERE (f.doctor_id = $1 OR f.doctor_id IS NULL) AND f.is_active = true
+         AND LOWER(TRIM(UNNEST(f.keywords))) = $2
+       ORDER BY f.doctor_id NULLS LAST
+       LIMIT 1`,
+      [doctorId, normalizedKeyword]
+    );
+    return result.rows[0] || null;
+  }
+
   async findDoctorClinicId(doctorId: string): Promise<string | null> {
     const result = await pool.query(
       `SELECT clinic_id FROM users WHERE id = $1 AND role = 'doctor' AND deleted_at IS NULL`,

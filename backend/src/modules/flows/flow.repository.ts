@@ -5,6 +5,7 @@ export interface FlowSummary {
   id: string;
   name: string;
   trigger_type: string;
+  keywords: string[];
   is_active: boolean;
   published_version_id: string | null;
   created_at: string;
@@ -36,12 +37,12 @@ export interface FlowDetail {
 }
 
 export class FlowRepository {
-  async createFlow(doctorId: string, name: string, triggerType: string): Promise<FlowSummary> {
+  async createFlow(doctorId: string, name: string, triggerType: string, keywords: string[] = []): Promise<FlowSummary> {
     const result = await pool.query(
-      `INSERT INTO flows (doctor_id, name, trigger_type)
-       VALUES ($1, $2, $3)
-       RETURNING id, name, trigger_type, is_active, published_version_id, created_at, updated_at`,
-      [doctorId, name, triggerType]
+      `INSERT INTO flows (doctor_id, name, trigger_type, keywords)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, trigger_type, keywords, is_active, published_version_id, created_at, updated_at`,
+      [doctorId, name, triggerType, keywords]
     );
     const flow = result.rows[0];
 
@@ -56,7 +57,7 @@ export class FlowRepository {
 
   async listFlowsByDoctor(doctorId: string): Promise<FlowSummary[]> {
     const result = await pool.query(
-      `SELECT id, name, trigger_type, is_active, published_version_id, created_at, updated_at
+      `SELECT id, name, trigger_type, keywords, is_active, published_version_id, created_at, updated_at
        FROM flows
        WHERE doctor_id = $1
        ORDER BY created_at DESC`,
@@ -67,7 +68,7 @@ export class FlowRepository {
 
   async findFlowForDoctor(flowId: string, doctorId: string): Promise<FlowSummary | null> {
     const result = await pool.query(
-      `SELECT id, name, trigger_type, is_active, published_version_id, created_at, updated_at
+      `SELECT id, name, trigger_type, keywords, is_active, published_version_id, created_at, updated_at
        FROM flows
        WHERE id = $1 AND doctor_id = $2`,
       [flowId, doctorId]

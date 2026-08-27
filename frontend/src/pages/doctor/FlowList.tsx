@@ -21,6 +21,7 @@ const TRIGGER_OPTIONS = [
   { value: 'book', label: 'Booking', description: 'Handles new appointment bookings', icon: Workflow },
   { value: 'reschedule', label: 'Reschedule', description: 'Handles appointment rescheduling', icon: Repeat },
   { value: 'cancel', label: 'Cancel', description: 'Handles appointment cancellations', icon: XCircle },
+  { value: 'custom', label: 'Custom', description: 'Custom automation triggered by keywords', icon: Settings },
 ] as const;
 
 export function FlowList() {
@@ -31,14 +32,17 @@ export function FlowList() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
   const [selectedTrigger, setSelectedTrigger] = useState<string>('book');
+  const [keywords, setKeywords] = useState<string>('');
 
   const handleCreate = async () => {
     if (!newFlowName.trim()) return;
     try {
-      const result = await createFlow({ name: newFlowName.trim(), trigger_type: selectedTrigger }).unwrap();
+      const keywordsArray = keywords.split(',').map(k => k.trim()).filter(k => k.length > 0);
+      const result = await createFlow({ name: newFlowName.trim(), trigger_type: selectedTrigger, keywords: keywordsArray }).unwrap();
       setShowNewModal(false);
       setNewFlowName('');
       setSelectedTrigger('book');
+      setKeywords('');
       navigate(`/doctor/flows/${result.id}`);
     } catch (err: any) {
       if (err?.status === 409) {
@@ -184,8 +188,17 @@ export function FlowList() {
                           <div>
                             <p className="font-medium">{flow.name}</p>
                             <p className="text-sm text-muted-foreground">
-                              {flow.trigger_type === 'book' ? 'Booking' : flow.trigger_type === 'reschedule' ? 'Reschedule' : 'Cancel'} flow
+                              {flow.trigger_type === 'book' ? 'Booking' : flow.trigger_type === 'reschedule' ? 'Reschedule' : flow.trigger_type === 'cancel' ? 'Cancel' : 'Custom'} flow
                             </p>
+                            {flow.keywords && flow.keywords.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {flow.keywords.map((keyword, idx) => (
+                                  <span key={idx} className="px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded">
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
@@ -250,6 +263,18 @@ export function FlowList() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {TRIGGER_OPTIONS.find(o => o.value === selectedTrigger)?.description}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Keywords (comma-separated)</label>
+                <Input
+                  placeholder="e.g., Hi, Hello, Hey"
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optional: Words that trigger this flow (case-insensitive)
                 </p>
               </div>
 

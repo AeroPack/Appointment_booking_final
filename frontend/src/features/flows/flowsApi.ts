@@ -17,7 +17,7 @@ export const flowsApi = api.injectEndpoints({
       query: ({ flowId, versionId }) => `/api/doctor/flows/${flowId}/versions/${versionId}`,
     }),
 
-    createFlow: builder.mutation<FlowSummary, { name: string; trigger_type?: string }>({
+    createFlow: builder.mutation<FlowSummary, { name: string; trigger_type?: string; keywords?: string[] }>({
       query: (body) => ({
         url: '/api/doctor/flows',
         method: 'POST',

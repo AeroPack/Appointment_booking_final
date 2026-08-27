@@ -8,9 +8,9 @@ import { NODE_DATA_SCHEMAS, flowGraphShapeSchema, type FlowGraph, type FlowNodeT
 export class FlowService {
   constructor(private readonly repo: FlowRepository) {}
 
-  async createFlow(doctorId: string, name: string, triggerType: string) {
+  async createFlow(doctorId: string, name: string, triggerType: string, keywords: string[] = []) {
     try {
-      return await this.repo.createFlow(doctorId, name, triggerType);
+      return await this.repo.createFlow(doctorId, name, triggerType, keywords);
     } catch (err: any) {
       if (err?.code === '23505') {
         throw new AppError(409, 'FLOW_ALREADY_EXISTS', 'A flow with this trigger type already exists for this doctor');

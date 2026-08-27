@@ -19,7 +19,8 @@ const router = Router();
 
 const createFlowSchema = z.object({
   name: z.string().min(1).max(100),
-  trigger_type: z.enum(['book', 'reschedule', 'cancel']).default('book'),
+  trigger_type: z.enum(['book', 'reschedule', 'cancel', 'custom']).default('book'),
+  keywords: z.array(z.string()).default([]),
 });
 
 const autosaveSchema = z.object({
