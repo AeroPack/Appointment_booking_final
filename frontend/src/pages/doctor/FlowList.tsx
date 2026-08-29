@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, Workflow, Calendar, Settings, Repeat, XCircle } from 'lucide-react';
+import { Loader2, Plus, Workflow, Calendar, Settings, Repeat, XCircle, Pencil, Check, X, HelpCircle, ChevronDown, MessageSquare, ListChecks, CalendarClock, GitBranch, Timer, FileText, CircleOff, Play } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
-import { useGetFlowsQuery, useCreateFlowMutation } from '@/features/flows/flowsApi';
+import { useGetFlowsQuery, useCreateFlowMutation, useRenameFlowMutation } from '@/features/flows/flowsApi';
 import type { FlowSummary } from '@/features/flows/flowTypes';
 import { toast } from 'sonner';
 
@@ -28,11 +28,21 @@ export function FlowList() {
   const navigate = useNavigate();
   const { data: flows, isLoading } = useGetFlowsQuery();
   const [createFlow, { isLoading: isCreating }] = useCreateFlowMutation();
+  const [renameFlow] = useRenameFlowMutation();
 
   const [showNewModal, setShowNewModal] = useState(false);
   const [newFlowName, setNewFlowName] = useState('');
   const [selectedTrigger, setSelectedTrigger] = useState<string>('book');
   const [keywords, setKeywords] = useState<string>('');
+
+  const [editingFlowId, setEditingFlowId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
+  const isRenamingRef = useRef(false);
+
+  const [showHelp, setShowHelp] = useState(() => {
+    return localStorage.getItem('flows_help_dismissed') !== 'true';
+  });
 
   const handleCreate = async () => {
     if (!newFlowName.trim()) return;
@@ -59,6 +69,41 @@ export function FlowList() {
     setSelectedTrigger('book');
   };
 
+  const startRename = (flow: FlowSummary) => {
+    setEditingFlowId(flow.id);
+    setEditingName(flow.name);
+  };
+
+  useEffect(() => {
+    if (editingFlowId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [editingFlowId]);
+
+  const saveRename = async () => {
+    if (isRenamingRef.current) return;
+    if (!editingFlowId || !editingName.trim()) {
+      setEditingFlowId(null);
+      return;
+    }
+    isRenamingRef.current = true;
+    try {
+      await renameFlow({ flowId: editingFlowId, name: editingName.trim() }).unwrap();
+      toast.success('Flow renamed');
+    } catch {
+      toast.error('Failed to rename flow');
+    } finally {
+      isRenamingRef.current = false;
+      setEditingFlowId(null);
+    }
+  };
+
+  const dismissHelp = () => {
+    setShowHelp(false);
+    localStorage.setItem('flows_help_dismissed', 'true');
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -79,6 +124,99 @@ export function FlowList() {
           New Flow
         </Button>
       </div>
+
+      {/* Help Panel */}
+      {showHelp && (
+        <Card className="border-[#0f766e]/20 bg-[#f0fdfa]">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-[#0f766e]" />
+                <h3 className="font-semibold text-[#191c1e]">How Flows Work</h3>
+              </div>
+              <button onClick={dismissHelp} className="p-1 rounded hover:bg-black/5 text-muted-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-muted-foreground mb-4">
+              Flows automate patient interactions - booking, rescheduling, cancellations, and custom workflows.
+              Each flow is a chain of nodes that execute in sequence.
+            </p>
+
+            {/* Visual Example */}
+            <div className="bg-white rounded-lg border p-4 mb-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wider">Example: Appointment Booking Flow</p>
+              <div className="flex items-center gap-1 overflow-x-auto pb-2">
+                {[
+                  { icon: Play, label: 'Start', color: '#22c55e' },
+                  { icon: MessageSquare, label: 'Welcome', color: '#3b82f6' },
+                  { icon: ListChecks, label: 'Choice', color: '#f59e0b' },
+                  { icon: CalendarClock, label: 'Pick Slot', color: '#0ea5e9' },
+                  { icon: GitBranch, label: 'Check', color: '#ec4899' },
+                  { icon: FileText, label: 'Send SMS', color: '#059669' },
+                  { icon: CircleOff, label: 'End', color: '#ef4444' },
+                ].map((node, i) => (
+                  <div key={i} className="flex items-center shrink-0">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs font-medium" style={{ borderColor: node.color + '40', backgroundColor: node.color + '10' }}>
+                      <node.icon className="h-3 w-3" style={{ color: node.color }} />
+                      {node.label}
+                    </div>
+                    {i < 6 && <div className="w-4 h-px bg-gray-300 shrink-0" />}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              {[
+                { step: '1', text: 'Click "New Flow" and choose a trigger type (Booking, Cancel, or Custom)' },
+                { step: '2', text: 'Drag nodes from the left palette onto the canvas' },
+                { step: '3', text: 'Connect nodes by dragging from one handle to another' },
+                { step: '4', text: 'Click each node to configure its properties on the right' },
+                { step: '5', text: 'Click "Publish" when ready - your flow goes live for patients' },
+              ].map((item) => (
+                <div key={item.step} className="flex items-start gap-2">
+                  <div className="h-5 w-5 rounded-full bg-[#0f766e] text-white flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
+                    {item.step}
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{item.text}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Node Reference */}
+            <details className="group">
+              <summary className="flex items-center gap-1 text-xs font-medium text-[#0f766e] cursor-pointer hover:underline">
+                <ChevronDown className="h-3 w-3 group-open:rotate-180 transition-transform" />
+                Node Reference
+              </summary>
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { icon: Play, label: 'Start', desc: 'Entry point', color: '#22c55e' },
+                  { icon: MessageSquare, label: 'Message', desc: 'Send text', color: '#3b82f6' },
+                  { icon: ListChecks, label: 'Choice', desc: 'User picks option', color: '#f59e0b' },
+                  { icon: CalendarClock, label: 'Slot Picker', desc: 'Date selection', color: '#0ea5e9' },
+                  { icon: GitBranch, label: 'Condition', desc: 'If/else branch', color: '#ec4899' },
+                  { icon: Timer, label: 'Delay', desc: 'Wait before next', color: '#f97316' },
+                  { icon: FileText, label: 'Template', desc: 'SMS/WhatsApp msg', color: '#059669' },
+                  { icon: CalendarClock, label: 'Book Action', desc: 'Create appointment', color: '#14b8a6' },
+                  { icon: CircleOff, label: 'End', desc: 'Flow terminates', color: '#ef4444' },
+                ].map((node) => (
+                  <div key={node.label} className="flex items-center gap-2 p-2 rounded border text-xs">
+                    <node.icon className="h-3.5 w-3.5 shrink-0" style={{ color: node.color }} />
+                    <div>
+                      <span className="font-medium">{node.label}</span>
+                      <span className="text-muted-foreground ml-1">{node.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
+          </CardContent>
+        </Card>
+      )}
 
       {flows && flows.length === 0 && (
         <Card>
@@ -177,8 +315,8 @@ export function FlowList() {
                   .map((flow: FlowSummary) => (
                     <Card
                       key={flow.id}
-                      className="cursor-pointer hover:bg-accent/50 transition-colors"
-                      onClick={() => navigate(`/doctor/flows/${flow.id}`)}
+                      className="cursor-pointer hover:bg-accent/50 transition-colors group"
+                      onClick={() => { if (editingFlowId !== flow.id) navigate(`/doctor/flows/${flow.id}`); }}
                     >
                       <CardContent className="p-4 flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -186,7 +324,37 @@ export function FlowList() {
                             <Workflow className="h-5 w-5 text-primary" />
                           </div>
                           <div>
-                            <p className="font-medium">{flow.name}</p>
+                            {editingFlowId === flow.id ? (
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                  ref={editInputRef}
+                                  value={editingName}
+                                  onChange={(e) => setEditingName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') saveRename();
+                                    if (e.key === 'Escape') setEditingFlowId(null);
+                                  }}
+                                  onBlur={saveRename}
+                                  className="h-7 text-sm font-medium px-2 py-0"
+                                />
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={saveRename}>
+                                  <Check className="h-3.5 w-3.5 text-green-600" />
+                                </Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingFlowId(null)}>
+                                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium">{flow.name}</p>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); startRename(flow); }}
+                                  className="p-1 rounded hover:bg-black/5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
                             <p className="text-sm text-muted-foreground">
                               {flow.trigger_type === 'book' ? 'Booking' : flow.trigger_type === 'reschedule' ? 'Reschedule' : flow.trigger_type === 'cancel' ? 'Cancel' : 'Custom'} flow
                             </p>

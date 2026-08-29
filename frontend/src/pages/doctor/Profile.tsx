@@ -5,7 +5,6 @@ import {
   Edit2,
   Phone,
   LogOut,
-  ExternalLink,
   CalendarClock,
   CheckCircle2,
   AlertCircle,
@@ -94,6 +93,7 @@ export const Profile: React.FC = () => {
   const hasLoadedRef = useRef(false)
   const handleSaveRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSavingRef = useRef(false)
 
   useEffect(() => {
     if (me) {
@@ -137,7 +137,8 @@ export const Profile: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (saveStatus === 'saving') return
+    if (saveStatus === 'saving' || isSavingRef.current) return
+    isSavingRef.current = true
     setSaveStatus('saving');
     setSaveMessage('');
     try {
@@ -171,13 +172,15 @@ export const Profile: React.FC = () => {
       setSaveStatus('error');
       setSaveMessage('Save failed');
       setTimeout(() => { setSaveStatus('idle'); setSaveMessage(''); }, 5000);
+    } finally {
+      isSavingRef.current = false
     }
   };
 
   useEffect(() => { handleSaveRef.current = handleSave })
 
   useEffect(() => {
-    if (!hasLoadedRef.current) return
+    if (!hasLoadedRef.current || isSavingRef.current) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => { handleSaveRef.current() }, 600)
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
@@ -279,6 +282,13 @@ export const Profile: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] antialiased font-body-base pb-24 md:pb-12">
       <main className="max-w-[1200px] mx-auto px-5 md:px-10 py-8 md:py-12">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleAvatarChange}
+        />
 
         <div className="hidden md:block mb-10">
           <h1 className="text-[32px] font-bold text-[#191c1e] tracking-tight leading-tight">
@@ -294,13 +304,6 @@ export const Profile: React.FC = () => {
           {/* MOBILE TOP SECTION */}
           <div className="md:hidden flex flex-col items-center text-center mb-2 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="relative group mb-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleAvatarChange}
-              />
               <Avatar className="w-32 h-32 ring-4 ring-[#9cf2e8] shadow-sm">
                 <AvatarImage src={formData.imageUrl} alt={formData.name} className="object-cover" />
                 <AvatarFallback className="bg-[#005c55] text-white text-3xl font-bold">
@@ -330,12 +333,6 @@ export const Profile: React.FC = () => {
             {/* Desktop Profile Card */}
             <Card className="hidden md:flex p-8 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 flex-col md:flex-row gap-8 items-center bg-white">
               <div className="relative group shrink-0">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarChange}
-                />
                 <Avatar className="w-32 h-32 border-4 border-[#f2f4f6] ring-2 ring-[#4fdbc8]">
                   <AvatarImage src={formData.imageUrl} alt={formData.name} className="object-cover" />
                   <AvatarFallback className="bg-[#005c55] text-white text-3xl font-bold">
@@ -478,6 +475,8 @@ export const Profile: React.FC = () => {
                 formData={formData}
                 onChange={handleInputChange}
                 onSave={handleSave}
+                saveStatus={saveStatus}
+                saveMessage={saveMessage}
               />
               <div className="mt-4 md:hidden bg-white rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] overflow-hidden">
                 <div className="p-6 flex items-center justify-between">
@@ -508,7 +507,7 @@ export const Profile: React.FC = () => {
           <div className="md:col-span-5 space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
 
             {/* Public Profile Preview */}
-            <Card className="p-6 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 bg-white">
+            {/* <Card className="p-6 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 bg-white">
               <h3 className="text-[16px] font-semibold text-[#191c1e] mb-2">Public Profile Preview</h3>
               <p className="text-[12px] text-[#64748B] mb-4">See how your profile looks to patients.</p>
               <Button
@@ -519,7 +518,7 @@ export const Profile: React.FC = () => {
                 <ExternalLink className="w-4 h-4" />
                 Preview Profile
               </Button>
-            </Card>
+            </Card> */}
 
             {/* Availability Quick Link */}
             <Card className="p-6 rounded-xl shadow-[0_4px_20px_-2px_rgba(15,23,42,0.05)] border-0 bg-white cursor-pointer hover:bg-[#f7f9fb] transition-colors"

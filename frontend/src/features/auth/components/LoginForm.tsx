@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ArrowRight, Loader2, Plus } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2, Plus } from 'lucide-react'
 import { Button } from '@/core/components/ui/button'
 import { Card, CardContent } from '@/core/components/ui/card'
 import { Input } from '@/core/components/ui/input'
@@ -19,6 +19,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onPasswordLogin, onForgotP
   const [emailMode, setEmailMode] = useState(false)
   const [value, setValue] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!emailMode) {
@@ -131,19 +132,27 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onPasswordLogin, onForgotP
                     Forgot password?
                   </button>
                 </div>
-                <div className={`flex items-center border rounded-lg overflow-hidden transition-all duration-200 h-[48px] bg-white
+                <div className={`relative flex items-center border rounded-lg overflow-hidden transition-all duration-200 h-[48px] bg-white
                   ${error ? 'border-destructive focus-within:ring-destructive' : 'border-border focus-within:border-[#0f766e] focus-within:ring-1 focus-within:ring-[#0f766e]'}
                 `}>
                   <Input
                     id="password"
                     name="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-4 text-[16px] text-foreground placeholder:text-muted-foreground/50 h-full rounded-none bg-transparent"
+                    className="w-full border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-4 pr-11 text-[16px] text-foreground placeholder:text-muted-foreground/50 h-full rounded-none bg-transparent"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-[#6e7977] hover:text-[#191c1e] transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

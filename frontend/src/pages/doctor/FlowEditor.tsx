@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ReactFlow,
@@ -16,7 +16,7 @@ import {
   ReactFlowProvider,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, Pencil, Check, X } from 'lucide-react';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
@@ -25,6 +25,7 @@ import {
   useGetOrCreateDraftMutation,
   usePublishVersionMutation,
   useRollbackToVersionMutation,
+  useRenameFlowMutation,
 } from '@/features/flows/flowsApi';
 import { useListTemplatesQuery } from '@/features/settings/settingsApi';
 import { useAppSelector } from '@/core/store/hooks';
@@ -32,6 +33,7 @@ import { NODE_TYPE_DEFINITIONS } from '@/features/flows/nodeTypes';
 import type { FlowNodeType, ChoiceOption } from '@/features/flows/flowTypes';
 import { buildNodeTypes, validateConnectionRules, createNodeFromPalette, removeStaleChoiceEdges } from '@/features/flows/graphUtils';
 import { useAutosaveGraph } from '@/features/flows/hooks/useAutosaveGraph';
+import { toast } from 'sonner';
 
 const nodeTypes = buildNodeTypes();
 
@@ -380,9 +382,16 @@ function FlowEditorInner() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [currentVersionId, setCurrentVersionId] = useState<string | null>(null);
-  const [isDraft, setIsDraft] = useState(true);
+  // After publishing, a new draft is always created, so this is always true
+  const isDraft = true;
   const [publishErrors, setPublishErrors] = useState<string[]>([]);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+
+  const [editingName, setEditingName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  const isRenamingRef = useRef(false);
+  const [renameFlow] = useRenameFlowMutation();
 
   const { saveStatus, markDirty, updateSnapshot } = useAutosaveGraph(flowId!, currentVersionId);
 
@@ -507,8 +516,31 @@ function FlowEditorInner() {
     setPublishErrors([]);
     try {
       await publishVersion({ flowId, versionId: currentVersionId }).unwrap();
-      setIsDraft(false);
       setPublishErrors([]);
+
+      // After publishing, create a new draft so the editor stays editable
+      const newDraft = await getOrCreateDraft(flowId).unwrap();
+      setCurrentVersionId(newDraft.id);
+
+      const graph = newDraft.graph || { nodes: [], edges: [] };
+      const flowNodes: Node[] = graph.nodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        data: n.data,
+      }));
+      const flowEdges: Edge[] = graph.edges.map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle ?? null,
+        targetHandle: e.targetHandle ?? null,
+      }));
+
+      setNodes(flowNodes);
+      setEdges(flowEdges);
+      updateSnapshot(newDraft.graph);
+      // isDraft stays true since we have a fresh draft
     } catch (err: unknown) {
       const error = err as { data?: { error?: { details?: string[] } } };
       if (error?.data?.error?.details) {
@@ -531,6 +563,30 @@ function FlowEditorInner() {
     }
   };
 
+  const startRename = () => {
+    setEditingName(flowDetail?.flow.name || '');
+    setIsRenaming(true);
+    setTimeout(() => renameInputRef.current?.focus(), 0);
+  };
+
+  const saveRename = async () => {
+    if (isRenamingRef.current) return;
+    if (!flowId || !editingName.trim()) {
+      setIsRenaming(false);
+      return;
+    }
+    isRenamingRef.current = true;
+    try {
+      await renameFlow({ flowId, name: editingName.trim() }).unwrap();
+      toast.success('Flow renamed');
+    } catch {
+      toast.error('Failed to rename flow');
+    } finally {
+      isRenamingRef.current = false;
+      setIsRenaming(false);
+    }
+  };
+
   const isReadOnly = !isDraft || flowDetail?.flow.published_version_id === currentVersionId;
 
   if (flowLoading) {
@@ -549,7 +605,39 @@ function FlowEditorInner() {
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <h1 className="font-semibold">{flowDetail?.flow.name || 'Loading...'}</h1>
+          {isRenaming ? (
+            <div className="flex items-center gap-1">
+              <Input
+                ref={renameInputRef}
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') saveRename();
+                  if (e.key === 'Escape') setIsRenaming(false);
+                }}
+                onBlur={saveRename}
+                className="h-7 text-sm font-semibold px-2 py-0 w-64"
+              />
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={saveRename}>
+                <Check className="h-3.5 w-3.5 text-green-600" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsRenaming(false)}>
+                <X className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 group">
+              <h1 className="font-semibold">{flowDetail?.flow.name || 'Loading...'}</h1>
+              {flowDetail && (
+                <button
+                  onClick={startRename}
+                  className="p-1 rounded hover:bg-black/5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
           {isReadOnly && (
             <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">
               Read Only

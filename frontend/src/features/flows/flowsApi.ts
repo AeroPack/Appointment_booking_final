@@ -63,6 +63,18 @@ export const flowsApi = api.injectEndpoints({
         'BookingFlow',
       ],
     }),
+
+    renameFlow: builder.mutation<{ success: boolean }, { flowId: string; name: string }>({
+      query: ({ flowId, name }) => ({
+        url: `/api/doctor/flows/${flowId}`,
+        method: 'PATCH',
+        body: { name },
+      }),
+      invalidatesTags: (_result, _error, { flowId }) => [
+        { type: 'BookingFlow', id: flowId },
+        'BookingFlow',
+      ],
+    }),
   }),
 });
 
@@ -75,4 +87,5 @@ export const {
   useGetOrCreateDraftMutation,
   usePublishVersionMutation,
   useRollbackToVersionMutation,
+  useRenameFlowMutation,
 } = flowsApi;
