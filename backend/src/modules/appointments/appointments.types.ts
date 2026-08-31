@@ -17,6 +17,7 @@ export interface FindSlotsQuery {
   doctor_id: string;
   from: string;
   to?: string;
+  venue_id?: string;
 }
 
 export interface BookSlotBody {
@@ -34,7 +35,7 @@ export interface BookingResponse {
   scheduled_start: string;
   scheduled_end: string;
   token_number: number | null;
-  appointment_status: string;
+  custom_status_id: string;
   appointment_type: string;
   venue: { id: string; name: string } | null;
 }

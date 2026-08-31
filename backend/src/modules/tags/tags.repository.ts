@@ -111,10 +111,11 @@ export class TagsRepository {
   async countPatientAppointments(patientId: string): Promise<number> {
     const result = await pool.query(
       `SELECT COUNT(*)::int AS count
-       FROM appointments
-       WHERE patient_id = $1
-         AND appointment_status IN ('booked', 'finished')
-         AND deleted_at IS NULL`,
+       FROM appointments a
+       JOIN custom_statuses cs ON cs.id = a.custom_status_id
+       WHERE a.patient_id = $1
+         AND cs.name IN ('Waiting', 'Finished')
+         AND a.deleted_at IS NULL`,
       [patientId]
     );
     return result.rows[0].count;

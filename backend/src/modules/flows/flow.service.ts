@@ -103,6 +103,13 @@ export class FlowService {
     return { success: true };
   }
 
+  async renameFlow(flowId: string, name: string, doctorId: string) {
+    const flow = await this.repo.findFlowForDoctor(flowId, doctorId);
+    if (!flow) throw new AppError(404, 'FLOW_NOT_FOUND', 'Flow not found');
+    await this.repo.updateFlowName(flowId, doctorId, name);
+    return { success: true };
+  }
+
   async triggerEvent(params: {
     doctorId: string;
     patientId: string;

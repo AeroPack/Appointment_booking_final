@@ -13,6 +13,7 @@ import {
   getOrCreateDraft,
   publishVersion,
   rollbackToVersion,
+  renameFlow,
 } from './flow.controller.js';
 
 const router = Router();
@@ -43,6 +44,10 @@ const rollbackSchema = z.object({
   version_id: z.string().uuid(),
 });
 
+const renameFlowSchema = z.object({
+  name: z.string().min(1).max(100),
+});
+
 const flowIdParam = z.object({
   flowId: z.string().uuid(),
 });
@@ -60,5 +65,6 @@ router.put('/doctor/flows/:flowId/versions/:versionId', authGuard, requireRole('
 router.post('/doctor/flows/:flowId/draft', authGuard, requireRole('doctor'), validate(flowIdParam, 'params'), getOrCreateDraft);
 router.post('/doctor/flows/:flowId/versions/:versionId/publish', authGuard, requireRole('doctor'), validate(versionIdParam, 'params'), publishVersion);
 router.post('/doctor/flows/:flowId/rollback', authGuard, requireRole('doctor'), validate(flowIdParam, 'params'), validate(rollbackSchema), rollbackToVersion);
+router.patch('/doctor/flows/:flowId', authGuard, requireRole('doctor'), validate(flowIdParam, 'params'), validate(renameFlowSchema), renameFlow);
 
 export default router;

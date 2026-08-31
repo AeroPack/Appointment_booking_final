@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Loader2, Users, X } from "lucide-react";
+import { Loader2, MapPin, Users, X } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { useCreatePatientMutation, useSearchPatientsQuery } from "@/features/users/usersApi";
+import { useGetVenuesQuery } from "@/features/doctors/venuesApi";
 import { useBookOnBehalfMutation, useFindSlotsQuery, useRescheduleAppointmentMutation } from "./appointmentsApi";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,15 +84,18 @@ export function AddAppointmentModal({
   const [notes, setNotes] = useState("");
   const [isBooking, setIsBooking] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQuery(patientQuery), 300);
     return () => clearTimeout(t);
   }, [patientQuery]);
 
+  const { data: venues } = useGetVenuesQuery();
+
   const { data: slotsData, isLoading: slotsLoading } = useFindSlotsQuery(
-    { doctor_id: doctorId!, from: date, to: date },
-    { skip: !doctorId || !date }
+    { doctor_id: doctorId!, from: date, to: date, venue_id: selectedVenueId ?? undefined },
+    { skip: !doctorId || !date || !selectedVenueId }
   );
 
   const { data: patientResults } = useSearchPatientsQuery(
@@ -114,7 +118,7 @@ export function AddAppointmentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!doctorId || !selectedSlotStart || !patientQuery.trim()) return;
+    if (!doctorId || !selectedSlotStart || !patientQuery.trim() || !selectedVenueId) return;
 
     setIsBooking(true);
 
@@ -176,6 +180,29 @@ export function AddAppointmentModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          {/* Venue selector */}
+          <div className="px-6 pt-4 pb-3 border-b border-border shrink-0">
+            <label className="block text-sm font-medium mb-1">Venue</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <select
+                className="w-full pl-9 pr-3 py-2 border border-border rounded-md bg-background text-sm"
+                value={selectedVenueId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value || null;
+                  setSelectedVenueId(val);
+                  setSelectedSlotStart(null);
+                }}
+                required
+              >
+                <option value="" disabled>Select a venue</option>
+                {venues?.filter((v) => v.is_active).map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Date row */}
           <div className="px-6 pt-4 pb-3 border-b border-border shrink-0">
             <label className="block text-sm font-medium mb-1">Date</label>
@@ -196,10 +223,17 @@ export function AddAppointmentModal({
             <div className="flex-1 flex flex-col min-h-0 border-b md:border-b-0 md:border-r border-border">
               <div className="px-4 pt-3 pb-2 shrink-0">
                 <h3 className="text-sm font-semibold text-foreground">Available Slots</h3>
-                <p className="text-xs text-muted-foreground">Select a time slot for this date</p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedVenueId ? "Select a time slot for this date" : "Select a venue first"}
+                </p>
               </div>
               <div className="flex-1 overflow-y-auto px-4 pb-4 max-h-48 md:max-h-none">
-                {slotsLoading ? (
+                {!selectedVenueId ? (
+                  <div className="text-center py-10 text-sm text-muted-foreground">
+                    <MapPin className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                    Please select a venue to view available slots
+                  </div>
+                ) : slotsLoading ? (
                   <div className="flex justify-center items-center py-10">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
@@ -228,13 +262,21 @@ export function AddAppointmentModal({
                               : "border-border hover:border-primary/50 hover:bg-accent/40 cursor-pointer"
                           }`}
                         >
-                          <span
-                            className={`font-medium ${
-                              isSelected ? "text-primary" : isFull ? "text-muted-foreground" : "text-foreground"
-                            }`}
-                          >
-                            {formatISOTime(slot.start)}
-                          </span>
+                          <div className="flex flex-col">
+                            <span
+                              className={`font-medium ${
+                                isSelected ? "text-primary" : isFull ? "text-muted-foreground" : "text-foreground"
+                              }`}
+                            >
+                              {formatISOTime(slot.start)}
+                            </span>
+                            {slot.venue && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <MapPin className="h-3 w-3" />
+                                {slot.venue.name}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2">
                             <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden hidden sm:block">
                               <div
@@ -367,7 +409,7 @@ export function AddAppointmentModal({
               </Button>
               <Button
                 type="submit"
-                disabled={isBooking || !selectedSlotStart || !patientQuery.trim()}
+                disabled={isBooking || !selectedSlotStart || !patientQuery.trim() || !selectedVenueId}
               >
                 {isBooking ? (editData ? "Updating..." : "Booking...") : (editData ? "Update Appointment" : "Book Appointment")}
               </Button>

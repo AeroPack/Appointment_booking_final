@@ -268,13 +268,11 @@ export const Home: React.FC = () => {
                               {new Date(appt.scheduled_start).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                             </p>
                           </div>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                            appt.appointment_status === 'finished' ? 'bg-green-100 text-green-700' :
-                            appt.appointment_status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                            appt.appointment_status === 'no_show' ? 'bg-amber-100 text-amber-700' :
-                            'bg-slate-100 text-slate-600'
-                          }`}>
-                            {appt.appointment_status.replace('_', ' ')}
+                          <span
+                            className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
+                            style={{ backgroundColor: (appt.status_color || '#888') + '20', color: appt.status_color || '#888' }}
+                          >
+                            {appt.status_name}
                           </span>
                         </div>
                         {appt.clinical_notes && (

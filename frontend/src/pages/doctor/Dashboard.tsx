@@ -138,12 +138,6 @@ const TYPE_LABELS: Record<string, string> = {
   procedure: "Procedure",
 };
 
-const STATUS_PILL: Record<string, string> = {
-  finished: "bg-green-100 text-green-700",
-  booked: "bg-blue-100 text-blue-700",
-  no_show: "bg-red-100 text-red-700",
-  cancelled: "bg-slate-100 text-slate-600",
-};
 
 // ─── Venue Pie Chart Card ────────────────────────────────────────────────────
 
@@ -240,7 +234,8 @@ function RecentTable({
     patient_name: string;
     appointment_type: string;
     scheduled_start: string;
-    appointment_status: string;
+    status_name: string;
+    status_color: string | null;
   }>;
   isLoading: boolean;
   onView: () => void;
@@ -258,15 +253,6 @@ function RecentTable({
     }
   };
 
-  const formatStatus = (status: string) => {
-    const map: Record<string, string> = {
-      finished: "Completed",
-      booked: "Booked",
-      no_show: "No-show",
-      cancelled: "Cancelled",
-    };
-    return map[status] || status;
-  };
 
   return (
     <Card className="h-full">
@@ -345,11 +331,10 @@ function RecentTable({
                       </td>
                       <td className="px-5 py-3">
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            STATUS_PILL[p.appointment_status] || ""
-                          }`}
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{ backgroundColor: (p.status_color || '#888') + '20', color: p.status_color || '#888' }}
                         >
-                          {formatStatus(p.appointment_status)}
+                          {p.status_name}
                         </span>
                       </td>
                     </tr>
@@ -375,11 +360,10 @@ function RecentTable({
                     </p>
                   </div>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                      STATUS_PILL[p.appointment_status] || ""
-                    }`}
+                    className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                    style={{ backgroundColor: (p.status_color || '#888') + '20', color: p.status_color || '#888' }}
                   >
-                    {formatStatus(p.appointment_status)}
+                    {p.status_name}
                   </span>
                 </div>
               ))}

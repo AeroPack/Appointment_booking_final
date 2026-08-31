@@ -175,8 +175,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   scheduled_start    TIMESTAMPTZ NOT NULL,
   scheduled_end      TIMESTAMPTZ NOT NULL,
   token_number       INT,
-  appointment_status VARCHAR(12) NOT NULL DEFAULT 'booked'
-                       CHECK (appointment_status IN ('booked', 'cancelled', 'finished', 'no_show')),
+  custom_status_id   UUID NOT NULL REFERENCES custom_statuses(id),
   notes              TEXT,
   clinical_notes     TEXT,
   deleted_at         TIMESTAMPTZ,
@@ -184,16 +183,10 @@ CREATE TABLE IF NOT EXISTS appointments (
   updated_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
--- A patient can hold only ONE active booking in a given slot (blocks self double-booking).
--- Cancelled / no_show rows are excluded, so a patient can rebook the same slot after cancelling.
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_patient_per_slot
-  ON appointments (patient_id, scheduled_start)
-  WHERE appointment_status IN ('booked', 'finished');
-
+CREATE INDEX IF NOT EXISTS idx_appts_custom_status ON appointments (custom_status_id);
 CREATE INDEX IF NOT EXISTS idx_appts_doctor_start  ON appointments (doctor_id, scheduled_start);
 CREATE INDEX IF NOT EXISTS idx_appts_clinic        ON appointments (clinic_id);
 CREATE INDEX IF NOT EXISTS idx_appts_patient       ON appointments (patient_id);
-CREATE INDEX IF NOT EXISTS idx_appts_status        ON appointments (appointment_status);
 
 DROP TRIGGER IF EXISTS trg_appts_updated ON appointments;
 CREATE TRIGGER trg_appts_updated
@@ -207,8 +200,8 @@ CREATE TRIGGER trg_appts_updated
 CREATE TABLE IF NOT EXISTS appointment_status_history (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   appointment_id UUID NOT NULL REFERENCES appointments(id),
-  old_status     VARCHAR(12),
-  new_status     VARCHAR(12) NOT NULL,
+  old_status     UUID REFERENCES custom_statuses(id),
+  new_status     UUID NOT NULL REFERENCES custom_statuses(id),
   changed_by     UUID REFERENCES users(id),
   reason         TEXT,
   created_at     TIMESTAMPTZ DEFAULT NOW()
@@ -313,6 +306,25 @@ CREATE TABLE IF NOT EXISTS user_tags (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_tags_tag ON user_tags (tag_id);
+
+
+-- =============================================================================
+-- 10b. CUSTOM_STATUSES  (clinic-scoped appointment statuses)
+--      System statuses (is_system=true) cannot be deleted.
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS custom_statuses (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id   UUID NOT NULL REFERENCES clinics(id),
+  name        TEXT NOT NULL,
+  color       VARCHAR(9),
+  sort_order  INT DEFAULT 0,
+  is_system   BOOLEAN DEFAULT false,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (clinic_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_custom_statuses_clinic ON custom_statuses (clinic_id);
 
 
 -- =============================================================================

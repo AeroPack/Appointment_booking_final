@@ -127,7 +127,7 @@ export function MyAppointments() {
                       <p className="text-slate-500 text-sm md:text-base">{appt.patient_name}</p>
                     </div>
                   </div>
-                  <StatusPill status={appt.appointment_status} />
+                  <StatusPill statusName={appt.status_name} statusColor={appt.status_color} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-y-4 py-4 md:py-2 border-y border-slate-100 md:border-none">

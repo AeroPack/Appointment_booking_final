@@ -23,6 +23,7 @@ const findSlotsSchema = z.object({
   doctor_id: z.string().uuid(),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD'),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD').optional(),
+  venue_id: z.string().uuid().optional(),
 });
 
 const APPOINTMENT_TYPES = ['checkup', 'consultation', 'followup', 'urgent', 'procedure'] as const;
@@ -36,7 +37,7 @@ const bookSlotSchema = z.object({
 });
 
 const statusSchema = z.object({
-  status: z.enum(['finished', 'no_show', 'cancelled']),
+  status: z.enum(['booked', 'finished', 'no_show', 'cancelled']),
   notes: z.string().optional(),
   template_id: z.string().uuid().optional(),
 });

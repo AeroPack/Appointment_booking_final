@@ -206,6 +206,14 @@ export class FlowRepository {
     }
   }
 
+  async updateFlowName(flowId: string, doctorId: string, name: string): Promise<boolean> {
+    const result = await pool.query(
+      `UPDATE flows SET name = $3, updated_at = NOW() WHERE id = $1 AND doctor_id = $2`,
+      [flowId, doctorId, name]
+    );
+    return (result.rowCount ?? 0) > 0;
+  }
+
   async findFlowsByTriggerType(doctorId: string, triggerType: string): Promise<Array<{
     flow_id: string;
     version_id: string;

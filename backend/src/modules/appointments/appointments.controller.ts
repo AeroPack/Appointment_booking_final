@@ -20,6 +20,7 @@ export async function findSlots(req: Request, res: Response, next: NextFunction)
       doctor_id: req.query.doctor_id as string,
       from: req.query.from as string,
       to: req.query.to as string | undefined,
+      venue_id: req.query.venue_id as string | undefined,
     });
     res.json(success(result));
   } catch (err) {

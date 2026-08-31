@@ -16,7 +16,9 @@ interface TodayPatient {
   age: number | null
   token_number: number
   scheduled_start: string
-  appointment_status: string
+  custom_status_id: string
+  status_name: string
+  status_color: string | null
   appointment_type: string
   venue_name: string | null
   reason: string

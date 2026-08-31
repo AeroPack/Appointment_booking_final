@@ -37,12 +37,13 @@ export class BotRepository {
 
   async findBookedCounts(doctorId: string, dateStr: string): Promise<{ slot_time: string; count: number }[]> {
     const result = await pool.query(
-      `SELECT (scheduled_start AT TIME ZONE 'Asia/Kolkata')::time AS slot_time, COUNT(*)::int AS count
-       FROM appointments
-       WHERE doctor_id = $1
-         AND (scheduled_start AT TIME ZONE 'Asia/Kolkata')::date = $2
-         AND appointment_status IN ('booked', 'finished')
-         AND deleted_at IS NULL
+      `SELECT (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::time AS slot_time, COUNT(*)::int AS count
+       FROM appointments a
+       JOIN custom_statuses cs ON cs.id = a.custom_status_id
+       WHERE a.doctor_id = $1
+         AND (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::date = $2
+         AND cs.name IN ('Waiting', 'Finished')
+         AND a.deleted_at IS NULL
        GROUP BY slot_time`,
       [doctorId, dateStr]
     );
@@ -52,11 +53,12 @@ export class BotRepository {
   async findBookedCountForSlot(doctorId: string, scheduledStart: Date, scheduledEnd: Date): Promise<number> {
     const result = await pool.query(
       `SELECT COUNT(*)::int AS count
-       FROM appointments
-       WHERE doctor_id = $1
-         AND scheduled_start >= $2 AND scheduled_start < $3
-         AND appointment_status IN ('booked', 'finished')
-         AND deleted_at IS NULL`,
+       FROM appointments a
+       JOIN custom_statuses cs ON cs.id = a.custom_status_id
+       WHERE a.doctor_id = $1
+         AND a.scheduled_start >= $2 AND a.scheduled_start < $3
+         AND cs.name IN ('Waiting', 'Finished')
+         AND a.deleted_at IS NULL`,
       [doctorId, scheduledStart, scheduledEnd]
     );
     return result.rows[0].count;

@@ -8,7 +8,9 @@ export interface BookingResponse {
   scheduled_start: string;
   scheduled_end: string;
   token_number: number | null;
-  appointment_status: string;
+  custom_status_id: string;
+  status_name: string;
+  status_color: string | null;
   venue: { id: string; name: string } | null;
 }
 

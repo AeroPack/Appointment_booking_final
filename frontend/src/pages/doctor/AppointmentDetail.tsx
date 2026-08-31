@@ -131,7 +131,7 @@ export const AppointmentDetail: React.FC = () => {
   const duration = Math.round(
     (new Date(appointment.scheduled_end).getTime() - new Date(appointment.scheduled_start).getTime()) / 60000
   );
-  const statusDisplay = appointment.appointment_status.charAt(0).toUpperCase() + appointment.appointment_status.slice(1);
+  const statusDisplay = appointment.status_name;
 
   return (
     <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] font-body-base antialiased pb-24 lg:pb-12">

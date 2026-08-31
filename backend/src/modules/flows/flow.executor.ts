@@ -1041,9 +1041,10 @@ export class FlowExecutor {
       const scheduledEnd = new Date(scheduledStart.getTime() + Number(matching.slot_duration_minutes) * 60 * 1000);
 
       const bookedResult = await pool.query(
-        `SELECT COUNT(*)::int AS count FROM appointments
-         WHERE doctor_id = $1 AND scheduled_start >= $2 AND scheduled_start < $3
-         AND appointment_status IN ('booked', 'finished') AND deleted_at IS NULL`,
+        `SELECT COUNT(*)::int AS count FROM appointments a
+         JOIN custom_statuses cs ON cs.id = a.custom_status_id
+         WHERE a.doctor_id = $1 AND a.scheduled_start >= $2 AND a.scheduled_start < $3
+         AND cs.name IN ('Waiting', 'Finished') AND a.deleted_at IS NULL`,
         [doctorId, scheduledStart, scheduledEnd]
       );
       if (bookedResult.rows[0].count >= Number(matching.max_patients_per_slot)) {

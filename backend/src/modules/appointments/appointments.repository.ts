@@ -27,12 +27,13 @@ export class AppointmentsRepository {
 
   async findBookedCounts(doctorId: string, dateStr: string): Promise<{ slot_time: string; count: number }[]> {
     const result = await pool.query(
-      `SELECT (scheduled_start AT TIME ZONE 'Asia/Kolkata')::time AS slot_time, COUNT(*)::int AS count
-       FROM appointments
-       WHERE doctor_id = $1
-         AND (scheduled_start AT TIME ZONE 'Asia/Kolkata')::date = $2
-         AND appointment_status IN ('booked', 'finished')
-         AND deleted_at IS NULL
+      `SELECT (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::time AS slot_time, COUNT(*)::int AS count
+       FROM appointments a
+       JOIN custom_statuses cs ON cs.id = a.custom_status_id
+       WHERE a.doctor_id = $1
+         AND (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::date = $2
+         AND cs.name IN ('Waiting', 'Finished')
+         AND a.deleted_at IS NULL
        GROUP BY slot_time`,
       [doctorId, dateStr]
     );
@@ -55,11 +56,12 @@ export class AppointmentsRepository {
   async findBookedCountForSlot(doctorId: string, scheduledStart: Date, scheduledEnd: Date): Promise<number> {
     const result = await pool.query(
       `SELECT COUNT(*)::int AS count
-       FROM appointments
-       WHERE doctor_id = $1
-         AND scheduled_start >= $2 AND scheduled_start < $3
-         AND appointment_status IN ('booked', 'finished')
-         AND deleted_at IS NULL`,
+       FROM appointments a
+       JOIN custom_statuses cs ON cs.id = a.custom_status_id
+       WHERE a.doctor_id = $1
+         AND a.scheduled_start >= $2 AND a.scheduled_start < $3
+         AND cs.name IN ('Waiting', 'Finished')
+         AND a.deleted_at IS NULL`,
       [doctorId, scheduledStart, scheduledEnd]
     );
     return result.rows[0].count;
@@ -126,7 +128,8 @@ export class AppointmentsRepository {
   private appointmentDetailColumns = `
     a.id, a.doctor_id, a.patient_id, a.clinic_id,
     a.scheduled_start, a.scheduled_end,
-    a.token_number, a.appointment_status, a.appointment_type, a.venue_id,
+    a.token_number, a.custom_status_id, cs.name AS status_name, cs.color AS status_color, cs.is_system AS status_is_system,
+    a.appointment_type, a.venue_id,
     v.name AS venue_name,
     doc.name AS doctor_name, doc.mobile_number AS doctor_mobile,
     pat.name AS patient_name,
@@ -141,7 +144,10 @@ export class AppointmentsRepository {
     scheduled_start: Date;
     scheduled_end: Date;
     token_number: number | null;
-    appointment_status: string;
+    custom_status_id: string;
+    status_name: string;
+    status_color: string | null;
+    status_is_system: boolean;
     appointment_type: string;
     venue_id: string | null;
     venue_name: string | null;
@@ -156,6 +162,7 @@ export class AppointmentsRepository {
        JOIN users doc ON doc.id = a.doctor_id
        JOIN users pat ON pat.id = a.patient_id
        LEFT JOIN venues v ON v.id = a.venue_id
+       LEFT JOIN custom_statuses cs ON cs.id = a.custom_status_id
        WHERE a.id = $1 AND a.deleted_at IS NULL`,
       [id]
     );
@@ -172,7 +179,9 @@ export class AppointmentsRepository {
     scheduled_start: Date;
     scheduled_end: Date;
     token_number: number | null;
-    appointment_status: string;
+    custom_status_id: string;
+    status_name: string;
+    status_color: string | null;
     venue_id: string | null;
     venue_name: string | null;
     doctor_name: string;
@@ -186,13 +195,13 @@ export class AppointmentsRepository {
     if (status) {
       const statuses = status.split(',').filter(Boolean);
       const placeholders = statuses.map((_, i) => `$${i + 2}`).join(',');
-      conditions.push(`a.appointment_status IN (${placeholders})`);
+      conditions.push(`cs.name IN (${placeholders})`);
       params.push(...statuses);
     }
     const result = await pool.query(
       `SELECT a.id, a.doctor_id, a.patient_id,
               a.scheduled_start, a.scheduled_end,
-              a.token_number, a.appointment_status, a.venue_id,
+              a.token_number, a.custom_status_id, cs.name AS status_name, cs.color AS status_color, a.venue_id,
               v.name AS venue_name,
               doc.name AS doctor_name,
               pat.name AS patient_name
@@ -200,6 +209,7 @@ export class AppointmentsRepository {
        JOIN users doc ON doc.id = a.doctor_id
        JOIN users pat ON pat.id = a.patient_id
        LEFT JOIN venues v ON v.id = a.venue_id
+       LEFT JOIN custom_statuses cs ON cs.id = a.custom_status_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY a.scheduled_start DESC`,
       params
@@ -209,11 +219,11 @@ export class AppointmentsRepository {
 
   async updateAppointmentStatus(
     id: string,
-    newStatus: string
+    newStatusId: string
   ): Promise<void> {
     await pool.query(
-      `UPDATE appointments SET appointment_status = $1 WHERE id = $2`,
-      [newStatus, id]
+      `UPDATE appointments SET custom_status_id = $1 WHERE id = $2`,
+      [newStatusId, id]
     );
   }
 
@@ -265,15 +275,21 @@ export class AppointmentsRepository {
     id: string;
     old_status: string | null;
     new_status: string;
+    old_status_name: string | null;
+    new_status_name: string | null;
     changed_by: string | null;
     reason: string | null;
     created_at: Date;
   }>> {
     const result = await pool.query(
-      `SELECT id, old_status, new_status, changed_by, reason, created_at
-       FROM appointment_status_history
-       WHERE appointment_id = $1
-       ORDER BY created_at ASC`,
+      `SELECT ash.id, ash.old_status, ash.new_status,
+              cs_old.name AS old_status_name, cs_new.name AS new_status_name,
+              ash.changed_by, ash.reason, ash.created_at
+       FROM appointment_status_history ash
+       LEFT JOIN custom_statuses cs_old ON cs_old.id = ash.old_status
+       LEFT JOIN custom_statuses cs_new ON cs_new.id = ash.new_status
+       WHERE ash.appointment_id = $1
+       ORDER BY ash.created_at ASC`,
       [appointmentId]
     );
     return result.rows;
@@ -284,7 +300,8 @@ export class AppointmentsRepository {
     doctor_name: string;
     scheduled_start: Date;
     scheduled_end: Date;
-    appointment_status: string;
+    custom_status_id: string;
+    status_name: string;
     appointment_type: string;
     token_number: number | null;
     clinical_notes: string | null;
@@ -293,12 +310,13 @@ export class AppointmentsRepository {
     const result = await pool.query(
       `SELECT a.id, doc.name AS doctor_name,
               a.scheduled_start, a.scheduled_end,
-              a.appointment_status, a.appointment_type,
+              a.custom_status_id, cs.name AS status_name, a.appointment_type,
               a.token_number, a.clinical_notes,
               v.name AS venue_name
        FROM appointments a
        JOIN users doc ON doc.id = a.doctor_id
        LEFT JOIN venues v ON v.id = a.venue_id
+       LEFT JOIN custom_statuses cs ON cs.id = a.custom_status_id
        WHERE a.deleted_at IS NULL
          AND (a.patient_id = $1 OR a.patient_id IN (SELECT id FROM users WHERE parent_user_id = $1))
        ORDER BY a.scheduled_start DESC`,

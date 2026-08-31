@@ -92,6 +92,19 @@ export async function publishVersion(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function renameFlow(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await service.renameFlow(
+      str(req.params.flowId),
+      req.body.name,
+      req.auth!.userId
+    );
+    res.json(success(result));
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function rollbackToVersion(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await service.rollbackToVersion(

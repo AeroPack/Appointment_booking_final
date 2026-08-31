@@ -118,7 +118,10 @@ export class AppointmentsService {
 
       const dayOfWeek = ((currentDate.getDay() + 6) % 7) + 1;
 
-      const periods = await this.repo.findSettingsByDoctorAndDay(query.doctor_id, dayOfWeek);
+      const allPeriods = await this.repo.findSettingsByDoctorAndDay(query.doctor_id, dayOfWeek);
+      const periods = query.venue_id
+        ? allPeriods.filter((p) => p.venue_id === query.venue_id)
+        : allPeriods;
 
       if (periods.length === 0) {
         days.push({ date: dateStr, slots: [] });
@@ -183,7 +186,8 @@ export class AppointmentsService {
     scheduled_start: Date;
     scheduled_end: Date;
     token_number: number | null;
-    appointment_status: string;
+    custom_status_id: string;
+    status_name: string;
     appointment_type: string;
     venue_id: string | null;
     venue_name: string | null;
@@ -195,7 +199,7 @@ export class AppointmentsService {
       scheduled_start: row.scheduled_start.toISOString(),
       scheduled_end: row.scheduled_end.toISOString(),
       token_number: row.token_number,
-      appointment_status: row.appointment_status,
+      custom_status_id: row.custom_status_id,
       appointment_type: row.appointment_type,
       venue: row.venue_id ? { id: row.venue_id, name: row.venue_name || 'Unknown' } : null,
     };
@@ -288,7 +292,7 @@ export class AppointmentsService {
     const existing = await this.repo.findAppointmentById(appointmentId);
     if (!existing) throw new AppError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found');
 
-    if (existing.appointment_status !== 'booked') {
+    if (existing.status_name !== 'Waiting') {
       throw new AppError(400, 'INVALID_STATUS', 'Only booked appointments can be rescheduled');
     }
 
@@ -366,20 +370,26 @@ export class AppointmentsService {
       throw new AppError(403, 'FORBIDDEN', 'Only the patient can cancel their appointment');
     }
 
-    if (appointment.appointment_status !== 'booked') {
+    if (appointment.status_name !== 'Waiting') {
       throw new AppError(400, 'INVALID_STATUS', 'Only booked appointments can be cancelled');
     }
 
-    const oldStatus = appointment.appointment_status;
-    await this.repo.updateAppointmentStatus(appointmentId, 'cancelled');
+    const oldStatus = appointment.custom_status_id;
+    const { default: pool } = await import('../../config/db.js');
+    const targetResult = await pool.query(
+      `SELECT id FROM custom_statuses WHERE name = $1 LIMIT 1`,
+      ['Cancelled']
+    );
+    const newStatusId = targetResult.rows[0]?.id;
+    if (!newStatusId) throw new AppError(500, 'STATUS_NOT_FOUND', 'Cancelled status not found');
+    await this.repo.updateAppointmentStatus(appointmentId, newStatusId);
     await this.repo.insertStatusHistory({
       appointment_id: appointmentId,
       old_status: oldStatus,
-      new_status: 'cancelled',
+      new_status: newStatusId,
       changed_by: userId,
     });
 
-    const { default: pool } = await import('../../config/db.js');
     await pool.query(
       `DELETE FROM messages WHERE appointment_id = $1 AND status = 'pending'`,
       [appointmentId]
@@ -399,26 +409,37 @@ export class AppointmentsService {
 
   async updateStatus(appointmentId: string, userId: string, newStatus: string, notes?: string) {
     const validTransitions: Record<string, string[]> = {
-      booked: ['finished', 'no_show', 'cancelled'],
+      Waiting: ['Finished', 'No-show', 'Cancelled'],
+      Finished: ['Waiting', 'No-show', 'Cancelled'],
+      'No-show': ['Waiting', 'Finished', 'Cancelled'],
+      Cancelled: ['Waiting', 'Finished', 'No-show'],
     };
 
     const appointment = await this.repo.findAppointmentById(appointmentId);
     if (!appointment) throw new AppError(404, 'APPOINTMENT_NOT_FOUND', 'Appointment not found');
 
-    const allowed = validTransitions[appointment.appointment_status];
+    const allowed = validTransitions[appointment.status_name];
     if (!allowed || !allowed.includes(newStatus)) {
-      throw new AppError(400, 'INVALID_TRANSITION', `Cannot change status from '${appointment.appointment_status}' to '${newStatus}'`);
+      throw new AppError(400, 'INVALID_TRANSITION', `Cannot change status from '${appointment.status_name}' to '${newStatus}'`);
     }
 
-    const oldStatus = appointment.appointment_status;
-    await this.repo.updateAppointmentStatus(appointmentId, newStatus);
+    const { default: pool } = await import('../../config/db.js');
+    const targetResult = await pool.query(
+      `SELECT id FROM custom_statuses WHERE name = $1 LIMIT 1`,
+      [newStatus]
+    );
+    const newStatusId = targetResult.rows[0]?.id;
+    if (!newStatusId) throw new AppError(400, 'INVALID_STATUS', `Status '${newStatus}' not found`);
+
+    const oldStatus = appointment.custom_status_id;
+    await this.repo.updateAppointmentStatus(appointmentId, newStatusId);
     if (notes !== undefined) {
       await this.repo.updateAppointmentNotes(appointmentId, notes);
     }
     await this.repo.insertStatusHistory({
       appointment_id: appointmentId,
       old_status: oldStatus,
-      new_status: newStatus,
+      new_status: newStatusId,
       changed_by: userId,
     });
 

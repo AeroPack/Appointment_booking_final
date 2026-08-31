@@ -16,7 +16,6 @@ import {
   ArrowUp,
   ArrowDown,
   FileText,
-  CheckCircle2,
   MapPin,
   Phone,
   X,
@@ -29,10 +28,11 @@ import {
   Plus,
   Pencil,
   Tag,
-  UserX,
   AlertTriangle,
   Send,
   MessageSquare,
+  Save,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/core/components/ui/button";
 import { Input } from "@/core/components/ui/input";
@@ -45,18 +45,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/core/components/ui/table";
+import { Dialog } from "@/core/components/ui/dialog";
 import { useGetDoctorPatientsQuery } from "@/features/doctors/doctorDashboardApi";
 import { useGetMeQuery } from "@/features/users/usersApi";
 import { useUpdateAppointmentStatusMutation, useBulkSendMessageMutation } from "@/features/appointments/appointmentsApi";
 import { useListTemplatesQuery } from "@/features/settings/settingsApi";
+import { useGetTagsQuery, useCreateTagMutation, useUpdateTagMutation, useDeleteTagMutation, type Tag as TagType } from "@/features/tags/tagsApi";
+import { useGetCustomStatusesQuery, useCreateCustomStatusMutation, useUpdateCustomStatusMutation, useDeleteCustomStatusMutation, type CustomStatus } from "@/features/statuses/customStatusesApi";
 import { AddAppointmentModal, APPT_CONFIG, type AppointmentType, type EditAppointmentData } from "@/features/appointments/AddAppointmentModal";
 import { DayPicker } from "react-day-picker";
 import { format, isToday } from "date-fns";
+import { toast } from "sonner";
 import "react-day-picker/style.css";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-
-type Status = "booked" | "finished" | "no_show" | "cancelled";
 
 interface PatientRow {  
   id: string;
@@ -68,26 +70,31 @@ interface PatientRow {
   reason: string;
   appointmentType: string;
   venue: string;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM (24h)
-  scheduledStart: string; // ISO timestamp
-  status: Status;
+  date: string;
+  time: string;
+  scheduledStart: string;
+  customStatusId: string;
+  statusName: string;
+  statusColor: string | null;
+  isSystemStatus: boolean;
 }
 
-const STATUS_META: Record<Status, { label: string; pill: string }> = {
-  booked:    { label: "Waiting",   pill: "bg-teal-100 text-teal-700"   },
-  finished:  { label: "Finished",  pill: "bg-green-100 text-green-700" },
-  no_show:   { label: "No-show",   pill: "bg-red-100 text-red-700"     },
-  cancelled: { label: "Cancelled", pill: "bg-slate-100 text-slate-600" },
-};
-
-const STATUS_OPTIONS: { value: Status | "all"; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "booked", label: "Waiting" },
-  { value: "finished", label: "Finished" },
-  { value: "no_show", label: "No-show" },
-  { value: "cancelled", label: "Cancelled" },
+const TAG_COLORS = [
+  '#00201d', '#005c55', '#7f4025', '#DC2626',
+  '#F59E0B', '#16A34A', '#6e7977', '#006f64', '#4fdbc8'
 ];
+
+const COLOR_CLASSES: Record<string, string> = {
+  '#00201d': 'bg-[#00201d]',
+  '#005c55': 'bg-[#005c55]',
+  '#7f4025': 'bg-[#7f4025]',
+  '#DC2626': 'bg-[#DC2626]',
+  '#F59E0B': 'bg-[#F59E0B]',
+  '#16A34A': 'bg-[#16A34A]',
+  '#6e7977': 'bg-[#6e7977]',
+  '#006f64': 'bg-[#006f64]',
+  '#4fdbc8': 'bg-[#4fdbc8]',
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -109,9 +116,15 @@ function formatDate(date: string) {
   return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
 
-// A booked appointment scheduled in the future can be rescheduled / edited.
+// A booked appointment from yesterday onward can be rescheduled / edited.
 function isEditable(p: PatientRow): boolean {
-  return p.status === "booked" && new Date(p.scheduledStart).getTime() > Date.now();
+  if (p.statusName !== "Waiting") return false;
+  const now = new Date();
+  const appointmentDate = new Date(p.scheduledStart);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  return appointmentDate >= yesterdayStart;
 }
 
 // ─── Sort indicator ───────────────────────────────────────────────────────────
@@ -176,7 +189,7 @@ export function PatientQueue() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editData, setEditData] = useState<EditAppointmentData | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [venueFilter, setVenueFilter] = useState<string>("all");
   const [reasonFilter, setReasonFilter] = useState<string>("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "token", desc: false }]);
@@ -184,13 +197,12 @@ export function PatientQueue() {
   const calendarRef = useRef<HTMLDivElement>(null);
 
   // ─── Status Modal State ───
-  const [statusModal, setStatusModal] = useState<{ appointmentId: string; patientName: string; currentStatus: Status } | null>(null);
+  const [statusModal, setStatusModal] = useState<{ appointmentId: string; patientName: string; currentStatusName: string } | null>(null);
   const [statusNotes, setStatusNotes] = useState("");
   const [updateStatus, { isLoading: isUpdatingStatus }] = useUpdateAppointmentStatusMutation();
 
   // ─── Cancel Template State ───
   const [cancelTemplateId, setCancelTemplateId] = useState<string>("");
-  const [pendingCancel, setPendingCancel] = useState(false);
 
   // ─── Bulk Selection State ───
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
@@ -199,6 +211,30 @@ export function PatientQueue() {
   const [bulkSendModal, setBulkSendModal] = useState(false);
   const [bulkTemplateId, setBulkTemplateId] = useState<string>("");
   const [bulkSend, { isLoading: isBulkSending }] = useBulkSendMessageMutation();
+
+  // ─── Tags Modal State ───
+  const [tagsModalOpen, setTagsModalOpen] = useState(false);
+  const { data: tags } = useGetTagsQuery();
+  const [createTag] = useCreateTagMutation();
+  const [updateTag] = useUpdateTagMutation();
+  const [deleteTag] = useDeleteTagMutation();
+  const [tagSearch, setTagSearch] = useState("");
+  const [editingTag, setEditingTag] = useState<TagType | null>(null);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#005c55");
+  const [isSavingTag, setIsSavingTag] = useState(false);
+
+  // ─── Statuses Modal State ───
+  const [statusesModalOpen, setStatusesModalOpen] = useState(false);
+  const { data: customStatuses } = useGetCustomStatusesQuery();
+  const [createCustomStatus] = useCreateCustomStatusMutation();
+  const [updateCustomStatus] = useUpdateCustomStatusMutation();
+  const [deleteCustomStatus] = useDeleteCustomStatusMutation();
+  const [statusSearch, setStatusSearch] = useState("");
+  const [editingStatus, setEditingStatus] = useState<CustomStatus | null>(null);
+  const [newStatusName, setNewStatusName] = useState("");
+  const [newStatusColor, setNewStatusColor] = useState("#005c55");
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   // ─── Templates ───
   const { data: templates } = useListTemplatesQuery(doctorId);
@@ -248,14 +284,17 @@ export function PatientQueue() {
         date: `${yyyy}-${mm}-${dd}`,
         time: `${hh}:${min}`,
         scheduledStart: p.scheduled_start,
-        status: p.appointment_status as Status,
+        customStatusId: p.custom_status_id,
+        statusName: p.status_name,
+        statusColor: p.status_color,
+        isSystemStatus: false,
       };
     });
   }, [apiPatients]);
 
   const filtered = useMemo(() => {
     return patients.filter((p) => {
-      if (statusFilter !== "all" && p.status !== statusFilter) return false;
+      if (statusFilter !== "all" && p.statusName !== statusFilter) return false;
       if (venueFilter !== "all" && p.venue !== venueFilter) return false;
       if (reasonFilter !== "all" && p.reason !== reasonFilter) return false;
       if (search) {
@@ -327,6 +366,89 @@ export function PatientQueue() {
     }
   }, [bulkSend, bulkTemplateId, selectedRows]);
 
+  // ─── Tag Handlers ───
+  const filteredTags = useMemo(() => {
+    if (!tags) return [];
+    if (!tagSearch) return tags;
+    return tags.filter(t => t.name.toLowerCase().includes(tagSearch.toLowerCase()));
+  }, [tags, tagSearch]);
+
+  const handleSaveTag = async () => {
+    const name = editingTag ? editingTag.name : newTagName;
+    if (!name.trim()) return;
+    setIsSavingTag(true);
+    try {
+      if (editingTag) {
+        await updateTag({ id: editingTag.id, name: editingTag.name, color: newTagColor }).unwrap();
+        toast.success("Tag updated");
+      } else {
+        await createTag({ name: newTagName.trim(), color: newTagColor }).unwrap();
+        toast.success("Tag created");
+      }
+      resetTagForm();
+    } catch {
+      toast.error("Failed to save tag");
+    } finally {
+      setIsSavingTag(false);
+    }
+  };
+
+  const handleDeleteTag = async (tag: TagType) => {
+    if (!confirm(`Delete tag "${tag.name}"?`)) return;
+    try {
+      await deleteTag(tag.id).unwrap();
+      toast.success("Tag deleted");
+    } catch {
+      toast.error("Failed to delete tag");
+    }
+  };
+
+  const resetTagForm = () => {
+    setEditingTag(null);
+    setNewTagName("");
+    setNewTagColor("#005c55");
+  };
+
+  // ─── Status Handlers ───
+  const filteredStatuses = useMemo(() => {
+    if (!customStatuses) return [];
+    if (!statusSearch) return customStatuses;
+    return customStatuses.filter((s) => s.name.toLowerCase().includes(statusSearch.toLowerCase()));
+  }, [customStatuses, statusSearch]);
+
+  const handleSaveStatus = async () => {
+    const name = editingStatus ? editingStatus.name : newStatusName;
+    if (!name.trim()) return;
+    setIsSavingStatus(true);
+    try {
+      if (editingStatus) {
+        await updateCustomStatus({ id: editingStatus.id, name: editingStatus.name, color: editingStatus.color ?? undefined }).unwrap();
+      } else {
+        await createCustomStatus({ name: name.trim(), color: newStatusColor }).unwrap();
+      }
+      resetStatusForm();
+    } catch {
+      // Error handled by RTK Query
+    } finally {
+      setIsSavingStatus(false);
+    }
+  };
+
+  const handleDeleteStatus = async (status: CustomStatus) => {
+    if (status.is_system) return;
+    try {
+      await deleteCustomStatus(status.id).unwrap();
+    } catch {
+      // Error handled by RTK Query
+    }
+  };
+
+  const resetStatusForm = () => {
+    setEditingStatus(null);
+    setNewStatusName("");
+    setNewStatusColor("#005c55");
+  };
+
   const handleStatusChange = useCallback(async (appointmentId: string, newStatus: string, templateId?: string) => {
     try {
       await updateStatus({
@@ -338,7 +460,6 @@ export function PatientQueue() {
       setStatusModal(null);
       setStatusNotes("");
       setCancelTemplateId("");
-      setPendingCancel(false);
     } catch {
       // Error handled by RTK Query
     }
@@ -383,7 +504,7 @@ export function PatientQueue() {
         accessorKey: "token",
         header: "Token",
         cell: ({ row }) => {
-          const finished = row.original.status === "finished";
+          const finished = row.original.statusName !== "Waiting";
           return (
             <div
               className={`w-9 h-9 rounded-lg font-bold flex items-center justify-center text-sm shrink-0 ${
@@ -460,35 +581,40 @@ export function PatientQueue() {
         ),
       },
       {
-        accessorKey: "status",
+        accessorKey: "statusName",
         header: "Status",
         cell: ({ row }) => {
-          const meta = STATUS_META[row.original.status];
-          const isBooked = row.original.status === "booked";
-          if (isBooked) {
-            return (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
+          const statusName = row.original.statusName;
+          const statusColor = row.original.statusColor;
+          const customStatusId = row.original.customStatusId;
+          return (
+            <select
+              value={customStatusId}
+              onChange={(e) => {
+                e.stopPropagation();
+                const selectedId = e.target.value;
+                const selectedStatus = customStatuses?.find((s) => s.id === selectedId);
+                if (!selectedStatus) return;
+                if (selectedStatus.name === "Cancelled") {
                   setStatusModal({
                     appointmentId: row.original.id,
                     patientName: row.original.name,
-                    currentStatus: row.original.status,
+                    currentStatusName: statusName,
                   });
                   setStatusNotes("");
                   setCancelTemplateId("");
-                  setPendingCancel(false);
-                }}
-                className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${meta.pill}`}
-              >
-                {meta.label}
-              </button>
-            );
-          }
-          return (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.pill}`}>
-              {meta.label}
-            </span>
+                } else {
+                  handleStatusChange(row.original.id, selectedStatus.name);
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+              style={{ backgroundColor: (statusColor || '#888') + '20', color: statusColor || '#888' }}
+            >
+              {customStatuses?.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           );
         },
       },
@@ -555,8 +681,17 @@ export function PatientQueue() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setStatusesModalOpen(true)}
+            className="gap-1.5"
+          >
+            <Tag className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Manage Status</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             className="gap-1.5 shrink-0"
-            onClick={() => navigate('/doctor/tags')}
+            onClick={() => setTagsModalOpen(true)}
           >
             <Tag className="h-4 w-4" />
             <span className="hidden sm:inline">Manage Tags</span>
@@ -617,7 +752,14 @@ export function PatientQueue() {
                 <Filter className="h-3.5 w-3.5" /> Filter:
               </span>
               <div className="shrink-0">
-                <FilterSelect value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+                <FilterSelect
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={[
+                    { value: "all", label: "All statuses" },
+                    ...(customStatuses?.map((s) => ({ value: s.name, label: s.name })) ?? []),
+                  ]}
+                />
               </div>
               <div className="shrink-0">
                 <FilterSelect
@@ -761,7 +903,6 @@ export function PatientQueue() {
             <div className="lg:hidden flex flex-col gap-2">
               {table.getRowModel().rows.map((row) => {
                 const p = row.original;
-                const meta = STATUS_META[p.status];
                 return (
                   <div
                     key={row.id}
@@ -784,28 +925,33 @@ export function PatientQueue() {
                         <div className="flex items-center justify-between gap-2">
                           <p className="font-semibold text-sm text-foreground truncate">{p.name}</p>
                           <div className="flex items-center gap-1 shrink-0">
-                            {p.status === "booked" ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                            <select
+                              value={p.customStatusId}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const selectedId = e.target.value;
+                                const selectedStatus = customStatuses?.find((s) => s.id === selectedId);
+                                if (!selectedStatus) return;
+                                if (selectedStatus.name === "Cancelled") {
                                   setStatusModal({
                                     appointmentId: p.id,
                                     patientName: p.name,
-                                    currentStatus: p.status,
+                                    currentStatusName: p.statusName,
                                   });
                                   setStatusNotes("");
                                   setCancelTemplateId("");
-                                  setPendingCancel(false);
-                                }}
-                                className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:opacity-80 transition-opacity ${meta.pill}`}
-                              >
-                                {meta.label}
-                              </button>
-                            ) : (
-                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${meta.pill}`}>
-                                {meta.label}
-                              </span>
-                            )}
+                                } else {
+                                  handleStatusChange(p.id, selectedStatus.name);
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs px-2 py-1 rounded-full font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                              style={{ backgroundColor: (p.statusColor || '#888') + '20', color: p.statusColor || '#888' }}
+                            >
+                              {customStatuses?.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
                             {isEditable(p) && (
                               <button
                                 onClick={(e) => {
@@ -881,14 +1027,14 @@ export function PatientQueue() {
         />
       )}
 
-      {/* ─── Status Change Modal ─── */}
+      {/* ─── Status Change Modal (Cancel only) ─── */}
       {statusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-card w-full max-w-md rounded-xl shadow-lg p-6 space-y-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-foreground">Update Status</h3>
+              <h3 className="text-base font-semibold text-foreground">Cancel Appointment</h3>
               <button
-                onClick={() => { setStatusModal(null); setCancelTemplateId(""); setPendingCancel(false); }}
+                onClick={() => { setStatusModal(null); setCancelTemplateId(""); }}
                 className="p-1 text-muted-foreground hover:text-foreground rounded-md transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -896,133 +1042,72 @@ export function PatientQueue() {
             </div>
 
             <p className="text-sm text-muted-foreground">
-              Change status for <span className="font-medium text-foreground">{statusModal.patientName}</span>
+              Cancel appointment for <span className="font-medium text-foreground">{statusModal.patientName}</span>
             </p>
 
-            <div className="space-y-3">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">New Status</p>
-              <div className="grid grid-cols-1 gap-2">
-                <button
-                  onClick={() => {
-                    setStatusNotes("");
-                    setCancelTemplateId("");
-                    handleStatusChange(statusModal.appointmentId, "finished");
-                  }}
-                  disabled={isUpdatingStatus}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-left"
-                >
-                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Finished</p>
-                    <p className="text-xs text-muted-foreground">Consultation completed</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setStatusNotes("");
-                    setCancelTemplateId("");
-                    handleStatusChange(statusModal.appointmentId, "no_show");
-                  }}
-                  disabled={isUpdatingStatus}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors text-left"
-                >
-                  <UserX className="h-5 w-5 text-amber-600 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">No-show</p>
-                    <p className="text-xs text-muted-foreground">Patient did not attend</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => {
-                    setStatusNotes("");
-                    setCancelTemplateId("");
-                    setPendingCancel(true);
-                  }}
-                  disabled={isUpdatingStatus}
-                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
-                    pendingCancel
-                      ? "border-red-300 bg-red-50"
-                      : "border-border bg-card hover:bg-accent/50"
-                  }`}
-                >
-                  <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Cancelled</p>
-                    <p className="text-xs text-muted-foreground">Appointment cancelled</p>
-                  </div>
-                </button>
-              </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <MessageSquare className="h-3.5 w-3.5" />
+                Send WhatsApp message (optional)
+              </label>
+              <select
+                value={cancelTemplateId}
+                onChange={(e) => setCancelTemplateId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring px-3"
+              >
+                <option value="">No message</option>
+                {cancelTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.subject || t.content.slice(0, 50)}
+                  </option>
+                ))}
+              </select>
+              {cancelTemplateId && (
+                <div className="p-3 rounded-md bg-muted/50 border border-border">
+                  <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                  <p className="text-sm text-foreground">
+                    {cancelTemplates.find((t) => t.id === cancelTemplateId)?.content ?? ""}
+                  </p>
+                </div>
+              )}
             </div>
-
-            {/* Cancel template selector - only shown when pending cancel */}
-            {pendingCancel && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <MessageSquare className="h-3.5 w-3.5" />
-                  Send WhatsApp message (optional)
-                </label>
-                <select
-                  value={cancelTemplateId}
-                  onChange={(e) => setCancelTemplateId(e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background text-sm text-foreground appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring px-3"
-                >
-                  <option value="">No message</option>
-                  {cancelTemplates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.subject || t.content.slice(0, 50)}
-                    </option>
-                  ))}
-                </select>
-                {cancelTemplateId && (
-                  <div className="p-3 rounded-md bg-muted/50 border border-border">
-                    <p className="text-xs text-muted-foreground mb-1">Preview:</p>
-                    <p className="text-sm text-foreground">
-                      {cancelTemplates.find((t) => t.id === cancelTemplateId)?.content ?? ""}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
 
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-muted-foreground">Reason (optional)</label>
               <textarea
                 value={statusNotes}
                 onChange={(e) => setStatusNotes(e.target.value)}
-                placeholder="Add a note about this status change..."
+                placeholder="Add a note about this cancellation..."
                 rows={2}
                 className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
             </div>
 
             <div className="flex justify-end gap-2 pt-1">
-              {pendingCancel && (
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (statusModal) {
-                      handleStatusChange(statusModal.appointmentId, "cancelled", cancelTemplateId || undefined);
-                    }
-                    setPendingCancel(false);
-                  }}
-                  disabled={isUpdatingStatus}
-                  className="gap-1.5 bg-red-600 hover:bg-red-700 text-white"
-                >
-                  {isUpdatingStatus ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <AlertTriangle className="h-4 w-4" />
-                  )}
-                  Confirm Cancel
-                </Button>
-              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (statusModal) {
+                    handleStatusChange(statusModal.appointmentId, "Cancelled", cancelTemplateId || undefined);
+                  }
+                }}
+                disabled={isUpdatingStatus}
+                className="gap-1.5 bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isUpdatingStatus ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <AlertTriangle className="h-4 w-4" />
+                )}
+                Confirm Cancel
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => { setStatusModal(null); setCancelTemplateId(""); setPendingCancel(false); }}
+                onClick={() => { setStatusModal(null); setCancelTemplateId(""); }}
                 disabled={isUpdatingStatus}
               >
-                Cancel
+                Back
               </Button>
             </div>
           </div>
@@ -1097,6 +1182,217 @@ export function PatientQueue() {
           </div>
         </div>
       )}
+
+      {/* ─── Tags Management Modal ─── */}
+      <Dialog
+        open={tagsModalOpen}
+        onOpenChange={(open) => { if (!open) { setTagsModalOpen(false); resetTagForm(); } }}
+        title="Manage Tags"
+      >
+        <div className="space-y-4">
+          {/* Search + New Tag */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={tagSearch}
+                onChange={(e) => setTagSearch(e.target.value)}
+                placeholder="Search tags..."
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => { resetTagForm(); setEditingTag(null); }}
+              className="gap-1 shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" /> New
+            </Button>
+          </div>
+
+          {/* Tag List */}
+          <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+            {filteredTags.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No tags found</p>
+            ) : (
+              filteredTags.map((tag) => (
+                <div
+                  key={tag.id}
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full shrink-0 ${COLOR_CLASSES[tag.color || '#6e7977'] || 'bg-[#6e7977]'}`} />
+                    <span className="text-sm font-medium">{tag.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { setEditingTag(tag); setNewTagColor(tag.color || '#005c55'); }}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteTag(tag)}
+                      className="p-1 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Create / Edit Form */}
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {editingTag ? 'Edit Tag' : 'New Tag'}
+            </p>
+            <Input
+              value={editingTag ? editingTag.name : newTagName}
+              onChange={(e) => editingTag ? setEditingTag({ ...editingTag, name: e.target.value }) : setNewTagName(e.target.value)}
+              placeholder="Tag name"
+              className="h-9 text-sm"
+            />
+            <div className="flex flex-wrap gap-2">
+              {TAG_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => editingTag ? setEditingTag({ ...editingTag, color }) : setNewTagColor(color)}
+                  className={`w-7 h-7 rounded-full transition-all ${COLOR_CLASSES[color]} ${
+                    (editingTag ? editingTag.color : newTagColor) === color
+                      ? 'ring-2 ring-offset-2 ring-primary scale-110'
+                      : 'hover:scale-110'
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={resetTagForm}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveTag}
+                disabled={isSavingTag || !(editingTag ? editingTag.name : newTagName).trim()}
+                className="gap-1"
+              >
+                {isSavingTag ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingTag ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* ─── Statuses Management Modal ─── */}
+      <Dialog
+        open={statusesModalOpen}
+        onOpenChange={(open) => { if (!open) { setStatusesModalOpen(false); resetStatusForm(); } }}
+        title="Manage Statuses"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={statusSearch}
+                onChange={(e) => setStatusSearch(e.target.value)}
+                placeholder="Search statuses..."
+                className="pl-9 h-9 text-sm"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => { resetStatusForm(); setEditingStatus(null); }}
+              className="gap-1 shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" /> New
+            </Button>
+          </div>
+
+          <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+            {filteredStatuses.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No statuses found</p>
+            ) : (
+              filteredStatuses.map((status) => (
+                <div
+                  key={status.id}
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full shrink-0"
+                      style={{ backgroundColor: status.color || '#6e7977' }}
+                    />
+                    <span className="text-sm font-medium">{status.name}</span>
+                    {status.is_system && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">System</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { setEditingStatus(status); setNewStatusColor(status.color || '#005c55'); }}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    {!status.is_system && (
+                      <button
+                        onClick={() => handleDeleteStatus(status)}
+                        className="p-1 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="border-t pt-4 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {editingStatus ? 'Edit Status' : 'New Status'}
+            </p>
+            <Input
+              value={editingStatus ? editingStatus.name : newStatusName}
+              onChange={(e) => editingStatus ? setEditingStatus({ ...editingStatus, name: e.target.value }) : setNewStatusName(e.target.value)}
+              placeholder="Status name"
+              className="h-9 text-sm"
+            />
+            <div className="flex flex-wrap gap-2">
+              {TAG_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => editingStatus ? setEditingStatus({ ...editingStatus, color }) : setNewStatusColor(color)}
+                  className={`w-7 h-7 rounded-full transition-all ${COLOR_CLASSES[color]} ${
+                    (editingStatus ? editingStatus.color : newStatusColor) === color
+                      ? 'ring-2 ring-offset-2 ring-primary scale-110'
+                      : 'hover:scale-110'
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={resetStatusForm}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveStatus}
+                disabled={isSavingStatus || (!(editingStatus?.name || newStatusName).trim())}
+                className="gap-1.5"
+              >
+                {isSavingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editingStatus ? 'Update' : 'Create'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

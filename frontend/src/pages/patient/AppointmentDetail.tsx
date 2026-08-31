@@ -38,7 +38,7 @@ export function AppointmentDetail() {
               <h1 className="text-2xl md:text-3xl font-bold text-[#0F172A]">{appt.doctor_name}</h1>
               <p className="text-slate-500 mt-1">Appointment Details</p>
             </div>
-            <StatusPill status={appt.appointment_status} />
+            <StatusPill statusName={appt.status_name} statusColor={appt.status_color} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-6 border-y border-slate-100">
@@ -92,7 +92,7 @@ export function AppointmentDetail() {
             >
               Back to Home
             </Button>
-            {appt.appointment_status === 'booked' && (
+            {appt.status_name === 'Waiting' && (
               <Button
                 onClick={handleCancel}
                 disabled={isCancelling}

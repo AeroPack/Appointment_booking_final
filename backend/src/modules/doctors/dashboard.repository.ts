@@ -6,13 +6,14 @@ export class DashboardRepository {
     const result = await pool.query(
       `SELECT
          COUNT(*)::int AS total_patients,
-         COUNT(*) FILTER (WHERE appointment_status = 'booked')::int AS booked,
-         COUNT(*) FILTER (WHERE appointment_status = 'finished')::int AS finished,
-         COUNT(*) FILTER (WHERE appointment_status = 'no_show')::int AS no_show
-       FROM appointments
-       WHERE doctor_id = $1
-         AND (scheduled_start AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2 AND $3
-         AND deleted_at IS NULL`,
+         COUNT(*) FILTER (WHERE cs.name = 'Waiting')::int AS booked,
+         COUNT(*) FILTER (WHERE cs.name = 'Finished')::int AS finished,
+         COUNT(*) FILTER (WHERE cs.name = 'No-show')::int AS no_show
+       FROM appointments a
+       JOIN custom_statuses cs ON cs.id = a.custom_status_id
+       WHERE a.doctor_id = $1
+         AND (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2 AND $3
+         AND a.deleted_at IS NULL`,
       [doctorId, from, to]
     );
     return result.rows[0];
@@ -28,13 +29,14 @@ export class DashboardRepository {
               EXTRACT(YEAR FROM age(pat.date_of_birth))::int AS age,
               a.token_number,
               (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::text AS scheduled_start,
-              a.appointment_status,
+              a.custom_status_id, cs.name AS status_name, cs.color AS status_color,
               a.appointment_type,
               COALESCE(v.name, '') AS venue_name,
               COALESCE(a.notes, '') AS reason
        FROM appointments a
        JOIN users pat ON pat.id = a.patient_id
        LEFT JOIN venues v ON v.id = a.venue_id
+       LEFT JOIN custom_statuses cs ON cs.id = a.custom_status_id
        WHERE a.doctor_id = $1
          AND (a.scheduled_start AT TIME ZONE 'Asia/Kolkata')::date BETWEEN $2 AND $3
          AND a.deleted_at IS NULL
