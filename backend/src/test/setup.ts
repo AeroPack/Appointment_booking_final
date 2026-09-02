@@ -8,6 +8,7 @@ const TRUNCATE_TABLES = [
   'message_templates',
   'user_tags',
   'tags',
+  'custom_statuses',
   'appointment_status_history',
   'appointments',
   'appointment_settings',

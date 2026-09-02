@@ -24,7 +24,7 @@ interface TodayPatient {
   reason: string
 }
 
-interface TypeCount {
+interface TypeCount { 
   type: string
   count: number
 }

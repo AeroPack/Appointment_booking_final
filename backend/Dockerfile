@@ -13,8 +13,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY static/ static/
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 RUN mkdir -p /app/uploads/avatars && chown app:app /app/uploads /app/uploads/avatars /app/static
 USER app
 EXPOSE 5000
 ENV NODE_ENV=production
-CMD ["node", "--import", "dotenv/config", "dist/index.js"]
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -266,6 +266,25 @@ async function seed() {
   }
   console.log('Appointment settings created');
 
+  // ---- Custom Statuses ----
+  const statusMap = new Map<string, string>();
+  for (const [name, color, sortOrder] of [
+    ['Waiting', '#facc15', 1],
+    ['Finished', '#22c55e', 2],
+    ['No-show', '#ef4444', 3],
+    ['Cancelled', '#a3a3a3', 4],
+  ] as const) {
+    const row = await pool.query(
+      `INSERT INTO custom_statuses (clinic_id, name, color, sort_order, is_system)
+       VALUES ($1, $2, $3, $4, true)
+       ON CONFLICT (clinic_id, name) DO UPDATE SET color = EXCLUDED.color
+       RETURNING id`,
+      [clinicId, name, color, sortOrder]
+    );
+    statusMap.set(name, row.rows[0].id);
+  }
+  console.log('Custom statuses created:', [...statusMap.keys()].join(', '));
+
   // Helper: create an ISO date string relative to today
   const dateOffset = (daysOffset: number, hour: number, minute: number) => {
     const d = new Date();
@@ -274,24 +293,36 @@ async function seed() {
     return d.toISOString();
   };
 
+  // Map old appointment_status text values to custom_status names
+  const statusNameMap: Record<string, string> = {
+    booked: 'Waiting',
+    finished: 'Finished',
+    no_show: 'No-show',
+    cancelled: 'Cancelled',
+  };
+
   const makeAppointment = async (doctorIdx: number, patientIdx: number, daysOffset: number, hour: number, minute: number, status: string, token: number, venueIdx?: number, notes?: string) => {
     const start = dateOffset(daysOffset, hour, minute);
     const end = dateOffset(daysOffset, hour, minute + 30);
     const vid = venueIdx !== undefined ? venueIds[venueIdx] : venueIds[0];
     const pid = patientIds[patientIdx];
+    const statusName = statusNameMap[status] || 'Waiting';
+    const statusId = statusMap.get(statusName)!;
     const apt = await pool.query(
-      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_status, notes)
+      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, custom_status_id, notes)
        VALUES ($1, $2, $3, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [clinicId, doctorIds[doctorIdx], pid, vid, start, end, token, status, notes || null]
+      [clinicId, doctorIds[doctorIdx], pid, vid, start, end, token, statusId, notes || null]
     );
     return apt.rows[0].id;
   };
 
   const insertHistory = async (appointmentId: string, oldStatus: string, newStatus: string, changedById: string) => {
+    const oldId = statusMap.get(oldStatus === 'booked' ? 'Waiting' : oldStatus) || statusMap.get('Waiting')!;
+    const newId = statusMap.get(newStatus === 'booked' ? 'Waiting' : newStatus) || statusMap.get('Waiting')!;
     await pool.query(
       `INSERT INTO appointment_status_history (appointment_id, old_status, new_status, changed_by)
        VALUES ($1, $2, $3, $4)`,
-      [appointmentId, oldStatus, newStatus, changedById]
+      [appointmentId, oldId, newId, changedById]
     );
   };
 

@@ -155,11 +155,34 @@ export async function seedAppointment(overrides: {
   scheduled_start: Date;
   scheduled_end: Date;
   venue_id?: string;
+  custom_status_id?: string;
   appointment_status?: string;
   token_number?: number;
 }): Promise<{ id: string }> {
+  let statusId = overrides.custom_status_id;
+  if (!statusId) {
+    const statusName = overrides.appointment_status === 'finished' ? 'Finished'
+      : overrides.appointment_status === 'no_show' ? 'No-show'
+      : overrides.appointment_status === 'cancelled' ? 'Cancelled'
+      : 'Waiting';
+    const statusResult = await pool.query(
+      `SELECT id FROM custom_statuses WHERE clinic_id = $1 AND name = $2 LIMIT 1`,
+      [overrides.clinic_id, statusName]
+    );
+    statusId = statusResult.rows[0]?.id;
+    if (!statusId) {
+      const insertResult = await pool.query(
+        `INSERT INTO custom_statuses (clinic_id, name, color, sort_order, is_system)
+         VALUES ($1, $2, '#facc15', 1, true)
+         ON CONFLICT (clinic_id, name) DO UPDATE SET color = EXCLUDED.color
+         RETURNING id`,
+        [overrides.clinic_id, statusName]
+      );
+      statusId = insertResult.rows[0].id;
+    }
+  }
   const result = await pool.query(
-    `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, appointment_status, token_number)
+    `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, custom_status_id, token_number)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
     [
       overrides.clinic_id,
@@ -169,7 +192,7 @@ export async function seedAppointment(overrides: {
       overrides.venue_id || null,
       overrides.scheduled_start,
       overrides.scheduled_end,
-      overrides.appointment_status || 'booked',
+      statusId,
       overrides.token_number ?? null,
     ]
   );

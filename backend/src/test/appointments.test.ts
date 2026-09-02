@@ -283,7 +283,7 @@ describe('POST /patient/book-slot', () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.doctor_id).toBe(doctor.id);
-    expect(res.body.data.appointment_status).toBe('booked');
+    expect(res.body.data.custom_status_id).toBeDefined();
     expect(res.body.data.token_number).toBe(1);
     expect(res.body.data.venue).toBeNull();
   });

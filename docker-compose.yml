@@ -24,6 +24,7 @@ services:
   backend:
     build:
       context: ./backend
+    image: ghcr.io/aeropack/appointment_booking_final/backend:latest
     container_name: appointment_booking_backend
     restart: unless-stopped
     depends_on:
@@ -56,6 +57,7 @@ services:
       context: ./frontend
       args:
         VITE_API_URL: ""
+    image: ghcr.io/aeropack/appointment_booking_final/frontend:latest
     container_name: appointment_booking_frontend
     restart: unless-stopped
     depends_on:
