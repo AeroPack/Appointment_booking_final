@@ -16,7 +16,7 @@ import { hashToken, verifyToken, generateOtp } from '../../utils/hash.js';
 import { sendOtpEmail, sendPasswordResetEmail } from '../../utils/email.js';
 import { AppError } from '../../utils/response.js';
 import { hashPassword, verifyPassword } from '../../utils/password.js';
-import { channelRegistry } from '../../utils/channels/index.js';
+import { WhatsAppChannel } from '../../utils/channels/whatsapp.js';
 import type {
   AuthPayload, AuthIdentifier, UserRow, OtpRow, PasswordResetOtpRow,
   RegisterInput, LoginPasswordInput, UpdateProfileInput, SetupWhatsAppInput,
@@ -153,13 +153,9 @@ export class AuthService {
   }
 
   private async sendOtpWhatsApp(mobileNumber: string, otp: string, clinicId: string): Promise<void> {
-    const whatsapp = channelRegistry.get('whatsapp');
-    if (!whatsapp) {
-      throw new Error('WhatsApp channel not registered');
-    }
+    const bhashsms = new WhatsAppChannel();
 
-    // `params` fills the approved auth template; `content` is the fallback body.
-    const result = await whatsapp.sendMessage({
+    const result = await bhashsms.sendMessage({
       to: mobileNumber,
       content: `Your verification code is: ${otp}. It expires in 5 minutes.`,
       clinicId,
