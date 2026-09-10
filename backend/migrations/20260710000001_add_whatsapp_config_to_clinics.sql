@@ -2,9 +2,9 @@
 -- This migration adds UltraMsg API configuration for WhatsApp messaging
 
 ALTER TABLE clinics 
-ADD COLUMN ultramsg_instance_id VARCHAR(50),
-ADD COLUMN ultramsg_token VARCHAR(100),
-ADD COLUMN whatsapp_enabled BOOLEAN DEFAULT false;
+ADD COLUMN IF NOT EXISTS ultramsg_instance_id VARCHAR(50),
+ADD COLUMN IF NOT EXISTS ultramsg_token VARCHAR(100),
+ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN DEFAULT false;
 
 -- Add comment for clarity
 COMMENT ON COLUMN clinics.ultramsg_instance_id IS 'UltraMsg API instance ID for WhatsApp messaging';
