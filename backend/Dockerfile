@@ -12,6 +12,7 @@ RUN addgroup --system app && adduser --system --ingroup app app
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
+COPY migrations/ migrations/
 COPY static/ static/
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
