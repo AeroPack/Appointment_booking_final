@@ -25,28 +25,48 @@ $$;
 -- Abort rather than merge two distinct people into one identifier. Only the
 -- login-identifier space matters: dependents (parent_user_id IS NOT NULL) may
 -- legitimately share a parent's number and never log in themselves.
+-- Skip if data is already normalized (no un-normalized rows remain).
 DO $$
 DECLARE
   collisions text;
+  has_unnormalized boolean;
 BEGIN
-  SELECT string_agg(value, ', ') INTO collisions FROM (
-    SELECT normalize_phone(mobile_number) AS value
-    FROM users
-    WHERE mobile_number IS NOT NULL AND deleted_at IS NULL AND parent_user_id IS NULL
-    GROUP BY 1 HAVING count(*) > 1
-  ) dupes;
-  IF collisions IS NOT NULL THEN
-    RAISE EXCEPTION 'Normalizing mobile numbers would merge distinct accounts: %', collisions;
+  SELECT EXISTS (
+    SELECT 1 FROM users
+    WHERE mobile_number IS NOT NULL
+      AND mobile_number <> normalize_phone(mobile_number)
+      AND deleted_at IS NULL AND parent_user_id IS NULL
+  ) INTO has_unnormalized;
+
+  IF has_unnormalized THEN
+    SELECT string_agg(value, ', ') INTO collisions FROM (
+      SELECT normalize_phone(mobile_number) AS value
+      FROM users
+      WHERE mobile_number IS NOT NULL AND deleted_at IS NULL AND parent_user_id IS NULL
+      GROUP BY 1 HAVING count(*) > 1
+    ) dupes;
+    IF collisions IS NOT NULL THEN
+      RAISE EXCEPTION 'Normalizing mobile numbers would merge distinct accounts: %', collisions;
+    END IF;
   END IF;
 
-  SELECT string_agg(value, ', ') INTO collisions FROM (
-    SELECT lower(trim(email)) AS value
-    FROM users
-    WHERE email IS NOT NULL AND deleted_at IS NULL AND parent_user_id IS NULL
-    GROUP BY 1 HAVING count(*) > 1
-  ) dupes;
-  IF collisions IS NOT NULL THEN
-    RAISE EXCEPTION 'Normalizing emails would merge distinct accounts: %', collisions;
+  SELECT EXISTS (
+    SELECT 1 FROM users
+    WHERE email IS NOT NULL
+      AND email <> lower(trim(email))
+      AND deleted_at IS NULL AND parent_user_id IS NULL
+  ) INTO has_unnormalized;
+
+  IF has_unnormalized THEN
+    SELECT string_agg(value, ', ') INTO collisions FROM (
+      SELECT lower(trim(email)) AS value
+      FROM users
+      WHERE email IS NOT NULL AND deleted_at IS NULL AND parent_user_id IS NULL
+      GROUP BY 1 HAVING count(*) > 1
+    ) dupes;
+    IF collisions IS NOT NULL THEN
+      RAISE EXCEPTION 'Normalizing emails would merge distinct accounts: %', collisions;
+    END IF;
   END IF;
 END $$;
 
@@ -76,3 +96,29 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email ON users (email)
 ALTER TABLE otps ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id);
 
 CREATE INDEX IF NOT EXISTS idx_otps_user ON otps (user_id, created_at DESC);
+
+-- Enforce canonical phone format at the DB level so no future row can bypass
+-- the application layer's normalizePhone(). Fires on INSERT and UPDATE of the
+-- three phone columns on users.
+CREATE OR REPLACE FUNCTION trg_normalize_user_contacts_fn() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.mobile_number IS NOT NULL THEN
+    NEW.mobile_number := normalize_phone(NEW.mobile_number);
+  END IF;
+  IF NEW.whatsapp_number IS NOT NULL THEN
+    NEW.whatsapp_number := normalize_phone(NEW.whatsapp_number);
+  END IF;
+  IF NEW.email IS NOT NULL THEN
+    NEW.email := lower(trim(NEW.email));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_normalize_user_contacts ON users;
+CREATE TRIGGER trg_normalize_user_contacts
+  BEFORE INSERT OR UPDATE OF mobile_number, whatsapp_number, email
+  ON users
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_normalize_user_contacts_fn();
