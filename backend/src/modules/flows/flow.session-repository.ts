@@ -173,7 +173,7 @@ export class FlowSessionRepository {
        FROM flows f
        JOIN flow_versions fv ON fv.id = f.published_version_id
        WHERE (f.doctor_id = $1 OR f.doctor_id IS NULL) AND f.is_active = true
-         AND LOWER(TRIM(UNNEST(f.keywords))) = $2
+         AND $2 = ANY(SELECT LOWER(TRIM(k)) FROM unnest(f.keywords) AS k)
        ORDER BY f.doctor_id NULLS LAST
        LIMIT 1`,
       [doctorId, normalizedKeyword]

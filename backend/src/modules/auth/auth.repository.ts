@@ -141,7 +141,7 @@ export class AuthRepository {
     mobile_number: string | null;
     password_hash: string;
   }): Promise<{ id: string; clinic_id: string }> {
-    return withTransaction(async (client) => {
+    const result = await withTransaction(async (client) => {
       const clinic = await client.query(
         `INSERT INTO clinics (name) VALUES ($1) RETURNING id`,
         [`${data.name}'s Clinic`]
@@ -156,14 +156,31 @@ export class AuthRepository {
       );
       const userId = user.rows[0].id;
 
-      const { FlowRepository } = await import('../flows/flow.repository.js');
-      const { seedDefaultFlowsForDoctor } = await import('../flows/flow.templates.js');
-      const flowRepo = new FlowRepository();
-      await flowRepo.seedDefaultBookingFlow(userId, data.name);
-      await seedDefaultFlowsForDoctor(userId);
+      const defaultStatuses = [
+        ['Waiting', '#facc15', 1],
+        ['Finished', '#22c55e', 2],
+        ['No-show', '#ef4444', 3],
+        ['Cancelled', '#a3a3a3', 4],
+      ] as const;
+      for (const [name, color, sort_order] of defaultStatuses) {
+        await client.query(
+          `INSERT INTO custom_statuses (clinic_id, name, color, sort_order, is_system)
+           VALUES ($1, $2, $3, $4, true)
+           ON CONFLICT (clinic_id, name) DO NOTHING`,
+          [clinicId, name, color, sort_order]
+        );
+      }
 
       return { id: userId, clinic_id: clinicId };
     });
+
+    const { FlowRepository } = await import('../flows/flow.repository.js');
+    const { seedDefaultFlowsForDoctor } = await import('../flows/flow.templates.js');
+    const flowRepo = new FlowRepository();
+    await flowRepo.seedDefaultBookingFlow(result.id, data.name);
+    await seedDefaultFlowsForDoctor(result.id);
+
+    return result;
   }
 
   /**

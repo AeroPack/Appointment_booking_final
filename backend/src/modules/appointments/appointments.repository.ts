@@ -90,9 +90,15 @@ export class AppointmentsRepository {
     appointment_type: string;
     notes?: string;
   }): Promise<{ id: string }> {
+    const statusResult = await pool.query(
+      `SELECT id FROM custom_statuses WHERE clinic_id = $1 AND name = 'Waiting' AND is_system = true LIMIT 1`,
+      [data.clinic_id]
+    );
+    const waitingStatusId = statusResult.rows[0]?.id;
+
     const result = await pool.query(
-      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type, notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type, notes, custom_status_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
       [
         data.clinic_id,
         data.doctor_id,
@@ -104,6 +110,7 @@ export class AppointmentsRepository {
         data.token_number,
         data.appointment_type,
         data.notes || null,
+        waitingStatusId,
       ]
     );
     return result.rows[0];
@@ -286,8 +293,8 @@ export class AppointmentsRepository {
               cs_old.name AS old_status_name, cs_new.name AS new_status_name,
               ash.changed_by, ash.reason, ash.created_at
        FROM appointment_status_history ash
-       LEFT JOIN custom_statuses cs_old ON cs_old.id = ash.old_status
-       LEFT JOIN custom_statuses cs_new ON cs_new.id = ash.new_status
+       LEFT JOIN custom_statuses cs_old ON cs_old.id = NULLIF(ash.old_status, '')::uuid
+       LEFT JOIN custom_statuses cs_new ON cs_new.id = ash.new_status::uuid
        WHERE ash.appointment_id = $1
        ORDER BY ash.created_at ASC`,
       [appointmentId]

@@ -6,6 +6,7 @@ import { BotService } from '../bot/bot.service.js';
 import { BotRepository } from '../bot/bot.repository.js';
 import pool from '../../config/db.js';
 import { AppError } from '../../utils/response.js';
+import { normalizePhone } from '../../utils/phone.js';
 
 const MAX_STEPS = 100;
 
@@ -1053,17 +1054,28 @@ export class FlowExecutor {
 
       let patientResult = await pool.query(
         `SELECT id, name FROM users WHERE mobile_number = $1 AND role = 'patient' AND deleted_at IS NULL LIMIT 1`,
-        [String(context.patient_phone)]
+        [normalizePhone(String(context.patient_phone))]
       );
       let patientId: string;
       if (patientResult.rows[0]) {
         patientId = patientResult.rows[0].id;
+        if (patientResult.rows[0].name !== String(context.patient_name)) {
+          await pool.query(`UPDATE users SET name = $1 WHERE id = $2`, [String(context.patient_name), patientId]);
+        }
       } else {
-        patientResult = await pool.query(
-          `INSERT INTO users (name, mobile_number, clinic_id, role) VALUES ($1, $2, $3, 'patient') RETURNING id`,
-          [String(context.patient_name), String(context.patient_phone), clinicId]
-        );
-        patientId = patientResult.rows[0].id;
+        try {
+          patientResult = await pool.query(
+            `INSERT INTO users (name, mobile_number, clinic_id, role) VALUES ($1, $2, $3, 'patient') RETURNING id`,
+            [String(context.patient_name), normalizePhone(String(context.patient_phone)), clinicId]
+          );
+          patientId = patientResult.rows[0].id;
+        } catch {
+          patientResult = await pool.query(
+            `SELECT id FROM users WHERE mobile_number = $1 AND deleted_at IS NULL LIMIT 1`,
+            [normalizePhone(String(context.patient_phone))]
+          );
+          patientId = patientResult.rows[0].id;
+        }
       }
 
       const dateStr = this.formatDate(scheduledStart);
@@ -1097,14 +1109,20 @@ export class FlowExecutor {
         return { action: 'complete' };
       }
 
+      const statusResult = await pool.query(
+        `SELECT id FROM custom_statuses WHERE clinic_id = $1 AND name = 'Waiting' AND is_system = true LIMIT 1`,
+        [clinicId]
+      );
+      const waitingStatusId = statusResult.rows[0]?.id;
+
       const insertResult = await pool.query(
-        `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        `INSERT INTO appointments (clinic_id, doctor_id, patient_id, booked_by_user_id, venue_id, scheduled_start, scheduled_end, token_number, appointment_type, notes, custom_status_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
         [
           clinicId, doctorId, patientId, doctorId,
           matching.venue_id || null, scheduledStart, scheduledEnd,
           tokenNumber, context.appointment_type || 'checkup',
-          context.reason || null,
+          context.reason || null, waitingStatusId,
         ]
       );
       const appointmentId = insertResult.rows[0].id;

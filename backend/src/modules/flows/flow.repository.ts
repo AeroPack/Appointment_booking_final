@@ -66,10 +66,10 @@ export class FlowRepository {
     const flow = buildDefaultBookingFlow(doctorName);
 
     const flowResult = await pool.query(
-      `INSERT INTO flows (doctor_id, name, trigger_type, is_active)
-       VALUES ($1, $2, $3, true)
+      `INSERT INTO flows (doctor_id, name, trigger_type, keywords, is_active)
+       VALUES ($1, $2, $3, $4, true)
        RETURNING id`,
-      [doctorId, flow.name, flow.triggerType]
+      [doctorId, flow.name, flow.triggerType, flow.keywords]
     );
     const flowId = flowResult.rows[0].id;
 

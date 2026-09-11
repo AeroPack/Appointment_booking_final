@@ -148,6 +148,7 @@ async function findOrCreateFlow(
   name: string,
   triggerType: string,
   graph: { nodes: any[]; edges: any[] },
+  keywords: string[] = [],
 ): Promise<string> {
   const existing = await pool.query(
     `SELECT id FROM flows WHERE doctor_id = $1 AND trigger_type = $2 AND is_active = true LIMIT 1`,
@@ -156,8 +157,8 @@ async function findOrCreateFlow(
   if (existing.rows[0]) return existing.rows[0].id;
 
   const flowResult = await pool.query(
-    `INSERT INTO flows (doctor_id, name, trigger_type) VALUES ($1, $2, $3) RETURNING id`,
-    [doctorId, name, triggerType],
+    `INSERT INTO flows (doctor_id, name, trigger_type, keywords) VALUES ($1, $2, $3, $4) RETURNING id`,
+    [doctorId, name, triggerType, keywords],
   );
   const flowId = flowResult.rows[0].id;
 
@@ -185,6 +186,7 @@ async function findOrCreateFlow(
 interface DefaultFlowDef {
   name: string;
   triggerType: string;
+  keywords: string[];
   graph: { nodes: any[]; edges: any[] };
 }
 
@@ -194,82 +196,90 @@ export function buildDefaultBookingFlow(doctorName: string): DefaultFlowDef {
       {
         id: 'start_1',
         type: 'start',
-        data: { label: 'Start' },
-        position: { x: 50, y: 200 },
+        data: {},
+        position: { x: 50, y: 100 },
       },
       {
         id: 'msg_greeting',
         type: 'message',
         data: {
-          content: `Welcome to Dr. ${doctorName}'s clinic! 🏥`,
+          text: `Welcome to Dr. ${doctorName}'s clinic!`,
         },
-        position: { x: 250, y: 200 },
+        position: { x: 50, y: 200 },
       },
       {
         id: 'input_name',
         type: 'input',
         data: {
-          prompt: 'Hi there! Please share your name so I can assist you better.',
+          text: 'Hi there! Please share your name so I can assist you better:',
           variable: 'patient_name',
         },
-        position: { x: 450, y: 200 },
+        position: { x: 50, y: 300 },
       },
       {
         id: 'msg_welcome',
         type: 'message',
         data: {
-          content: 'Hi {{patient_name}}! 👋 Ready to book an appointment?',
+          text: 'Hi {{patient_name}}! Ready to book an appointment?',
         },
-        position: { x: 650, y: 200 },
+        position: { x: 50, y: 400 },
+      },
+      {
+        id: 'msg_doctor_info',
+        type: 'message',
+        data: {
+          text: `Great, {{patient_name}}! Dr. ${doctorName} is available. Here are the available slots:`,
+        },
+        position: { x: 50, y: 550 },
       },
       {
         id: 'slot_picker_1',
         type: 'slot_picker',
         data: {
-          prompt: 'Please choose a convenient time slot:',
+          text: 'Please choose a time:',
           days_ahead: 14,
         },
-        position: { x: 850, y: 200 },
+        position: { x: 50, y: 650 },
       },
       {
         id: 'booking_1',
         type: 'booking_action',
-        data: {
-          label: 'Book Appointment',
-        },
-        position: { x: 1050, y: 200 },
+        data: {},
+        position: { x: 50, y: 750 },
       },
       {
         id: 'msg_farewell',
         type: 'message',
         data: {
-          content: 'Your appointment is confirmed, {{patient_name}}! 🎉 See you soon.',
+          text: 'Your appointment is confirmed, {{patient_name}}!',
         },
-        position: { x: 1250, y: 200 },
+        position: { x: 50, y: 850 },
       },
       {
         id: 'end_1',
         type: 'end',
         data: {
-          content: `Thank you for choosing Dr. ${doctorName}'s clinic. Have a great day!`,
+          message: `Thank you for choosing Dr. ${doctorName}'s clinic. Have a great day!`,
         },
-        position: { x: 1450, y: 200 },
+        position: { x: 50, y: 950 },
       },
     ],
     edges: [
       { id: 'e1', source: 'start_1', target: 'msg_greeting' },
       { id: 'e2', source: 'msg_greeting', target: 'input_name' },
       { id: 'e3', source: 'input_name', target: 'msg_welcome' },
-      { id: 'e4', source: 'msg_welcome', target: 'slot_picker_1' },
-      { id: 'e5', source: 'slot_picker_1', target: 'booking_1' },
-      { id: 'e6', source: 'booking_1', target: 'msg_farewell' },
-      { id: 'e7', source: 'msg_farewell', target: 'end_1' },
+      { id: 'e4', source: 'msg_welcome', target: 'msg_doctor_info' },
+      { id: 'e7', source: 'msg_doctor_info', target: 'slot_picker_1' },
+      { id: 'e8', source: 'slot_picker_1', target: 'booking_1' },
+      { id: 'e9', source: 'booking_1', target: 'msg_farewell' },
+      { id: 'e10', source: 'msg_farewell', target: 'end_1' },
     ],
   };
 
   return {
     name: 'Default Booking Flow',
     triggerType: 'book',
+    keywords: ['hi', 'hello', 'book', 'appointment', 'book appointment'],
     graph,
   };
 }
