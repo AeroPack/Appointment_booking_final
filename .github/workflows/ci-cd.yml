@@ -107,88 +107,67 @@ jobs:
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
 
-  # ── Deploy to VPS ─────────────────────────────────────────────────────────
+  # ── Deploy to VPS via SSH ──────────────────────────────────────────────
   deploy:
-    if: github.event_name == 'push'
+    name: Deploy to VPS
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-push
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment: production
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.1.0
+      # Copy the rollout script to the VPS
+      - name: Copy deploy script
+        uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          source: "deploy/rollout.sh"
+          target: /opt/appointment_booking
+
+      # Run the rollout script, passing all secrets as env vars
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}:latest
+          FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}:latest
+          DATABASE_URL: "postgresql://postgres:${{ secrets.DB_PASSWORD }}@new_project_db:5432/appointment_booking"
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WA_PROVIDER: ${{ secrets.WA_PROVIDER }}
+          EVOLUTION_API_URL: ${{ secrets.EVOLUTION_API_URL }}
+          EVOLUTION_API_KEY: ${{ secrets.EVOLUTION_API_KEY }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          EVO_SYSTEM_INSTANCE: ${{ secrets.EVO_SYSTEM_INSTANCE }}
+          EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT: ${{ secrets.EMAIL_PORT }}
+          EMAIL_SECURE: ${{ secrets.EMAIL_SECURE }}
+          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          WA_AUTH_URL: ${{ secrets.WA_AUTH_URL }}
+          WA_AUTH_USER: ${{ secrets.WA_AUTH_USER }}
+          WA_AUTH_PASS: ${{ secrets.WA_AUTH_PASS }}
+          WA_AUTH_SENDER: ${{ secrets.WA_AUTH_SENDER }}
+          WA_AUTH_TEMPLATE: ${{ secrets.WA_AUTH_TEMPLATE }}
+          WA_GATEWAY_URL: ${{ secrets.WA_GATEWAY_URL }}
+          WA_GATEWAY_USER: ${{ secrets.WA_GATEWAY_USER }}
+          WA_GATEWAY_PASS: ${{ secrets.WA_GATEWAY_PASS }}
+          WA_GATEWAY_SENDER: ${{ secrets.WA_GATEWAY_SENDER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: "BACKEND_IMAGE,FRONTEND_IMAGE,DATABASE_URL,JWT_SECRET,GEMINI_API_KEY,WA_PROVIDER,EVOLUTION_API_URL,EVOLUTION_API_KEY,BACKEND_URL,EVO_SYSTEM_INSTANCE,EMAIL_HOST,EMAIL_PORT,EMAIL_SECURE,EMAIL_USERNAME,EMAIL_PASSWORD,WA_AUTH_URL,WA_AUTH_USER,WA_AUTH_PASS,WA_AUTH_SENDER,WA_AUTH_TEMPLATE,WA_GATEWAY_URL,WA_GATEWAY_USER,WA_GATEWAY_PASS,WA_GATEWAY_SENDER,DB_PASSWORD"
           script: |
-            set -e
-
-            BACKEND_IMAGE=${{ env.BACKEND_IMAGE }}
-            FRONTEND_IMAGE=${{ env.FRONTEND_IMAGE }}
-
-            echo "==> Pulling latest images..."
-            docker pull "$BACKEND_IMAGE:latest"
-            docker pull "$FRONTEND_IMAGE:latest"
-
-            echo "==> Ensuring Docker network exists..."
-            docker network inspect aeropos-backend_default >/dev/null 2>&1 \
-              || docker network create aeropos-backend_default
-
-            echo "==> Ensuring PostgreSQL container is running..."
-            docker start new_project_db 2>/dev/null || docker run -d \
-              --name new_project_db \
-              --network aeropos-backend_default \
-              -e POSTGRES_PASSWORD="${{ secrets.DB_PASSWORD }}" \
-              -e POSTGRES_DB=appointment_booking \
-              -v appointment_booking_pgdata:/var/lib/postgresql/data \
-              postgres:16-alpine
-
-            echo "==> Ensuring appointment_booking database exists..."
-            docker exec new_project_db psql -U postgres -tc \
-              "SELECT 1 FROM pg_database WHERE datname='appointment_booking'" | grep -q 1 \
-              || docker exec new_project_db psql -U postgres -c "CREATE DATABASE appointment_booking"
-
-            echo "==> Restarting backend container..."
-            docker stop appointment_booking_backend 2>/dev/null || true
-            docker rm appointment_booking_backend 2>/dev/null || true
-            docker run -d --name appointment_booking_backend \
-              --network aeropos-backend_default \
-              -p 7680:5000 \
-              -e DATABASE_URL="postgresql://postgres:${{ secrets.DB_PASSWORD }}@new_project_db:5432/appointment_booking" \
-              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
-              -e NODE_ENV=production \
-              -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
-              -e WA_PROVIDER="${{ secrets.WA_PROVIDER }}" \
-              -e EVOLUTION_API_URL="${{ secrets.EVOLUTION_API_URL }}" \
-              -e EVOLUTION_API_KEY="${{ secrets.EVOLUTION_API_KEY }}" \
-              -e BACKEND_URL="${{ secrets.BACKEND_URL }}" \
-              -e EVO_SYSTEM_INSTANCE="${{ secrets.EVO_SYSTEM_INSTANCE }}" \
-              -e EMAIL_HOST="${{ secrets.EMAIL_HOST }}" \
-              -e EMAIL_PORT="${{ secrets.EMAIL_PORT }}" \
-              -e EMAIL_SECURE="${{ secrets.EMAIL_SECURE }}" \
-              -e EMAIL_USERNAME="${{ secrets.EMAIL_USERNAME }}" \
-              -e EMAIL_PASSWORD="${{ secrets.EMAIL_PASSWORD }}" \
-              "$BACKEND_IMAGE:latest"
-
-            echo "==> Waiting for backend health..."
-            sleep 10
-            for i in 1 2 3 4 5; do
-              if docker exec appointment_booking_backend wget -qO- http://localhost:5000/api/health >/dev/null 2>&1; then
-                echo "    Backend healthy"
-                break
-              fi
-              echo "    Attempt $i/5 - waiting..."
-              sleep 5
-            done
-
-            echo "==> Restarting frontend container..."
-            docker stop appointment_booking_frontend 2>/dev/null || true
-            docker rm appointment_booking_frontend 2>/dev/null || true
-            docker run -d --name appointment_booking_frontend \
-              --network aeropos-backend_default \
-              -p 7679:80 \
-              "$FRONTEND_IMAGE:latest"
-
-            echo "==> Deploy complete"
-            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+            set -euo pipefail
+            cd /opt/appointment_booking
+            chmod +x deploy/rollout.sh
+            bash deploy/rollout.sh
