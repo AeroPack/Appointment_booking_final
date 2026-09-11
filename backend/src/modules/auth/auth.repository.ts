@@ -154,8 +154,15 @@ export class AuthRepository {
          RETURNING id`,
         [data.name, data.email, data.mobile_number, data.password_hash, clinicId]
       );
+      const userId = user.rows[0].id;
 
-      return { id: user.rows[0].id, clinic_id: clinicId };
+      const { FlowRepository } = await import('../flows/flow.repository.js');
+      const { seedDefaultFlowsForDoctor } = await import('../flows/flow.templates.js');
+      const flowRepo = new FlowRepository();
+      await flowRepo.seedDefaultBookingFlow(userId, data.name);
+      await seedDefaultFlowsForDoctor(userId);
+
+      return { id: userId, clinic_id: clinicId };
     });
   }
 

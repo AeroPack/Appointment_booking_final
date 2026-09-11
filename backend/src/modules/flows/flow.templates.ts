@@ -180,6 +180,100 @@ async function findOrCreateFlow(
   return flowId;
 }
 
+// ─── Default Booking Flow Template ────────────────────────────────────────────
+
+interface DefaultFlowDef {
+  name: string;
+  triggerType: string;
+  graph: { nodes: any[]; edges: any[] };
+}
+
+export function buildDefaultBookingFlow(doctorName: string): DefaultFlowDef {
+  const graph = {
+    nodes: [
+      {
+        id: 'start_1',
+        type: 'start',
+        data: { label: 'Start' },
+        position: { x: 50, y: 200 },
+      },
+      {
+        id: 'msg_greeting',
+        type: 'message',
+        data: {
+          content: `Welcome to Dr. ${doctorName}'s clinic! 🏥`,
+        },
+        position: { x: 250, y: 200 },
+      },
+      {
+        id: 'input_name',
+        type: 'input',
+        data: {
+          prompt: 'Hi there! Please share your name so I can assist you better.',
+          variable: 'patient_name',
+        },
+        position: { x: 450, y: 200 },
+      },
+      {
+        id: 'msg_welcome',
+        type: 'message',
+        data: {
+          content: 'Hi {{patient_name}}! 👋 Ready to book an appointment?',
+        },
+        position: { x: 650, y: 200 },
+      },
+      {
+        id: 'slot_picker_1',
+        type: 'slot_picker',
+        data: {
+          prompt: 'Please choose a convenient time slot:',
+          days_ahead: 14,
+        },
+        position: { x: 850, y: 200 },
+      },
+      {
+        id: 'booking_1',
+        type: 'booking_action',
+        data: {
+          label: 'Book Appointment',
+        },
+        position: { x: 1050, y: 200 },
+      },
+      {
+        id: 'msg_farewell',
+        type: 'message',
+        data: {
+          content: 'Your appointment is confirmed, {{patient_name}}! 🎉 See you soon.',
+        },
+        position: { x: 1250, y: 200 },
+      },
+      {
+        id: 'end_1',
+        type: 'end',
+        data: {
+          content: `Thank you for choosing Dr. ${doctorName}'s clinic. Have a great day!`,
+        },
+        position: { x: 1450, y: 200 },
+      },
+    ],
+    edges: [
+      { id: 'e1', source: 'start_1', target: 'msg_greeting' },
+      { id: 'e2', source: 'msg_greeting', target: 'input_name' },
+      { id: 'e3', source: 'input_name', target: 'msg_welcome' },
+      { id: 'e4', source: 'msg_welcome', target: 'slot_picker_1' },
+      { id: 'e5', source: 'slot_picker_1', target: 'booking_1' },
+      { id: 'e6', source: 'booking_1', target: 'msg_farewell' },
+      { id: 'e7', source: 'msg_farewell', target: 'end_1' },
+    ],
+  };
+
+  return {
+    name: 'Default Booking Flow',
+    triggerType: 'book',
+    graph,
+  };
+}
+
 export async function seedDefaultFlowsForDoctor(doctorId: string): Promise<void> {
   const clinicResult = await pool.query(
     `SELECT clinic_id FROM users WHERE id = $1`,

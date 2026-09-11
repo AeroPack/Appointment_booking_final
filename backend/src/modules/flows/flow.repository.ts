@@ -55,6 +55,38 @@ export class FlowRepository {
     return flow;
   }
 
+  async seedDefaultBookingFlow(doctorId: string, doctorName: string): Promise<void> {
+    const existing = await pool.query(
+      `SELECT id FROM flows WHERE doctor_id = $1 AND trigger_type = 'book' AND is_active = true LIMIT 1`,
+      [doctorId]
+    );
+    if (existing.rows[0]) return;
+
+    const { buildDefaultBookingFlow } = await import('./flow.templates.js');
+    const flow = buildDefaultBookingFlow(doctorName);
+
+    const flowResult = await pool.query(
+      `INSERT INTO flows (doctor_id, name, trigger_type, is_active)
+       VALUES ($1, $2, $3, true)
+       RETURNING id`,
+      [doctorId, flow.name, flow.triggerType]
+    );
+    const flowId = flowResult.rows[0].id;
+
+    const versionResult = await pool.query(
+      `INSERT INTO flow_versions (flow_id, version_number, status, graph, created_by, published_at)
+       VALUES ($1, 1, 'published', $2, $3, NOW())
+       RETURNING id`,
+      [flowId, JSON.stringify(flow.graph), doctorId]
+    );
+    const versionId = versionResult.rows[0].id;
+
+    await pool.query(
+      `UPDATE flows SET published_version_id = $1 WHERE id = $2`,
+      [versionId, flowId]
+    );
+  }
+
   async listFlowsByDoctor(doctorId: string): Promise<FlowSummary[]> {
     const result = await pool.query(
       `SELECT id, name, trigger_type, keywords, is_active, published_version_id, created_at, updated_at
