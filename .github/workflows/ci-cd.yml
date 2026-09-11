@@ -1,0 +1,198 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}/backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}/frontend
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ── PR validation & pre-merge checks ──────────────────────────────────────
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # ── Backend ──
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Backend typecheck
+        run: npx tsc --noEmit
+        working-directory: backend
+
+      - name: Backend build
+        run: npm run build
+        working-directory: backend
+
+      # ── Frontend ──
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend typecheck
+        run: npx tsc --noEmit
+        working-directory: frontend
+
+      - name: Frontend build
+        run: npm run build
+        working-directory: frontend
+
+  # ── Build Docker images and push to GHCR ──────────────────────────────────
+  build-and-push:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Backend image ──
+      - name: Extract backend metadata
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      # ── Frontend image ──
+      - name: Extract frontend metadata
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # ── Deploy to VPS ─────────────────────────────────────────────────────────
+  deploy:
+    if: github.event_name == 'push'
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+
+            BACKEND_IMAGE=${{ env.BACKEND_IMAGE }}
+            FRONTEND_IMAGE=${{ env.FRONTEND_IMAGE }}
+
+            echo "==> Pulling latest images..."
+            docker pull "$BACKEND_IMAGE:latest"
+            docker pull "$FRONTEND_IMAGE:latest"
+
+            echo "==> Ensuring Docker network exists..."
+            docker network inspect aeropos-backend_default >/dev/null 2>&1 \
+              || docker network create aeropos-backend_default
+
+            echo "==> Ensuring PostgreSQL container is running..."
+            docker start new_project_db 2>/dev/null || docker run -d \
+              --name new_project_db \
+              --network aeropos-backend_default \
+              -e POSTGRES_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              -e POSTGRES_DB=appointment_booking \
+              -v appointment_booking_pgdata:/var/lib/postgresql/data \
+              postgres:16-alpine
+
+            echo "==> Ensuring appointment_booking database exists..."
+            docker exec new_project_db psql -U postgres -tc \
+              "SELECT 1 FROM pg_database WHERE datname='appointment_booking'" | grep -q 1 \
+              || docker exec new_project_db psql -U postgres -c "CREATE DATABASE appointment_booking"
+
+            echo "==> Restarting backend container..."
+            docker stop appointment_booking_backend 2>/dev/null || true
+            docker rm appointment_booking_backend 2>/dev/null || true
+            docker run -d --name appointment_booking_backend \
+              --network aeropos-backend_default \
+              -p 7680:5000 \
+              -e DATABASE_URL="postgresql://postgres:${{ secrets.DB_PASSWORD }}@new_project_db:5432/appointment_booking" \
+              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              -e NODE_ENV=production \
+              -e GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}" \
+              -e WA_PROVIDER="${{ secrets.WA_PROVIDER }}" \
+              -e EVOLUTION_API_URL="${{ secrets.EVOLUTION_API_URL }}" \
+              -e EVOLUTION_API_KEY="${{ secrets.EVOLUTION_API_KEY }}" \
+              -e BACKEND_URL="${{ secrets.BACKEND_URL }}" \
+              -e EVO_SYSTEM_INSTANCE="${{ secrets.EVO_SYSTEM_INSTANCE }}" \
+              -e EMAIL_HOST="${{ secrets.EMAIL_HOST }}" \
+              -e EMAIL_PORT="${{ secrets.EMAIL_PORT }}" \
+              -e EMAIL_SECURE="${{ secrets.EMAIL_SECURE }}" \
+              -e EMAIL_USERNAME="${{ secrets.EMAIL_USERNAME }}" \
+              -e EMAIL_PASSWORD="${{ secrets.EMAIL_PASSWORD }}" \
+              "$BACKEND_IMAGE:latest"
+
+            echo "==> Waiting for backend health..."
+            sleep 10
+            for i in 1 2 3 4 5; do
+              if docker exec appointment_booking_backend wget -qO- http://localhost:5000/api/health >/dev/null 2>&1; then
+                echo "    Backend healthy"
+                break
+              fi
+              echo "    Attempt $i/5 - waiting..."
+              sleep 5
+            done
+
+            echo "==> Restarting frontend container..."
+            docker stop appointment_booking_frontend 2>/dev/null || true
+            docker rm appointment_booking_frontend 2>/dev/null || true
+            docker run -d --name appointment_booking_frontend \
+              --network aeropos-backend_default \
+              -p 7679:80 \
+              "$FRONTEND_IMAGE:latest"
+
+            echo "==> Deploy complete"
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
