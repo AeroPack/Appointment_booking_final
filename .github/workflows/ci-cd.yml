@@ -166,14 +166,20 @@ jobs:
           WA_GATEWAY_PASS: ${{ secrets.WA_GATEWAY_PASS }}
           WA_GATEWAY_SENDER: ${{ secrets.WA_GATEWAY_SENDER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
-          envs: "BACKEND_IMAGE,FRONTEND_IMAGE,DATABASE_URL,JWT_SECRET,GEMINI_API_KEY,WA_PROVIDER,EVOLUTION_API_URL,EVOLUTION_API_KEY,BACKEND_URL,EVO_SYSTEM_INSTANCE,EMAIL_HOST,EMAIL_PORT,EMAIL_SECURE,EMAIL_USERNAME,EMAIL_PASSWORD,WA_AUTH_TEMPLATE,WA_GATEWAY_URL,WA_GATEWAY_USER,WA_GATEWAY_PASS,WA_GATEWAY_SENDER,DB_PASSWORD"
+          envs: "BACKEND_IMAGE,FRONTEND_IMAGE,DATABASE_URL,JWT_SECRET,GEMINI_API_KEY,WA_PROVIDER,EVOLUTION_API_URL,EVOLUTION_API_KEY,BACKEND_URL,EVO_SYSTEM_INSTANCE,EMAIL_HOST,EMAIL_PORT,EMAIL_SECURE,EMAIL_USERNAME,EMAIL_PASSWORD,WA_AUTH_TEMPLATE,WA_GATEWAY_URL,WA_GATEWAY_USER,WA_GATEWAY_PASS,WA_GATEWAY_SENDER,DB_PASSWORD,GHCR_USERNAME,GHCR_TOKEN"
           script: |
             set -euo pipefail
+
+            echo "==> Logging into GHCR..."
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+
             cd /opt/appointment_booking
             chmod +x deploy/rollout.sh
             bash deploy/rollout.sh

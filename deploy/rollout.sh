@@ -12,8 +12,17 @@ BACKEND_IMAGE="${BACKEND_IMAGE:?BACKEND_IMAGE is required}"
 FRONTEND_IMAGE="${FRONTEND_IMAGE:?FRONTEND_IMAGE is required}"
 
 ENVFILE="/tmp/.backend.env"
-cleanup() { rm -f "$ENVFILE"; }
+cleanup() {
+  rm -f "$ENVFILE"
+  docker logout ghcr.io 2>/dev/null || true
+}
 trap cleanup EXIT
+
+# ── GHCR login (if credentials provided) ───────────────────────────────
+if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+  echo "==> Logging into GHCR..."
+  echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+fi
 
 # ── Write env file from secrets (passed as SSH envs by GitHub Actions) ─
 echo "==> Writing backend env file..."
