@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Loader2, Plus } from 'lucide-react'
 import { Button } from '@/core/components/ui/button'
 import { Card, CardContent } from '@/core/components/ui/card'
 import { Input } from '@/core/components/ui/input'
+import { PasswordInput } from '@/core/components/ui/password-input'
 import { Link } from 'react-router-dom'
 import { PasswordStrength } from '@/features/auth/components/PasswordStrength'
 
@@ -272,8 +273,7 @@ export function BasicInfoStep(props: BasicInfoStepProps) {
                 <label className="block text-[14px] font-semibold text-on-surface-variant">
                   Password
                 </label>
-                <Input
-                  type="password"
+                <PasswordInput
                   placeholder="Min 8 characters"
                   value={password}
                   onChange={handlePasswordChange}
@@ -287,8 +287,7 @@ export function BasicInfoStep(props: BasicInfoStepProps) {
                 <label className="block text-[14px] font-semibold text-on-surface-variant">
                   Confirm Password
                 </label>
-                <Input
-                  type="password"
+                <PasswordInput
                   placeholder="Re-enter password"
                   value={confirmPassword}
                   onChange={handleConfirmPasswordChange}

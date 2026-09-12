@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/core/components/ui/button';
 import { Card, CardContent } from '@/core/components/ui/card';
 import { Input } from '@/core/components/ui/input';
+import { PasswordInput } from '@/core/components/ui/password-input';
 import { OtpForm } from './OtpForm';
 import { PasswordStrength } from './PasswordStrength';
 import { extractErrorMessage } from '@/features/auth/errorMessage';
@@ -227,8 +228,7 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                   <label className="block text-[14px] font-semibold text-foreground">
                     New Password
                   </label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     placeholder="Min 8 characters"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
@@ -241,8 +241,7 @@ export const ForgotPassword: React.FC<{ onBack: () => void }> = ({ onBack }) => 
                   <label className="block text-[14px] font-semibold text-foreground">
                     Confirm Password
                   </label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     placeholder="Re-enter password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
